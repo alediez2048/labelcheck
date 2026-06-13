@@ -1,0 +1,5 @@
+# Large binaries — regenerate with the tools rather than commit them.
+# Real COLA PDFs (cola-fetcher)
+pdfs/
+# Synthetic defect-case PNGs (cola-generator)
+fail/images/
