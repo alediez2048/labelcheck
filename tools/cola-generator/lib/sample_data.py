@@ -52,9 +52,17 @@ def pick_spec(rng) -> dict:
 
 
 def alter_abv(label_abv: str) -> str:
-    """Return an ABV value that visibly differs from the label-side ABV."""
-    # 45% → 40%; 13.5% → 12.5%; 5.6% → 5.0%. Drop by a clearly different number.
-    n = float(label_abv.rstrip("%").strip())
+    """Return an ABV value that visibly differs from the label-side ABV.
+
+    Tolerates real-label formats like '40% ALC/VOL.', '13.5% ALC/VOL',
+    '5.6%', '40 % ALC/VOL', or just '40'. Extracts the first number and
+    returns a new percentage that's clearly different.
+    """
+    import re
+    match = re.search(r"\d+(?:\.\d+)?", label_abv or "")
+    if not match:
+        return "35%"  # default different value when we can't parse
+    n = float(match.group())
     if n >= 35:
         return "%g%%" % (n - 5)
     if n >= 10:
@@ -63,17 +71,26 @@ def alter_abv(label_abv: str) -> str:
 
 
 def alter_net(label_net: str) -> str:
-    """Return a net contents value that visibly differs from the label-side value."""
-    pairs = {
-        "750 ML": "375 ML",
-        "375 ML": "750 ML",
-        "700 ML": "1.0 L",
-        "500 ML": "750 ML",
-        "1.0 L": "750 ML",
-        "12 FL OZ": "16 FL OZ",
-        "16 FL OZ": "12 FL OZ",
-    }
-    return pairs.get(label_net.strip().upper(), "375 ML")
+    """Return a net contents value that visibly differs from the label-side value.
+
+    Tolerates real-label formats like '750 ML', '750ml', '750 mL', '12 FL OZ',
+    '12 fl. oz.', '700ML'. Extracts the number + unit and swaps to a clearly
+    different value.
+    """
+    import re
+    s = (label_net or "").upper().replace(".", "")
+    # Find a number followed by a unit (ML, L, FL OZ, OZ)
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(ML|L|FL\s*OZ|OZ)", s)
+    if not match:
+        return "375 ML"
+    n, unit = float(match.group(1)), match.group(2).replace(" ", "")
+    if unit == "ML":
+        return "375 ML" if n != 375 else "750 ML"
+    if unit == "L":
+        return "750 ML"
+    if unit in ("FLOZ", "OZ"):
+        return "16 FL OZ" if n != 16 else "12 FL OZ"
+    return "375 ML"
 
 
 def alter_brand(label_brand: str) -> str:

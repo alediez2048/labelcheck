@@ -186,14 +186,24 @@ class OpenAIProvider(Provider):
 
 
 class GeminiProvider(Provider):
-    """Google image generation (Imagen 3) + vision read-back (Gemini 2.0 Flash).
+    """Google image generation + vision read-back.
+
+    Tries Imagen 3 first (higher quality, requires paid tier), falls back to
+    Gemini's native image generation (gemini-2.5-flash-image-preview, aka
+    Nano Banana) which works on the free AI Studio API key tier.
 
     Requires GEMINI_API_KEY or GOOGLE_API_KEY. Install: pip install google-genai
     """
 
     name = "gemini"
-    IMAGE_MODEL = "imagen-3.0-generate-002"
-    VISION_MODEL = "gemini-2.0-flash"
+    # Verified accessible via client.models.list() on this account:
+    #   imagen-4.0-generate-001       — production Imagen 4 (paid)
+    #   imagen-4.0-fast-generate-001  — faster/cheaper variant
+    #   gemini-2.5-flash-image        — native multimodal image gen
+    #   gemini-3.1-flash-image        — newer native, may need preview access
+    IMAGEN_MODEL = "imagen-4.0-generate-001"
+    NATIVE_IMAGE_MODEL = "gemini-2.5-flash-image"
+    VISION_MODEL = "gemini-2.5-flash"  # gemini-2.0-flash deprecated
 
     def __init__(self) -> None:
         try:
@@ -207,16 +217,63 @@ class GeminiProvider(Provider):
             raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY not set")
         self._genai = genai
         self._client = genai.Client(api_key=api_key)
+        self._active_path: Optional[str] = None  # 'imagen' | 'native'
 
     def generate_image(self, prompt: str) -> Image.Image:
+        # If we've already locked in a path this run, use it directly.
+        if self._active_path == "imagen":
+            return self._call_imagen(prompt)
+        if self._active_path == "native":
+            return self._call_native(prompt)
+
+        # First call — try Imagen, then fall back.
+        try:
+            img = self._call_imagen(prompt)
+            self._active_path = "imagen"
+            print("    using Gemini image path: Imagen 3")
+            return img
+        except Exception as e:
+            msg = str(e)
+            # Print the Imagen error so we can diagnose paid-tier issues.
+            short = msg.replace("\n", " ")[:200]
+            print("    Imagen 3 error: %s" % short)
+            if "NOT_FOUND" in msg or "not found" in msg or "not supported" in msg or \
+               "permission" in msg.lower() or "PERMISSION_DENIED" in msg:
+                print("    falling back to native image generation (%s)" %
+                      self.NATIVE_IMAGE_MODEL)
+                img = self._call_native(prompt)
+                self._active_path = "native"
+                print("    using Gemini image path: native (%s)" %
+                      self.NATIVE_IMAGE_MODEL)
+                return img
+            raise
+
+    def _call_imagen(self, prompt: str) -> Image.Image:
         resp = self._client.models.generate_images(
-            model=self.IMAGE_MODEL,
+            model=self.IMAGEN_MODEL,
             prompt=prompt,
             config={"number_of_images": 1, "aspect_ratio": "1:1"},
         )
-        # Returns inline image bytes.
         png_bytes = resp.generated_images[0].image.image_bytes
         return Image.open(io.BytesIO(png_bytes)).convert("RGB")
+
+    def _call_native(self, prompt: str) -> Image.Image:
+        from google.genai import types  # type: ignore
+        resp = self._client.models.generate_content(
+            model=self.NATIVE_IMAGE_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"],
+            ),
+        )
+        # The image is one of the parts in the response.
+        for part in resp.candidates[0].content.parts:
+            inline = getattr(part, "inline_data", None)
+            if inline and getattr(inline, "data", None):
+                return Image.open(io.BytesIO(inline.data)).convert("RGB")
+        raise RuntimeError(
+            "Gemini native image response had no inline_data; got text instead"
+        )
 
     def read_label(self, img: Image.Image) -> dict:
         buf = io.BytesIO()
