@@ -1,0 +1,9 @@
+# Core (always required)
+Pillow>=10.0
+
+# Test runner
+pytest>=8.0
+
+# AI providers (optional — install only if you'll use --provider openai|gemini)
+# openai>=1.50
+# google-genai>=1.0
