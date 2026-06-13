@@ -1,4 +1,4 @@
 case_id,file_name,brand_name,fanciful_name,class_type,origin,net_contents,abv,warning_present,expected_result,defect_type,expected_field,notes
-case_variant_001,case_variant_001.png,Harbor Mist,Coastal White,TABLE WINE,California,750 ML,12.5%,yes,match,case_variant,,label HARBOR MIST vs application Harbor Mist (must MATCH) [pillow]
-abv_mismatch_001,abv_mismatch_001.png,IRON GATE,,LONDON DRY GIN,New York,750 ML,35%,yes,mismatch,abv_mismatch,abv,label 40% vs application 35% [pillow]
-none_001,none_001.png,TOMASELLO,,TABLE RED WINE,New Jersey,750 ML,12.0%,yes,match,none,,clean control — should pass [pillow]
+case_variant_001,case_variant_001.png,Harbor Mist,Coastal White,TABLE WINE,California,750 ML,12.5% ALC/VOL.,yes,match,case_variant,,label HARBOR MIST vs application Harbor Mist (must MATCH) [ai]
+abv_mismatch_001,abv_mismatch_001.png,IRON GATE,CRAFT FLAT FRONT,GIN LONDON DRY,New York,750 ML,35%,yes,mismatch,abv_mismatch,abv,label 40% ALC/VOL. vs application 35% [ai]
+none_001,none_001.png,TOMASELLO,,TABLE RED WINE,New Jersey,750 ML,12.0% ALC/VOL,yes,match,none,,clean control — should pass [ai]
