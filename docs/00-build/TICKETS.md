@@ -75,10 +75,10 @@ Phase 0 exit: app boots, mock adapter returns a structured extraction, types com
 
 Description: the headline take-home flow. A label and an application go in; a fast, accessible, triaged result with a per-field breakdown and the two dispositions come out. This phase is the deliverable; ship it well.
 
-### P1-1 — Application input and sample loader
+### P1-1 — Application input and sample loader ✅ done 2026-06-15
 - Depends: P0-2 · Branch: feat/app-input · Est: 3h
 - Goal: capture one-or-more label faces and the form fields, manual entry plus preloaded sample applications.
-- Acceptance: [ ] multi-face upload (front/back/neck); [ ] form fields by beverage type; [ ] sample picker loads a fixture (AC for demo); [ ] input validated (zod).
+- Acceptance: [x] multi-face upload (front/back/neck); [x] form fields by beverage type; [x] sample picker loads a fixture (AC for demo); [x] input validated (zod).
 - Files: create the input UI, lib/validation, fixtures/samples.ts.
 - Refs: FR-1, FR-2, FR-3; D9, D12.
 
