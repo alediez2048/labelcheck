@@ -4,6 +4,37 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P1-5 Triage classifier
+
+**Branch:** `feat/triage`
+**Status:** Done
+
+**What landed:**
+- `lib/triage/classify.ts` — `classify(input)` returns `{ lane, overallConfidence, reasons }`. Five explicit branches in priority order, none consolidated into math:
+  1. Any field's verdict is `mismatch` AND confidence ≥ threshold → mismatch lane.
+  2. Warning verdict is `mismatch` at ANY confidence → mismatch lane.
+  3. Unreadable face in context → review lane with "needs a better image" reason (FR-16, FR-26b).
+  4. Any not_found / low_confidence / below-threshold match or mismatch → review lane.
+  5. Otherwise → match lane.
+- `overallConfidence` is the **minimum** field confidence (D11 conservative posture).
+- Threshold is dependency-injected (`confidentThreshold` optional input; defaults to `tolerances.confidence.threshold` from `lib/config`).
+- `lib/triage/__tests__/classify.test.ts` — 13 new tests: AC-1 (clean match), AC-2 (ABV mismatch surfaces with reason), AC-3 (warning caps fail surfaces even with everything else clean), AC-4 (missing warning surfaces), AC-6 (unreadable → review with "needs a better image"), near-miss → review (D5), bold-uncertain → review, not_found → review, near-miss mismatch → review (NOT mismatch — confident-mismatch-only goes to mismatch lane), confident mismatch beats unreadable-face review, warning-first reason ordering, overall-confidence-as-minimum.
+
+**Verification:**
+- `pnpm test` clean — 10 files, **82 tests** (69 prior + 13 new), all pass in 915ms.
+- `pnpm build` clean (`✓ Compiled successfully in 1424ms`). No new routes (P1-7 wires the result API).
+- `pnpm lint` clean.
+
+**Deviations from ticket:**
+- None. Triage classifier returns the lightweight `TriageResult` shape (`{ lane, overallConfidence, reasons }`) rather than a full `VerificationResult` — the route handler in P1-7 will assemble the public shape from triage + extraction + field results.
+
+**Why:**
+P1-5 operationalises the review model. The priority order is the single most important design decision in the whole verifier — anything that "tidies" it (one big switch, a scoring function, a "weighted lane" computation) silently breaks the agency's risk posture, because a clean-looking aggregate can hide a single bad field. The implementation refuses every consolidation temptation: five branches, in order, each explicit, none collapsing into a math expression. A future maintainer staring at this will think "this could be simpler" — and the answer is "yes, but at the cost of the agency's risk posture, which is the whole product." The warning surfaces at any confidence (branch 2, not just branch 1) intentionally. The warning is the highest-stakes check (FR-11, FR-12) and the matching engine already does the strict work — a warning mismatch verdict is by construction a real, regulatory-grade flag. Routing it to the review lane on a low confidence number would mean the system saw a regulatory failure and then said "I'm not sure, you decide" — which is exactly what we don't want for the highest-stakes field. Overall confidence = minimum field confidence (D11). The alternative — averaging — was rejected explicitly: one weak signal averaged with three strong ones produces a confident-looking aggregate that hides exactly the case the review model exists to catch. Minimum makes the weakest link visible. The near-miss mismatch case (branch 4: `verdict=mismatch AND confidence<threshold`) is the subtle one. A fuzzy field that comes in just below its similarity threshold reads as mismatch from the matching engine, but the confidence is near 0.5. Routing it to the mismatch lane would mean asserting we're confident in the mismatch when we're not. Routing it to the review lane is the right call — the agent looks, decides whether it's a real mismatch or a typo. This is the case where the review model's "when in doubt, escalate" stance materialises in code. Dependency injection of the threshold (`confidentThreshold` optional input that defaults to the config value) follows the same pattern as P1-3 / P1-4. Tests pass a fixed value; production reads from config. The configurable threshold is what makes future P5-2 calibration possible — the eval harness sweeps the threshold across the golden set and finds the value that balances false-negative rate (headline safety metric) against false-positive review-lane volume (headline cost metric). The unreadable-image context is wired as a separate input rather than overloaded into the field-results array — the matching engine doesn't know which faces failed extraction; that's information the upstream extraction service and the route handler carry. The reasons array preserves the warning failure first in mismatch lane outputs so the agent's UI surfaces "Warning missing" above "ABV mismatch" — sorting by field type rather than insertion order would lose the priority signal at exactly the point a stakeholder might overlook it.
+
+**Next:** P1-6 — Multi-face merge ("a field is satisfied if found on any face; warning checked across all faces" per D12).
+
+---
+
 ## 2026-06-15 — P1-4 Confidence derivation
 
 **Branch:** `feat/confidence`
