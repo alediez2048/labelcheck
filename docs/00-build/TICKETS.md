@@ -190,10 +190,10 @@ Description: build the product around the core, the agent worklist, the supervis
 - Acceptance: [x] Admin sees Operations/All Applications/Analytics/Team/Knowledge Base (last four are placeholders for P2-6 / P4-1); [x] Agent sees My Queue/My Stats/Profile (Stats placeholder, Profile has the availability toggle); [x] admin-only actions gated at BOTH UI (hidden in agent shell) and lib (`requireAdmin` in `lib/auth/scope.ts` throws); [x] cross-shell route visits redirect (admin route + agent actor → `/queue`; agent route + admin actor → `/operations`); [x] agent data scoped to self via `state.currentAgentId` + the existing `selectMyQueue` selector; [x] PIV/CAC/SSO production note rendered under the role switcher (NFR-8).
 - Refs: FR-29; D16.
 
-### P2-6 — All Applications, Analytics, Team
+### P2-6 — All Applications, Analytics, Team ✅ done 2026-06-15 — Phase 2 complete
 - Depends: P2-5 · Branch: feat/admin-views · Est: 4h
 - Goal: the full record (searchable/filterable), division analytics, per-member performance with specialization.
-- Acceptance: [ ] filters (status, range, agent, search); [ ] analytics KPIs + charts; [ ] team table with specialization and rates.
+- Acceptance: [x] filters (status enum, today/week/month/all_time, multi-agent, free-text search across brand + TTB id); [x] analytics KPIs + 5 charts (KpiCards, VolumeTrend, TriageDonut, TopMismatchReasons, ThroughputByAgent), week/month toggle; [x] Team table with per-member week + month KPIs + 3-segment lane rate bar + the inline SpecializationEditor + Availability toggle; [x] My Stats row-scoped (per-agent KpiCards with hoursSavedHidden + per-agent TriageDonut + recent decisions); [x] Profile with identity, read-only specialization chips, preserved Availability toggle. 25 historical dispositioned applications seeded for analytics density.
 - Refs: mockup.md; schema metric_rollup.
 
 Phase 2 exit: both shells work; exceptions route to specialists with overflow; bulk-approve clears the match lane; the role switcher gates admin-only actions.

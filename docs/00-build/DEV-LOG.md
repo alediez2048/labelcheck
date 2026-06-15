@@ -4,6 +4,90 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P2-6 All Applications, Analytics, Team — Phase 2 complete
+
+**Branch:** `feat/admin-views`
+**Status:** Done — Phase 2 closes here
+
+**Workflow note:** Fourth parallel-agent build on the project. Agent A landed the data layer (`dispositionedApplications` on the store, 25 seeded historical rows, `recordDisposition` refactor to APPEND not just remove), the analytics types + selectors, all six chart components, and the Analytics page. Agent B landed the All Applications filter + UI, the Team table, the My Stats page, the Profile page. The contract dictated upfront — selector signatures + chart component prop shapes — meant Agent B's Stats page consumed Agent A's KpiCards and TriageDonut directly. Integration was clean on the first combined build.
+
+**What landed:**
+
+### Data layer (Agent A)
+- `lib/queue/types.ts` — added `ApplicationStatus = "in_queue" | "approved" | "needs_correction" | "rejected"`, `DispositionedApplication = QueueApplication & { disposition: DispositionRecord; status: Exclude<ApplicationStatus, "in_queue"> }`. `QueueStoreState` gained `dispositionedApplications: ReadonlyArray<DispositionedApplication>`.
+- `lib/queue/fixtures.ts` — `AVG_MANUAL_HANDLING_SECONDS = 240` constant (documented for the hours-saved math), `SEED_DISPOSITIONED_APPLICATIONS` with 25 historical rows spread over 8 weeks (60% match / 24% mismatch / 16% review lanes; 68% approved / 24% needs_correction / 8% rejected dispositions).
+- `lib/queue/disposition.ts` — `recordDisposition` now APPENDS a `DispositionedApplication` to `state.dispositionedApplications` (with `status` derived from `disposition`) instead of just removing the row. The active-queue selectors filter on the live `applications` array so existing queue UX is unchanged.
+- `lib/queue/QueueProvider.tsx` — `INITIAL_STATE` wires `SEED_DISPOSITIONED_APPLICATIONS`.
+
+### Analytics (Agent A)
+- `lib/analytics/types.ts` — `AnalyticsRange`, `KpiSnapshot`, `TrendBucket`, `TriageBreakdown`, `MismatchReason`, `AgentThroughput`, `RecentDecision`.
+- `lib/analytics/metrics.ts` — seven pure selectors over the store: `divisionKpis`, `agentKpis`, `volumeTrend`, `triageBreakdown(state, range, agentId?)`, `topMismatchReasons(state, range, agentId?)`, `throughputByAgent`, `recentDecisions(state, agentId, limit)`. Each accepts an optional `now` arg for test determinism. The agent-scoped variants (triageBreakdown, topMismatchReasons) take an optional `agentId` so the same selectors back both Analytics (division) and My Stats (per-agent).
+- `lib/analytics/__tests__/metrics.test.ts` — 20 tests covering counts, agent slices summing to division totals, lane-count correctness, mismatch-reason grouping, bucket arity, agent-scope row isolation.
+- `components/analytics/RangeToggle.tsx` — segmented Week / Month control, color + icon + text per state.
+- `components/analytics/KpiCards.tsx` — four cards. The `hoursSavedHidden` prop swaps "Hours saved" for "Avg handling time" on the per-agent view (hours saved is a division metric, not per-agent meaningful).
+- `components/analytics/VolumeTrend.tsx` — 8-bar column chart with numeric legend.
+- `components/analytics/TriageDonut.tsx` — SVG donut over the three AI lanes with a numeric legend so colour isn't load-bearing.
+- `components/analytics/TopMismatchReasons.tsx` — horizontal bars per failing field, sorted descending.
+- `components/analytics/ThroughputByAgent.tsx` — bars labeled by agent name.
+- `app/(admin)/analytics/page.tsx` — replaces the placeholder. RangeToggle (client state) + the five charts.
+
+### Applications, Team, agent views (Agent B)
+- `lib/applications/filter.ts` — `filterApplications(state, input, now?)`. Unions `state.applications` (status=`in_queue`) with `state.dispositionedApplications`. Applies search (brand + TTB id, case-insensitive), status (schema enum), range (today/this_week/this_month/all_time), assignedAgent multi-select. Sorts by `receivedAt` desc. Returns `ApplicationsRow[]` with `ttbId` = `applicationId.toUpperCase()` as the prototype's TTB-id stand-in.
+- `lib/applications/__tests__/filter.test.ts` — 14 tests with a fixed `now` covering empty filters, search, status enum, all four range boundaries, agent multi-select, agent-name lookup, ttbId derivation.
+- `components/applications/ApplicationsFilters.tsx` — search input + status checkboxes + range radio segment + agent checkboxes, plus a Clear-filters button when anything is active.
+- `components/applications/ApplicationsTable.tsx` — semantic `<table>` with sticky header, striped rows, status pill (color + icon + text per AC-9: slate `in_queue`, emerald `approved`, amber `needs_correction`, rose `rejected`), lane pill, empty-state message.
+- `app/(admin)/applications/page.tsx` — replaces the placeholder.
+- `components/team/TeamTable.tsx` — per-agent row with completed-this-week, completed-this-month, 3-segment lane rate bar (numeric caption + hover titles), mm:ss handling time, the `SpecializationEditor` from `components/operations/` mounted inline, and a per-row availability radio toggle.
+- `app/(admin)/team/page.tsx` — replaces the placeholder. Derives row data from `agentKpis` (week + month) and `triageBreakdown` (month); wires `setSpecialization` and `setAvailability` from `useQueue()`.
+- `app/(agent)/stats/page.tsx` — replaces the placeholder. Row-scoped to `currentAgent.id`. RangeToggle + KpiCards with `hoursSavedHidden` + per-agent TriageDonut + a "Recent decisions" list from `recentDecisions(state, currentAgent.id, 8)`. Guards on `currentAgent` undefined / non-agent role.
+- `app/(agent)/profile/page.tsx` — replaces the placeholder while PRESERVING the availability toggle from P2-5. Adds an identity card (name + role pill + agent id), a Team caption ("Agent" with a "no team grouping yet" inline note), and read-only specialization chips with the caption "Specialization is set by admins in Team."
+
+### Test plumbing updates (Agent A)
+- `lib/queue/__tests__/queue.test.ts` — seed helper gains `dispositionedApplications: []`; two new tests cover the APPEND behaviour and the `status` derivation from the disposition.
+- `lib/operations/__tests__/operations.test.ts` — seed helper updated.
+- All six router test files — seed helper updated for the new `QueueStoreState` shape.
+
+**Verification:**
+- `pnpm test` — 30 files, **274 tests pass + 1 skipped** (239 prior + 35 new: 20 metrics + 14 filter + 2 queue/dispositionedApplications + 1 small misc).
+- `pnpm build` — clean. **11 routes** total, 5 now with real content: `/applications` (2.9 kB), `/analytics` (real chart bundle), `/team` (4.02 kB), `/stats` (1.48 kB), `/profile` (1.88 kB).
+- `pnpm lint` — clean.
+- Manual smoke: all five routes return 200. The HTML payload is Next.js RSC (the client `(admin)/layout.tsx` renders `null` during the role-gate redirect phase, then hydrates the actual page) so direct curl doesn't read the rendered content — real verification needs a browser pass.
+
+**Deviations from ticket:**
+- The mockup's "applicant" column on All Applications is omitted — applicant name is PII (schema.md NFR-4) and the fixture doesn't carry it. The visible columns are application + TTB id, type, status, lane, assigned agent, received date.
+- Status filter values are the schema enum strings (`in_queue | approved | needs_correction | rejected`); friendly labels are decoupled in the UI per the ticket's instruction. The prototype-to-production mapping stays one-to-one.
+- Profile's "team" caption says "Agent" with an inline note that the prototype has no team grouping (schema.md has `agent.team`; fixture doesn't). P2-6's Team view is per-member, not per-team-group, so the absence is consistent.
+- `recordDisposition` now APPENDS to `dispositionedApplications` AND removes from `applications`. The ticket implied "swap remove for status update"; the cleaner shape was the dual-list approach because the live queue and the history have different selector needs. Tests cover both.
+- The 25 historical fixture rows include one row with `extractedValue: null` for `producer_address` (verdict=`not_found`); needed an `as unknown as string` cast to satisfy the `HistoricalSeed` shape without widening the public type. Documented inline.
+- Agent A noted that the auto-rejected status is system-generated, not derived from a `Disposition`. The `statusForDisposition` helper deliberately doesn't return `"rejected"` — pre-seeded auto-reject rows carry `status: "rejected"` directly. Production's FR-27 30-day-auto-reject path will produce these.
+
+**Why:**
+P2-6 closes Phase 2 — the queue + routing + shells now have the analytics surface the supervisor needs to manage the operation and the per-agent surface each agent needs to track their own work. The pattern from earlier parallel-agent builds carried over: contract-first dispatch, disjoint file scopes, shared component reuse where it makes sense (Stats consumes Analytics's KpiCards + TriageDonut). The integration was clean on the first combined build.
+
+The **data-layer split between active `applications` and historical `dispositionedApplications`** is the structural enforcement of "the live queue is small and fast; the history grows monotonically". The queue selector reads only the live list; the analytics and All Applications read both. Mixing them into one list with a `status` discriminator would have worked but would mean every queue read filters by status — a quiet performance and correctness gotcha when the historical set grows. Two lists, two selectors, two clear performance profiles.
+
+The **selectors mirror schema.md `metric_rollup`** so the prototype-to-production swap is one-for-one. Production rolls metrics into a table at write time; the prototype computes them on the fly from the store. The function signatures and return shapes are identical; the bodies swap from "iterate the in-memory store" to "read the rollup row". P6-2's persistence work plugs into the same `divisionKpis(range)` and `agentKpis(agentId, range)` call sites without touching the UI.
+
+The **agent-scoped variants on `triageBreakdown` and `topMismatchReasons`** are the row-scope discipline materialised in the selector signature itself. The supervisor calls `triageBreakdown(state, range)` and gets the division; the agent calls `triageBreakdown(state, range, currentAgent.id)` and gets their slice. Same function, scoped by parameter — not two parallel functions that could drift in counting logic. The "agent's stats are a strict subset of the division's" invariant is tested explicitly.
+
+The **`hoursSavedHidden` prop on `KpiCards`** is a small-but-honest choice. Hours saved is a meaningful number at the division level (the agency's ROI signal) but meaningless per agent — an agent's hours saved is the same as the division's per-agent average, by construction. Showing it on My Stats would invite the agent to read it as their personal contribution, which would be a misleading misread. Hiding it on the per-agent view is the honest answer; swapping in "Avg handling time" keeps the card count at four for visual consistency.
+
+The **`<details>` tap-expand isn't needed on All Applications** because the table itself IS the detail — the table shows status, lane, assigned agent, and date. The applicant deep-dive lives on the existing review pages (`/queue/[id]` for in-flight work, future history detail for dispositioned rows). Keeping All Applications as a flat searchable table means the supervisor can scan + filter + click through to detail; embedding inline detail would clutter the scan surface.
+
+The **TeamTable reuses the existing `SpecializationEditor` from `components/operations/`** verbatim. The editor was built for the Operations inline-edit affordance in P2-4; on the Team view it lives inside the per-row Specialization cell. Two surfaces, one component — exactly the no-duplication discipline the project has held since P1-7's `FieldTable` was reused on the Operations bottom-quartile expansion. Future edits to the editor flow to both surfaces automatically.
+
+The **per-row Availability toggle on the Team table** lets the supervisor flip an agent OOO without forcing them through Profile. This is the structural complement to P2-5's "agents can set their own availability via Profile" rule: admins can flip anyone's; agents can flip their own. The `setAvailability` action's allow-rule (admin OR self) is what makes both surfaces work without separate gates.
+
+The **25 historical fixture rows** are the data density Analytics needs to look populated. 9 active applications wouldn't fill a volume-trend chart or a top-mismatch-reasons bar chart at all; the historical rows give the charts visible data without being so dense that the demo loses its hand-curated quality. Spread across 8 weeks, the rows produce a recognisable volume curve and a believable agent-throughput chart on the first load.
+
+The **WCAG AA discipline on charts** — every chart has a numeric legend or table-style caption alongside the visual — is the same color+icon+text rule applied to data visualisations. A color-blind reviewer can read every chart by the numbers; a black-and-white printout still surfaces the data. AC-9 holds across the new analytics surface.
+
+**Phase 2 status:** COMPLETE. P2-1 through P2-6 are all merged to main. The Admin shell now has its full nav: Operations + All Applications + Analytics + Team + Knowledge Base (placeholder for P4-1). The Agent shell has its full nav: My Queue + My Stats + Profile. Both shells route through a working role switcher with the PIV/CAC/SSO production note. Specialization-aware routing with overflow is in. Bulk-confirm + Distribute + Hand-assign + Reassign + Set-specialization are all gated at the lib + UI layers. Phase 2 exit criteria are met.
+
+**Next:** Phase 3 begins — P3-1 (Batch intake — accept ~300 applications, async with bounded concurrency, group results by lane, surface the same bulk-confirm). The seam from P3-1's perspective is "Operations' bulk-confirm path now handles a larger pile of match-lane outputs without UX change".
+
+---
+
 ## 2026-06-15 — P2-5 Role-based shells (parallel-agent build)
 
 **Branch:** `feat/roles`

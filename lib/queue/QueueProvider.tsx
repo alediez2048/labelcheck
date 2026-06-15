@@ -45,6 +45,7 @@ import {
   SEED_AGENTS,
   SEED_APPLICATIONS,
   SEED_AUDIT_EVENTS,
+  SEED_DISPOSITIONED_APPLICATIONS,
 } from "./fixtures";
 import { selectMyQueue, selectPoolCount } from "./myQueue";
 import type { QueueAgent, QueueItem, QueueStoreState } from "./types";
@@ -121,6 +122,7 @@ const QueueContext = createContext<QueueContextValue | null>(null);
 const INITIAL_STATE: QueueStoreState = {
   agents: SEED_AGENTS,
   applications: SEED_APPLICATIONS,
+  dispositionedApplications: SEED_DISPOSITIONED_APPLICATIONS,
   currentAgentId: DEFAULT_CURRENT_AGENT_ID,
   baselineMatchRate: BASELINE_MATCH_RATE,
   auditEvents: SEED_AUDIT_EVENTS,

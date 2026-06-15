@@ -36,6 +36,7 @@ function seed(): QueueStoreState {
   return {
     agents: SEED_AGENTS,
     applications: SEED_APPLICATIONS,
+    dispositionedApplications: [],
     currentAgentId: DEFAULT_CURRENT_AGENT_ID,
     baselineMatchRate: BASELINE_MATCH_RATE,
     auditEvents: SEED_AUDIT_EVENTS,

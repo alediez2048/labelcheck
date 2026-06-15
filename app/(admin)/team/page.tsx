@@ -1,39 +1,66 @@
 /**
- * /team — Team placeholder (P2-5; lands in P2-6).
+ * /team — Team (P2-6; mockup.md "Team"; D15).
  *
- * Per-member performance + the specialization editor land here in
- * P2-6. The specialization editor already exists inline on the
- * Operations review-distribution board (P2-4); this page will
- * eventually surface the same control alongside the per-agent
- * throughput table.
+ * Per-member performance table. One row per `role === "agent"`
+ * member. The supervisor sees their week / month throughput, their
+ * triage split as a rate bar, their average handling time, and can
+ * edit specialization + availability inline. Both admin-gated writes
+ * are passed straight through to the QueueProvider — the lib-layer
+ * guard is the source of truth, the page is just the surface.
+ *
+ * Metric rows are derived per-agent from the parallel-agent-shipped
+ * analytics selectors. The selector shape mirrors `metric_rollup`
+ * (schema.md) so the production swap is "replace the in-memory
+ * computation with a rollup read" — the page is unchanged.
  */
 
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
+
+import { TeamTable } from "@/components/team/TeamTable";
+import { agentKpis, triageBreakdown } from "@/lib/analytics/metrics";
+import { useQueue } from "@/lib/queue/QueueProvider";
 
 export default function TeamPage(): React.ReactElement {
+  const { state, setSpecialization, setAvailability } = useQueue();
+
+  const rows = useMemo(() => {
+    const agents = state.agents.filter((a) => a.role === "agent");
+    return agents.map((agent) => {
+      const weekKpis = agentKpis(state, agent.id, "week");
+      const monthKpis = agentKpis(state, agent.id, "month");
+      const triage = triageBreakdown(state, "month", agent.id);
+      return {
+        agent,
+        weekKpis,
+        monthKpis,
+        triage,
+        avgHandlingSec: monthKpis.avgHandlingSeconds,
+      };
+    });
+  }, [state]);
+
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
+    <main className="mx-auto max-w-7xl px-6 py-10">
       <header>
         <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
           Admin shell
         </p>
         <h1 className="mt-1 text-3xl font-bold text-slate-900">Team</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Per-member performance and specialization — coming in P2-6.
+          Per-member throughput and outcomes. Edit specialization to retune the
+          router — the next Distribute on Operations reflects the change.
         </p>
       </header>
 
-      <section className="mt-8 rounded-lg border border-dashed border-slate-300 bg-white p-6">
-        <p className="text-sm text-slate-600">
-          A table of each team member with applications completed this week
-          and this month, their match / mismatch / review split as a rate bar,
-          average handling time, and a Specialization column with an Edit
-          control. The specialization editor is already wired on Operations;
-          this page will reuse it.
-        </p>
-      </section>
+      <div className="mt-6">
+        <TeamTable
+          rows={rows}
+          onSetSpecialization={setSpecialization}
+          onSetAvailability={setAvailability}
+        />
+      </div>
     </main>
   );
 }
