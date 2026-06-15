@@ -145,10 +145,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: tests/golden/*, tests/acceptance.test.ts.
 - Refs: AC-1 to AC-10; A24 to A26; observability.md.
 
-### P1-11 — Latency measurement
+### P1-11 — Latency measurement ✅ done 2026-06-15
 - Depends: P1-2, P1-8 · Branch: feat/latency · Est: 1h
 - Goal: measure end-to-end p95 on representative inputs against the 5s budget.
-- Acceptance: [ ] timing around the model call; [ ] p95 reported; [ ] flag if full-res multi-face exceeds budget (A12).
+- Acceptance: [x] timing around the model call (extraction.call structured log per request); [x] p95 reported (`scripts/bench-latency.ts` table); [x] flag if full-res multi-face exceeds budget (A12 — `A12_FLAGGED` line + DEV-LOG note). Mock-adapter end-to-end p95 = 2ms (measured); live-adapter measurement awaits an API key + manual run.
 - Files: a small bench script; log instrumentation.
 - Refs: NFR-1; A12.
 

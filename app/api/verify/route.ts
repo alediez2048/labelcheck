@@ -307,129 +307,178 @@ function buildSuccessResult(opts: {
 // Handler
 // ---------------------------------------------------------------------------
 
+/**
+ * Log one end-to-end request span. Called from the POST handler's
+ * `finally` so every return path is covered. PII (form values, image
+ * bytes, transcribed text) stays out per NFR-4 / observability.md.
+ */
+function logRequestSpan(opts: {
+  applicationId: string | null;
+  outcome: "ok" | "validation" | "degraded" | "unreadable" | "error";
+  lane?: string;
+  startedAt: number;
+  status: number;
+}): void {
+  // eslint-disable-next-line no-console
+  console.info(
+    JSON.stringify({
+      event: "verify.request",
+      applicationId: opts.applicationId ?? "<unknown>",
+      outcome: opts.outcome,
+      lane: opts.lane,
+      status: opts.status,
+      e2eMs: Math.round(performance.now() - opts.startedAt),
+    }),
+  );
+}
+
 export async function POST(req: Request): Promise<NextResponse> {
-  // 1. Parse JSON. A malformed body is a 400 with a plain-language
-  //    reason — never an unhandled exception bubbling up.
-  let raw: JsonBody;
+  // End-to-end timing for the /api/verify request — the NFR-1 5s
+  // p95 budget is measured against this number. The extraction layer
+  // also logs its own per-request timing so we can isolate the
+  // dominant cost (P1-11; observability.md: What We Instrument).
+  const startedAt = performance.now();
+  let applicationId: string | null = null;
+  let outcome: "ok" | "validation" | "degraded" | "unreadable" | "error" =
+    "ok";
+  let lane: string | undefined;
+  let status = 200;
   try {
-    raw = (await req.json()) as JsonBody;
-  } catch {
-    return NextResponse.json(
-      { error: "Request body must be valid JSON.", fields: [] },
-      { status: 400 },
-    );
-  }
+    // 1. Parse JSON. A malformed body is a 400 with a plain-language
+    //    reason — never an unhandled exception bubbling up.
+    let raw: JsonBody;
+    try {
+      raw = (await req.json()) as JsonBody;
+    } catch {
+      outcome = "validation";
+      status = 400;
+      return NextResponse.json(
+        { error: "Request body must be valid JSON.", fields: [] },
+        { status: 400 },
+      );
+    }
 
-  if (!raw || typeof raw !== "object") {
-    return NextResponse.json(
-      { error: "Request body must be a JSON object.", fields: [] },
-      { status: 400 },
-    );
-  }
+    if (!raw || typeof raw !== "object") {
+      outcome = "validation";
+      status = 400;
+      return NextResponse.json(
+        { error: "Request body must be a JSON object.", fields: [] },
+        { status: 400 },
+      );
+    }
 
-  // 2. Decode wire-format bytes → Buffer per face. Failure here is also a
-  //    400 — the agent's UI can surface "face N could not be decoded"
-  //    without leaking a zod path.
-  const decoded = decodeBody(raw);
-  if (!decoded.ok) {
-    return NextResponse.json(
-      { error: decoded.error, fields: decoded.fields },
-      { status: 400 },
-    );
-  }
+    // 2. Decode wire-format bytes → Buffer per face. Failure here is also a
+    //    400 — the agent's UI can surface "face N could not be decoded"
+    //    without leaking a zod path.
+    const decoded = decodeBody(raw);
+    if (!decoded.ok) {
+      outcome = "validation";
+      status = 400;
+      return NextResponse.json(
+        { error: decoded.error, fields: decoded.fields },
+        { status: 400 },
+      );
+    }
+    applicationId = decoded.submission.applicationId;
 
-  // 3. Validate the (now Buffer-bearing) submission against the P1-1 zod
-  //    schema. The validator returns a UI-friendly shape — no zod paths
-  //    leak through.
-  const validation = validateApplication(decoded.submission.body);
-  if (!validation.ok) {
-    const fieldNames = Object.keys(validation.fieldErrors);
-    const fieldMessages = Object.values(validation.fieldErrors).filter(
-      (m): m is string => typeof m === "string" && m.length > 0,
-    );
-    const message =
-      fieldMessages[0] ??
-      validation.formErrors[0] ??
-      "Submission could not be validated.";
-    return NextResponse.json(
-      { error: message, fields: fieldNames },
-      { status: 400 },
-    );
-  }
+    // 3. Validate the (now Buffer-bearing) submission against the P1-1
+    //    zod schema. The validator returns a UI-friendly shape — no zod
+    //    paths leak through.
+    const validation = validateApplication(decoded.submission.body);
+    if (!validation.ok) {
+      const fieldNames = Object.keys(validation.fieldErrors);
+      const fieldMessages = Object.values(validation.fieldErrors).filter(
+        (m): m is string => typeof m === "string" && m.length > 0,
+      );
+      const message =
+        fieldMessages[0] ??
+        validation.formErrors[0] ??
+        "Submission could not be validated.";
+      outcome = "validation";
+      status = 400;
+      return NextResponse.json(
+        { error: message, fields: fieldNames },
+        { status: 400 },
+      );
+    }
 
-  const submission: ApplicationSubmission = validation.data;
+    const submission: ApplicationSubmission = validation.data;
 
-  // 4. Run extraction. Preprocessing happens inside the service so the
-  //    handler stays a glue layer (D7). Bytes never leave the request
-  //    lifecycle.
-  const extractable: ExtractableApplication = {
-    id: decoded.submission.applicationId,
-    beverageType: submission.beverageType,
-    faces: submission.faces.map((f) => ({
-      kind: f.kind,
-      bytes: f.bytes,
-      mime: f.mime,
-    })),
-  };
+    // 4. Run extraction. Preprocessing happens inside the service so the
+    //    handler stays a glue layer (D7). Bytes never leave the request
+    //    lifecycle.
+    const extractable: ExtractableApplication = {
+      id: decoded.submission.applicationId,
+      beverageType: submission.beverageType,
+      faces: submission.faces.map((f) => ({
+        kind: f.kind,
+        bytes: f.bytes,
+        mime: f.mime,
+      })),
+    };
 
-  let extraction: ExtractionResponse;
-  try {
-    extraction = await extract(extractable);
-  } catch {
-    // An extraction-pipeline failure (decode error, provider exception)
-    // is treated as an unreadable input rather than a 500 (FR-16). The
-    // alternative — bubbling a 500 — pushes the operator into a debug
-    // workflow when the right user action is "re-upload a clearer image".
-    const allFaces = extractable.faces.map((f) => f.kind);
-    return NextResponse.json(
-      buildUnreadableResult({
-        applicationId: decoded.submission.applicationId,
-        unreadable: allFaces,
-      }),
-    );
-  }
+    let extraction: ExtractionResponse;
+    try {
+      extraction = await extract(extractable);
+    } catch {
+      // An extraction-pipeline failure (decode error, provider exception)
+      // is treated as an unreadable input rather than a 500 (FR-16).
+      const allFaces = extractable.faces.map((f) => f.kind);
+      outcome = "unreadable";
+      lane = "review";
+      return NextResponse.json(
+        buildUnreadableResult({
+          applicationId: decoded.submission.applicationId,
+          unreadable: allFaces,
+        }),
+      );
+    }
 
-  // 5a. Short-circuit on a degraded extraction (D10 — timeout or
-  //     exhausted-retry transient). The structured "could not verify in
-  //     time" result is the same shape the unreadable case uses, with a
-  //     different surface message — both end up as actionable review-lane
-  //     outcomes the agent can resolve without seeing a stack trace.
-  if (extraction.degraded) {
-    return NextResponse.json(
-      buildTimeoutResult({
-        applicationId: decoded.submission.applicationId,
-        degraded: extraction.degraded,
-      }),
-    );
-  }
+    // 5a. Short-circuit on a degraded extraction (D10 — timeout or
+    //     exhausted-retry transient).
+    if (extraction.degraded) {
+      outcome = "degraded";
+      lane = "review";
+      return NextResponse.json(
+        buildTimeoutResult({
+          applicationId: decoded.submission.applicationId,
+          degraded: extraction.degraded,
+        }),
+      );
+    }
 
-  // 5b. Short-circuit if any face is unreadable (FR-26b). No matching,
-  //     no triage — there's nothing to match against. Lane is `review`
-  //     (input quality), not `mismatch` (regulatory failure).
-  const unreadable = unreadableFaces(extraction);
-  if (unreadable.length > 0) {
-    return NextResponse.json(
-      buildUnreadableResult({
-        applicationId: decoded.submission.applicationId,
-        unreadable,
-      }),
-    );
-  }
+    // 5b. Short-circuit if any face is unreadable (FR-26b).
+    const unreadable = unreadableFaces(extraction);
+    if (unreadable.length > 0) {
+      outcome = "unreadable";
+      lane = "review";
+      return NextResponse.json(
+        buildUnreadableResult({
+          applicationId: decoded.submission.applicationId,
+          unreadable,
+        }),
+      );
+    }
 
-  // 6. Match → triage. The matching engine already merges across faces
-  //    (mergeFaces, P1-6); the triage classifier rolls per-field
-  //    verdicts into one lane (P1-5).
-  const fieldResults = matchApplication({
-    beverageType: submission.beverageType,
-    form: submission.form,
-    extraction,
-  });
+    // 6. Match → triage.
+    const fieldResults = matchApplication({
+      beverageType: submission.beverageType,
+      form: submission.form,
+      extraction,
+    });
 
-  return NextResponse.json(
-    buildSuccessResult({
+    const success = buildSuccessResult({
       applicationId: decoded.submission.applicationId,
       fields: fieldResults,
       extraction,
-    }),
-  );
+    });
+    lane = success.lane;
+    return NextResponse.json(success);
+  } catch (err) {
+    outcome = "error";
+    status = 500;
+    throw err;
+  } finally {
+    logRequestSpan({ applicationId, outcome, lane, startedAt, status });
+  }
 }

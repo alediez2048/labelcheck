@@ -135,9 +135,17 @@ export async function extract(
   //    P1-7 surfaces it as the "could not verify in time" review-lane
   //    result. Non-transient errors (validation, programming bugs)
   //    propagate so the caller can surface a real error.
+  //
+  //    Model-call duration is logged on every request (NFR-1 / P1-11)
+  //    so observability has a per-request signal feeding the p95
+  //    headline (observability.md: What We Instrument). PII (the
+  //    applicationId IS the application's internal id, not an
+  //    applicant identifier) stays out of the log values per NFR-4.
   const provider = getProvider();
+  const modelStart = performance.now();
+  let outcome: "ok" | "timeout" | "transient" | "error" = "ok";
   try {
-    return await withRetry(
+    const response = await withRetry(
       () =>
         withTimeout(
           (_signal) => provider.extract(request),
@@ -149,16 +157,36 @@ export async function extract(
         retryOn: isTransientError,
       },
     );
+    return response;
   } catch (err) {
     if (err instanceof TimeoutError) {
+      outcome = "timeout";
       return { faces: [], degraded: "timeout" };
     }
     if (isTransientError(err)) {
       // Exhausted-retry transient error (e.g. provider 503 on both
       // attempts). The right behaviour is the same as a timeout — the
       // agent sees an actionable review-lane result, not a stack trace.
+      outcome = "transient";
       return { faces: [], degraded: "transient" };
     }
+    outcome = "error";
     throw err;
+  } finally {
+    const modelMs = Math.round(performance.now() - modelStart);
+    // Structured log line — id, face count, duration, outcome only.
+    // No bytes, no transcribed text, no form values (observability.md
+    // Privacy + NFR-4).
+    // eslint-disable-next-line no-console
+    console.info(
+      JSON.stringify({
+        event: "extraction.call",
+        applicationId: application.id,
+        provider: provider.name,
+        faceCount: application.faces.length,
+        modelMs,
+        outcome,
+      }),
+    );
   }
 }

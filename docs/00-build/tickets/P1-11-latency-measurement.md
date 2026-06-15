@@ -146,3 +146,45 @@ pnpm add -D tsx
 ```
 
 (`tsx` is used to execute the bench TypeScript directly from the command line.)
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/latency`
+**Status:** Done — Phase 1 complete. 145 tests pass + 1 skipped; lint + build clean.
+
+**What landed:**
+- `scripts/bench-latency.ts` — golden-set bench. Pre-builds face buffers, iterates fixtures, computes p50/p95/max for extraction-call and end-to-end durations, splits single-face vs multi-face, prints `BUDGET_OK` / `BUDGET_EXCEEDED` and `A12_FLAGGED` (live adapter only).
+- `tests/latency.test.ts` — CI smoke: 20 iterations against the mock, asserts end-to-end p95 < 5000ms.
+- `lib/extraction/service.ts` (modified) — `extraction.call` structured log per request with `{ applicationId, provider, faceCount, modelMs, outcome }`.
+- `app/api/verify/route.ts` (modified) — `verify.request` structured log per request with `{ applicationId, outcome, lane, status, e2eMs }`.
+- `README.md` — bench commands + A12 framing.
+
+**Measured (mock, 50 iterations):**
+- Extraction: p50 1ms, p95 2ms, max 13ms.
+- End-to-end: p50 1ms, p95 2ms, max 18ms.
+- BUDGET_OK.
+- **Live-adapter measurement pending** — opt-in manual run. A12 split is structurally present; the numerical answer follows the first live run. If `A12_FLAGGED` fires, route to P3-4.
+
+**Deviation:** the bench tried to monkey-patch `configModule.getWarningConfig` to inject TEST_WARNING_CONFIG; ESM exports are read-only so that fails at runtime. Removed — the bench measures DURATION, not correctness; lane outcomes don't matter.
+
+### Why
+
+P1-11 closes Phase 1 with the budget answer the rest of the project hangs on. NFR-1's 5s p95 is the contract; every later phase was designed assuming it holds. The bench is what turns the assumption into a measurement.
+
+**p95, not p50, is the right headline for an agency workflow.** An agent who sees a snappy median is fine; an agent who hits a 12-second wait once a session loses trust in the tool. The long tail fails the experience; p95 captures it.
+
+**End-to-end vs extraction-call separation** isolates the dominant cost. If end-to-end p95 grows but extraction stays flat, the regression is in preprocessing / matching — code we own. If extraction grows, the regression is provider-side, and the escalation is a model swap (P6-1's Azure OpenAI / olmOCR).
+
+**Multi-face vs single-face split is A12 made measurable.** A12 was "real-world latency of full-resolution multi-face calls is unverified". The split converts the assumption into a metric; the CI verifies the split exists; the live run fills the numerical answer; `A12_FLAGGED` routes the follow-up to P3-4.
+
+**`try/finally` instrumentation in extraction + route** matters more than the bench. The bench is a snapshot; the structured logs are continuous. P5-1's OTel spans will read from the same `performance.now()` deltas — bench and production share the measurement.
+
+**PII-redacted log format.** NFR-4 says no PII to disk; structured logs DO go to disk in production. Log values are restricted to ids, counts, durations, and enums — no form values, no transcribed text, no bytes.
+
+**The CI smoke uses the mock intentionally.** Asserting against the live model would fail any time Anthropic has a slow day; the right place for the live measurement is the manual bench, recorded periodically in DEV-LOG. The mock smoke catches the deterministic regressions (an accidental sleep, an O(n²) loop) and leaves the rest to the manual measurement.
+
+The **`import.meta.url === \`file://${process.argv[1]}\`` guard** lets the CI smoke import `runBench` without triggering the `main()` CLI. Same module, two entry points.
+
+**Phase 1 status:** COMPLETE. P1-1 through P1-11 merged to main. Demo path works end-to-end against the mock; AC-1 through AC-10 met (AC-8 deferred to P3-1, AC-7 live measurement deferred to the manual bench).
