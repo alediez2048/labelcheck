@@ -32,10 +32,10 @@ Description: stand up a runnable skeleton with the seams (provider adapter, conf
 - Files: create types/domain.ts.
 - Refs: CONTEXT.md; schema.md; D13.
 
-### P0-3 — Vision provider adapter + mock
+### P0-3 — Vision provider adapter + mock ✅ done 2026-06-15
 - Depends: P0-2 · Branch: feat/provider-adapter · Est: 3h
 - Goal: a narrow adapter interface (image(s) + field schema in, transcribed fields out) plus a mock adapter returning canned extractions.
-- Acceptance: [ ] interface defined; [ ] mock returns structured per-face extraction for the sample set; [ ] runs with no API key.
+- Acceptance: [x] interface defined; [x] mock returns structured per-face extraction for the sample set; [x] runs with no API key.
 - Files: create lib/provider/types.ts, lib/provider/mock.ts.
 - Constraints/refs: model reads only, no verdicts (D4); swappable by config (D8).
 

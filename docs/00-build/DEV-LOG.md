@@ -4,6 +4,34 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P0-3 Vision provider adapter + mock
+
+**Branch:** `feat/provider-adapter`
+**Status:** Done
+
+**What landed:**
+- `lib/provider/types.ts` — `VisionProvider` interface, `ExtractionRequest`, `ExtractionResponse`, `FaceExtraction`, `ProviderFaceInput`
+- `lib/provider/mock.ts` — `MockVisionProvider` with three canned fixtures: `sample-green-001` (clean wine), `sample-abv-mismatch-001` (front face reads 45% ALC/VOL), `sample-warning-titlecase-001` (back-face warning with `allCaps: false`); neutral front-face fallback for unknown IDs
+- `lib/provider/index.ts` — `getProvider()` env-driven factory (default `mock`); throws with ticket pointers for known live providers (`anthropic` → P1-2, `azure-openai`/`olmocr` → P6-1)
+- `lib/provider/README.md` — contract note: same shape across mock and live; text-only; D4/D5
+- `lib/provider/__tests__/mock.test.ts` — type-level guards that fail the build if a `verdict` or `confidence` field gets added to `ExtractionResponse`, plus Vitest-ready `describe`/`it` blocks (auto-discovered once P0-7 installs Vitest)
+- `pnpm add zod` (4.4.3) — staged for P1-2's runtime validation; unused by the mock
+
+**Verification:**
+- `pnpm build` clean (`✓ Compiled successfully in 1281ms`)
+- `pnpm lint` clean (`✔ No ESLint warnings or errors`)
+- TypeScript guards enforce the no-verdict, no-overall-confidence contract at compile time
+
+**Deviations from ticket:**
+- Did NOT add the optional `app/api/_debug/extract` smoke route — the type-level guards in the test file are stronger than a runtime smoke route and don't require cleanup before merge.
+
+**Why:**
+P0-3 is the load-bearing seam: every model integration (today's mock, P1-2's Claude Sonnet 4.6, P6-1's Azure OpenAI or self-hosted olmOCR) sits behind one interface, so the rest of the system never knows or cares which one is on. We made the interface as narrow as it could possibly be — one method `extract()`, one input shape, one output shape — because every field added today is a coupling we have to maintain across every future provider; the production-migration story in P6-1 only works if this stays narrow. The response is per-face **text** plus warning structural flags — no `verdict`, no `match`, no overall confidence number. We considered exposing the model's self-reported confidence "just in case" and rejected it: the matching engine (P1-3) and the triage classifier (P1-5) compute confidence in code (D5), and a model-confidence field on `ExtractionResponse` would silently get consumed by some future hot fix and quietly bring back the exact anti-pattern D5 was written to prevent. `boldConfident` is a three-value flag (`yes | no | uncertain`), not a boolean, because D6 makes bold detection best-effort — a boolean would force a false binary on an unreliable read, and "uncertain" routes the case to the review lane instead of forcing a verdict on a styling cue. The mock comes first because every later ticket needs a working extraction without an API key — P1-3 matching, P1-5 triage, P1-7 result API, P1-8 review UI, even P5-2 evals can all be built and CI'd against it. The three fixtures cover the three lanes (match, mismatch, review) plus the hardest field (the government warning), so any consumer can exercise every branch. Crucially, the mock returns the same response shape every real provider must — if the mock is sloppy with optional fields, the live adapter in P1-2 and the in-boundary adapter in P6-1 will silently diverge. `getProvider()` is env-driven (`PROVIDER=mock` default) because that matches every dev/test/CI workflow without code edits, and because D8 says swappable-by-config — we lock that in now even with one impl. We explicitly throw clear errors for known live provider names with pointers to the tickets that land each, rather than silently falling back to the mock. Trade-off accepted on tests: full Vitest isn't installed until P0-7, so the test file uses type-level guards that `pnpm build` catches at compile time, plus runtime `describe`/`it` blocks that Vitest auto-discovers once installed; the type-level guards are the most important enforcement because they fail the build if a future agent adds a `verdict` field to the response, which is the change we most want to prevent. `zod` is installed but unused by the mock; staged for P1-2's runtime validation of live-provider responses where the type system alone can't catch shape mismatches at the wire boundary.
+
+**Next:** P0-4 — Configuration store (canonical warning text, per-field tolerances, per-beverage-type field requirements).
+
+---
+
 ## 2026-06-15 — P0-2 Domain types and result contract
 
 **Branch:** `feat/types`
