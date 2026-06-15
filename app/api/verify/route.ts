@@ -1,20 +1,21 @@
 /**
  * POST /api/verify — synchronous verification endpoint.
  *
- * This file is the only place the backend's pipeline is composed end to
- * end (preprocess → extract → match → confidence → merge → triage). Every
- * step lives in its own module; this handler is glue. Reimplementing any
- * step here would dilute the seams the rest of the system depends on,
- * which is why the spec is explicit about "glue, not logic" — see the
- * ticket file's Common Gotchas.
+ * This file is the only place the synchronous request lifecycle is glued
+ * together: wire-decode → validate → invoke the reusable per-application
+ * pipeline (`lib/verify/runVerification.ts`) → emit one structured log
+ * line. The pipeline itself (extract → match → triage) is the SAME
+ * function the batch orchestrator (P3-1) calls; extracting it kept the
+ * single-application path identical to the batch path so the two cannot
+ * drift.
  *
  * Two non-obvious shapes the handler has to enforce:
  *
  * 1. Unreadable images return a STRUCTURED 200, not a 500. FR-16 / FR-26b
  *    treat "I couldn't read the image" as a normal outcome the agent
- *    handles by asking for a re-upload — not a server error. The short-
- *    circuit happens before matching runs, because there's nothing to
- *    match against.
+ *    handles by asking for a re-upload — not a server error. The handler
+ *    surfaces the result `runVerification` returns; the lane / flag
+ *    distinction is inside the pipeline.
  *
  * 2. Validation errors return 400 with plain-language messages, never a
  *    zod path or stack trace. The reasons are user-facing (NFR-2);
@@ -27,26 +28,12 @@
 
 import { NextResponse } from "next/server";
 
-import { extract, type ExtractableApplication } from "@/lib/extraction/service";
-import { matchApplication } from "@/lib/matching/match";
-import { classify } from "@/lib/triage/classify";
+import { runVerification } from "@/lib/verify/runVerification";
 import {
   validateApplication,
   type ApplicationSubmission,
 } from "@/lib/validation/application";
-import type { ExtractionResponse, FaceExtraction } from "@/lib/provider";
-import type {
-  FaceKind,
-  FieldResult,
-  VerificationResult,
-  WarningFlags,
-} from "@/types";
-
-const FACE_LABELS: Readonly<Record<FaceKind, string>> = {
-  front: "Front",
-  back: "Back",
-  neck: "Neck",
-};
+import type { VerificationResult } from "@/types";
 
 type JsonFace = {
   kind?: unknown;
@@ -160,150 +147,6 @@ function decodeBody(raw: JsonBody): DecodeResult {
 }
 
 // ---------------------------------------------------------------------------
-// Unreadable-image detection
-// ---------------------------------------------------------------------------
-
-/**
- * A face is "unreadable" when the extraction layer produced nothing the
- * matching engine could use against it. That's the AC-6 / FR-26b case:
- * the model couldn't transcribe text, declined, or reported low
- * legibility WITH no usable transcription. We short-circuit BEFORE
- * matching because there's nothing to compare — running matching would
- * generate a wall of not_found verdicts that drown the real signal.
- *
- * The detection inputs are exactly what `lib/provider/types.ts` says the
- * model returns: a `fields` map and a `warning` flags object. A non-
- * empty `fields` value OR `warning.presence: true` counts as "some
- * usable text"; if both are empty the face is unreadable. A face that
- * is otherwise blank but reports `warning.legibility: "low"` is also
- * unreadable — the model is telling us it couldn't read this face.
- */
-function isFaceUnreadable(face: FaceExtraction): boolean {
-  const hasFieldText = Object.values(face.fields).some(
-    (v): v is string => typeof v === "string" && v.length > 0,
-  );
-  if (hasFieldText) return false;
-  if (face.warning.presence) return false;
-  // No fields, no warning. If legibility is "low" the model is signalling
-  // it couldn't read this face; if legibility is "good" the face was
-  // genuinely blank, which is still unreadable for our purposes (the
-  // matching engine has nothing to work with).
-  return true;
-}
-
-function unreadableFaces(extraction: ExtractionResponse): FaceKind[] {
-  return extraction.faces.filter(isFaceUnreadable).map((f) => f.kind);
-}
-
-// ---------------------------------------------------------------------------
-// Building the unreadable VerificationResult
-// ---------------------------------------------------------------------------
-
-const EMPTY_WARNING: WarningFlags = {
-  presence: false,
-  allCaps: false,
-  boldConfident: "uncertain",
-  legibility: "low",
-};
-
-function unreadableFlagFor(face: FaceKind): string {
-  return `${FACE_LABELS[face]} face is unreadable — please re-upload a clearer image.`;
-}
-
-function buildUnreadableResult(opts: {
-  applicationId: string;
-  unreadable: ReadonlyArray<FaceKind>;
-}): VerificationResult {
-  return {
-    applicationId: opts.applicationId,
-    lane: "review",
-    overallConfidence: 0,
-    fields: [],
-    warning: EMPTY_WARNING,
-    flags: opts.unreadable.map(unreadableFlagFor),
-    extractionFailed: true,
-    recommendation: "return_unreadable_image",
-  };
-}
-
-/**
- * Build the structured "could not verify in time" result (D10, FR-16).
- *
- * Surfaced when the extraction service exhausted its timeout + retry
- * budget. Lane=review (input-quality issue, not a regulatory failure),
- * overall confidence pinned to zero so the triage classifier's "minimum
- * field confidence" intuition still reads, with a single flag the agent
- * can act on. We reuse `extractionFailed: true` because the downstream
- * shape is identical — extraction did not yield usable text — but the
- * message wording distinguishes the timeout from a generic unreadable.
- */
-function buildTimeoutResult(opts: {
-  applicationId: string;
-  degraded: "timeout" | "transient";
-}): VerificationResult {
-  const message =
-    opts.degraded === "timeout"
-      ? "Could not verify in time — the label-reading service was slow to respond. Please try again, or request a better image from the applicant."
-      : "Could not verify in time — the label-reading service is temporarily unavailable. Please try again in a moment.";
-  return {
-    applicationId: opts.applicationId,
-    lane: "review",
-    overallConfidence: 0,
-    fields: [],
-    warning: EMPTY_WARNING,
-    flags: [message],
-    extractionFailed: true,
-    recommendation: "return_unreadable_image",
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Building the standard VerificationResult
-// ---------------------------------------------------------------------------
-
-/**
- * Compose the public WarningFlags for the response.
- *
- * The per-face warning flags differ across faces (the front usually has
- * presence:false, the back carries the warning). For the public result
- * we surface the flags from the face the warning matcher pinned the
- * verdict to — that's the face the agent's UI is going to point at.
- * Falling back to the first face on a no-match edge case keeps the
- * shape stable; the warning's `presence: false` value carries the
- * "couldn't find a warning anywhere" signal in that case.
- */
-function pickWarningFlags(
-  fields: ReadonlyArray<FieldResult>,
-  extraction: ExtractionResponse,
-): WarningFlags {
-  const warningField = fields.find((f) => f.field === "government_warning");
-  const sourceFace = warningField?.sourceFace ?? null;
-  if (sourceFace !== null) {
-    const face = extraction.faces.find((f) => f.kind === sourceFace);
-    if (face) return face.warning;
-  }
-  const first = extraction.faces[0];
-  return first ? first.warning : EMPTY_WARNING;
-}
-
-function buildSuccessResult(opts: {
-  applicationId: string;
-  fields: FieldResult[];
-  extraction: ExtractionResponse;
-}): VerificationResult {
-  const triage = classify({ fieldResults: opts.fields });
-  return {
-    applicationId: opts.applicationId,
-    lane: triage.lane,
-    overallConfidence: triage.overallConfidence,
-    fields: opts.fields,
-    warning: pickWarningFlags(opts.fields, opts.extraction),
-    flags: triage.reasons,
-    extractionFailed: false,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
 
@@ -330,6 +173,25 @@ function logRequestSpan(opts: {
       e2eMs: Math.round(performance.now() - opts.startedAt),
     }),
   );
+}
+
+/**
+ * Translate the pipeline's `VerificationResult` into the outcome label
+ * used by the structured log line. The lane alone isn't enough — an
+ * unreadable result and a degraded result both land in `review` but
+ * have distinct flag shapes we want to surface in observability.
+ */
+function outcomeFor(
+  result: VerificationResult,
+): "ok" | "degraded" | "unreadable" {
+  if (!result.extractionFailed) return "ok";
+  // The pipeline emits the same recommendation for both unreadable and
+  // degraded paths; the degraded message starts with "Could not verify
+  // in time". That's a stable wire-level signal we can branch on here
+  // without leaking pipeline internals.
+  const firstFlag = result.flags[0] ?? "";
+  if (firstFlag.startsWith("Could not verify in time")) return "degraded";
+  return "unreadable";
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
@@ -404,76 +266,23 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     const submission: ApplicationSubmission = validation.data;
 
-    // 4. Run extraction. Preprocessing happens inside the service so the
-    //    handler stays a glue layer (D7). Bytes never leave the request
-    //    lifecycle.
-    const extractable: ExtractableApplication = {
-      id: decoded.submission.applicationId,
+    // 4. Run the reusable per-application pipeline (extract → match →
+    //    triage). The pipeline lives in `lib/verify/runVerification.ts`
+    //    so the batch orchestrator (P3-1) composes the same flow.
+    const result = await runVerification({
+      applicationId: decoded.submission.applicationId,
       beverageType: submission.beverageType,
+      form: submission.form,
       faces: submission.faces.map((f) => ({
         kind: f.kind,
         bytes: f.bytes,
         mime: f.mime,
       })),
-    };
-
-    let extraction: ExtractionResponse;
-    try {
-      extraction = await extract(extractable);
-    } catch {
-      // An extraction-pipeline failure (decode error, provider exception)
-      // is treated as an unreadable input rather than a 500 (FR-16).
-      const allFaces = extractable.faces.map((f) => f.kind);
-      outcome = "unreadable";
-      lane = "review";
-      return NextResponse.json(
-        buildUnreadableResult({
-          applicationId: decoded.submission.applicationId,
-          unreadable: allFaces,
-        }),
-      );
-    }
-
-    // 5a. Short-circuit on a degraded extraction (D10 — timeout or
-    //     exhausted-retry transient).
-    if (extraction.degraded) {
-      outcome = "degraded";
-      lane = "review";
-      return NextResponse.json(
-        buildTimeoutResult({
-          applicationId: decoded.submission.applicationId,
-          degraded: extraction.degraded,
-        }),
-      );
-    }
-
-    // 5b. Short-circuit if any face is unreadable (FR-26b).
-    const unreadable = unreadableFaces(extraction);
-    if (unreadable.length > 0) {
-      outcome = "unreadable";
-      lane = "review";
-      return NextResponse.json(
-        buildUnreadableResult({
-          applicationId: decoded.submission.applicationId,
-          unreadable,
-        }),
-      );
-    }
-
-    // 6. Match → triage.
-    const fieldResults = matchApplication({
-      beverageType: submission.beverageType,
-      form: submission.form,
-      extraction,
     });
 
-    const success = buildSuccessResult({
-      applicationId: decoded.submission.applicationId,
-      fields: fieldResults,
-      extraction,
-    });
-    lane = success.lane;
-    return NextResponse.json(success);
+    outcome = outcomeFor(result);
+    lane = result.lane;
+    return NextResponse.json(result);
   } catch (err) {
     outcome = "error";
     status = 500;

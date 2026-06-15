@@ -165,3 +165,45 @@ pnpm add p-limit
 ```
 
 (`p-limit` is the small concurrency-cap library called out in techstack Backend and Batch. No other new deps.)
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/batch`
+**Status:** Done — 288 tests pass + 1 skipped (+14 new); lint + build clean.
+**Workflow:** Fifth parallel-agent build. Agent A: backend + orchestrator + pipeline extraction. Agent B: results UI + Operations submit button. Contract-first dispatch — `BatchPollResponse` + `POST /api/batch` shapes dictated upfront.
+
+**What landed:**
+- `lib/verify/result.ts` + `lib/verify/runVerification.ts` — shared helpers + reusable pipeline. Route handler + orchestrator now share one source of truth.
+- `lib/batch/{types,store,orchestrator}.ts` + tests — in-memory store, `p-limit(5)` orchestrator with per-item try/catch.
+- `app/api/batch/route.ts` (POST) + `app/api/batch/[id]/route.ts` (GET) — create + poll.
+- `app/batch/[id]/{page,LaneGroup}.tsx` — results page polling every 800ms, lane buckets exception-first, match bucket has one-click "Approve all N".
+- `components/batch/SubmitBatchButton.tsx` + Operations panel — "Run sample batch (50)" / "Run peak-season batch (300)".
+- `config/batch.json` — tunable cap + maxItems + syntheticDefaultCount.
+- `p-limit ^7.3.0` installed.
+
+**Verified end-to-end:** `POST /api/batch {"count":20}` → orchestrator runs → `GET /api/batch/:id` after 1s returns `done: 20, finished: true`.
+
+**Deviations:**
+- Aggregate review surface (count + bottom-quartile + delta-vs-baseline) is NOT rendered on the batch's match group; the existing `MatchLaneApprovalPanel` is anchored to the live queue. Approve-all is still one click; full FR-23 surface for batches lands in a follow-up.
+- Batch bulk-confirm is client-side only — the batch is its own world for the prototype. P6-2 persistence will unify.
+- `BatchItem` carries the per-item pipeline inputs (`form`, `faces`) so the orchestrator can dispatch. UI ignores them.
+
+### Why
+
+P3-1 opens Phase 3 with the batch path the take-home prompt asks for. The architectural disciplines from earlier phases hold: same pipeline runs per item, same triage classifier picks lanes, same result contract is returned.
+
+The **extracted `runVerification` function** is the most load-bearing refactor in this ticket. Phase 1 held the pipeline inline because there was one caller; P3-1 has two (route + orchestrator). Lift the pipeline; both paths stay in sync automatically when the matching engine changes.
+
+The **in-memory job store** is prototype-correct (D2, NFR-4). A restart cancels in-flight batches by design. Production swap point is a Map → SQLite write+read in P6-2.
+
+The **`p-limit` bounded concurrency** is the structural enforcement of NFR-1 + NFR-7. Cap of 5 means no more than 5 model calls in flight; single-application route's p95 budget stays honest under a batch. Tunable via config, not code.
+
+The **per-item try/catch in the orchestrator** is the structural "failed item doesn't abort the run" rule. `await Promise.all(items.map(limit(async () => { try { ... } catch { updateItem(... failed ...) } })))`. P3-3 expands the posture; P3-1 establishes the seam.
+
+The **lane-grouped UI with failed-items at the top** is FR-19's "exception-first" posture materialised. The supervisor sees what failed → what needs decisions → what they can bulk-confirm.
+
+The **client-side bulk-confirm** is the right scope for the prototype. The batch is ephemeral; persisting its dispositions without persisting the batch would be incoherent. P6-2's persistence layer makes both real together.
+
+The **synthetic-batch `{ count }` path** is the demo seam. The 9 mock fixtures cycle so 50 items hit a mix of lane outcomes — exactly the variety the three buckets need.
