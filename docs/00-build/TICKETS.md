@@ -160,10 +160,10 @@ Phase 1 exit: a reviewer can load/enter an application, verify it, see the lane 
 
 Description: build the product around the core, the agent worklist, the supervisor operations view, specialization-aware pull routing, and the two role shells.
 
-### P2-1 — My Queue (agent)
+### P2-1 — My Queue (agent) ✅ done 2026-06-15
 - Depends: P1-8 · Branch: feat/my-queue · Est: 3h
 - Goal: the agent's claimed exceptions, problems first, Get-next pull action; opens into the review flow.
-- Acceptance: [ ] only the agent's claimed exceptions shown; [ ] Get-next pulls the next item; [ ] auto-advance through the queue.
+- Acceptance: [x] only the agent's claimed exceptions shown (match-lane filtered, other agents' claims filtered); [x] Get-next pulls the next pool item (mismatch > review > receivedAt ASC) and respects availability; [x] auto-advance through the queue (1.5s timer → next item OR caught-up); [x] color + icon + text on every lane pill.
 - Refs: D11, D15; mockup.md.
 
 ### P2-2 — Operations view (admin)

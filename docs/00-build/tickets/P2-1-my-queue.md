@@ -162,3 +162,39 @@ The Agent shell has a working My Queue: the agent lands in their claimed excepti
 ```
 (none — all UI work; reuse Next.js, Tailwind, and the P0/P1 toolchain)
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/my-queue`
+**Status:** Done — 160 tests pass + 1 skipped; lint + build clean; routes `/queue` and `/queue/[applicationId]` reachable.
+
+**What landed:**
+- `lib/queue/` — `types`, `fixtures`, `issueSummary`, `myQueue`, `claimNext`, `disposition`, `QueueProvider` (client React context), `__tests__/queue.test.ts` (15 tests).
+- `app/(agent)/queue/layout.tsx` — route-group layout mounting the provider.
+- `app/(agent)/queue/page.tsx` — `/queue` My Queue.
+- `app/(agent)/queue/[applicationId]/page.tsx` — review detail in queue context (reuses P1-8 components, auto-advances on disposition).
+- `components/queue/` — `QueueClaimBar`, `QueueRow`, `EmptyQueue`.
+
+**Deviation:** added a fifth lib module (`disposition.ts`) to keep the dispose-and-remove logic as a pure function next to its siblings. AsSubmittedView in the queue detail reconstructs the form from `verification.fields` because the queue store doesn't hold raw form values today; production (P6-2) will load them from `application.form_fields`.
+
+### Why
+
+P2-1 is where LabelCheck stops being a "verify one application" tool and starts being a worklist. Phase 1 built the verification engine and the review screen the agent uses for one application; P2-1 puts that screen inside a queue so the agent walks through their work the way the mockup describes — pull from the pool, finish what they pulled, see "you're all caught up" at the end.
+
+The **strict filter — only claimed exceptions, never match-lane** — is the structural enforcement of D11 + D15. Match never reaches an agent's queue because it's bulk-confirmed on the Operations view (P2-2). A mismatch claimed by another agent never reaches a different agent because the assignment is exclusive once claimed. The selector enforces both rules in code; the tests assert both.
+
+The **problems-first sort** (mismatch → review, then by claimedAt ASC) keeps the highest-stakes work at the top of the eye line. Within a tier, oldest claim first respects WIP discipline.
+
+The **issue-summary one-liner** is derived from the WORST verdict's field — not the model self-report. Warning fields get their reason verbatim because the warning's reason is already optimised for the agent. Unreadable / degraded cases use `verification.flags[0]` directly so the row says "Back face is unreadable" instead of pulling the first non-match field.
+
+**Get-next auto-opens the claimed item** — the mockup's "pull and start" rhythm. Adding the item to a list and forcing a second click adds nothing.
+
+**Auto-advance after disposition** is the same principle one level up. Once the agent finishes one application, the next claimed exception is the right next thing. Falls back to `/queue` when no claimed work remains so the caught-up state renders.
+
+The **route-group layout** (`app/(agent)/queue/layout.tsx`) is what makes the in-memory React store work across the list and the detail. The provider lives in the layout; both child routes re-render against the same state. Without the route group, navigating to `/queue/[id]` would unmount the provider and lose all mutations.
+
+**NFR-4 holds.** The store is in-memory React state, reseeded from fixtures on every fresh tab. No localStorage, no sessionStorage, no server cache.
+
+The **selectors as pure functions** are the seam P2-3's specialization router will reuse. `claimNext` takes state, returns a new state + outcome. The router will be a different implementation of the same shape; the React provider doesn't care which is on.
