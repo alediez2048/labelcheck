@@ -3,3 +3,5 @@
 pdfs/
 # Synthetic defect-case PNGs (cola-generator)
 fail/images/
+# Assembled defect-case PDFs (cola-assembler)
+fail/pdfs/
