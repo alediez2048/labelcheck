@@ -4,6 +4,62 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P2-1 My Queue (agent shell) — Phase 2 begins
+
+**Branch:** `feat/my-queue`
+**Status:** Done
+
+**What landed:**
+- `lib/queue/types.ts` — `QueueAgent`, `QueueApplication`, `QueueItem`, `QueueStoreState`, `ClaimOutcome`. Production identity (PIV/CAC + SSO, P6-3) maps onto `QueueAgent`. The `assignedAgentId` + `claimedAt` fields mirror schema.md so the route module that consumes them stays identical between prototype and production.
+- `lib/queue/fixtures.ts` — 3 seeded agents + 8 seeded applications. Mockup-grounded: 2 match-lane (NEVER in queue), 3 mismatch, 1 review (unreadable), 1 review (near-miss brand), 1 mismatch claimed by another agent (filtered out of the current agent's view). Faces point at `public/fixtures/images/` — no PII (NFR-4).
+- `lib/queue/issueSummary.ts` — pure function picking the worst-verdict field (mismatch > not_found > low_confidence) and formatting a one-line summary. Special-cases the warning (surfaces its reason verbatim) and the unreadable / degraded path (uses `verification.flags[0]`).
+- `lib/queue/myQueue.ts` — pure selector returning the current agent's claimed exceptions, sorted mismatch → review, then by `claimedAt` ASC. Companion `selectPoolCount` counts unclaimed exceptions (match-lane excluded).
+- `lib/queue/claimNext.ts` — pure pool pick + claim mutation. Picks mismatch first, then review, then by `receivedAt` ASC. Refuses on `agent_unavailable` and `no_eligible_pool_item`. Same signature P2-4's specialization router will plug into.
+- `lib/queue/disposition.ts` — pure dispose-and-remove. Records a `DispositionRecord` and filters the application out of the queue (production keeps the row + adds `disposed_at`; the prototype's filter is the observable equivalent).
+- `lib/queue/QueueProvider.tsx` — client React context wrapping the pure store + actions. `useQueue()` exposes `state`, `myQueue`, `poolCount`, `currentAgent`, `claimNext`, `recordDisposition`. Reseeded from fixtures on every fresh tab (NFR-4 — no persistence).
+- `app/(agent)/queue/layout.tsx` — route-group layout mounting the QueueProvider. The `(agent)` group keeps URLs clean (`/queue`, not `/agent/queue`) while marking the shell for P2-5's role gate.
+- `app/(agent)/queue/page.tsx` — `/queue` My Queue. Renders the claim bar (claimed/pool counts + Get-next), the rows, and the empty state. Get-next claims and auto-opens the freshly-claimed item — the mockup's "pull and start" rhythm.
+- `app/(agent)/queue/[applicationId]/page.tsx` — `/queue/[id]` review detail. Reuses the P1-8 components (`LaneBanner`, `FieldTable`, `AsSubmittedView`, `UnreadableBanner`, `DispositionPanel`, `ReturnForCorrectionForm`) so there's no duplication. On disposition, auto-advances to the next claimed item OR back to `/queue` (caught-up state).
+- `components/queue/QueueClaimBar.tsx` — top strip with the two numbers + the primary Get-next action. Disabled with plain-language hint when out-of-office or pool is empty.
+- `components/queue/QueueRow.tsx` — single row: brand + one-line issue + color+icon+text lane pill. Full-row link with a 54px min-height target.
+- `components/queue/EmptyQueue.tsx` — caught-up state with Get-next still available.
+- `lib/queue/__tests__/queue.test.ts` — 15 unit tests covering: only-claimed-exceptions filter, match-lane filter, sort priority, other-agent exclusion, pool-count, issue-summary worst-verdict selection, warning verbatim, unreadable fallback, claim pool-priority, claim availability check, claim empty pool, claim never-match, disposition removal, disposition with return reason.
+
+**Verification:**
+- `pnpm test` — 18 files, **160 tests pass + 1 skipped** (145 prior + 15 new).
+- `pnpm build` — clean. New routes `○ /queue` (1.93 kB) and `ƒ /queue/[applicationId]` (1.65 kB).
+- `pnpm lint` — clean.
+- Manual smoke against `pnpm dev`: `curl http://localhost:3000/queue` returns HTML showing "Signed in as Marcus Lee · distilled_spirits", "2 claimed · 3 in the shared pool", a Mismatch row for Harbor Mist Vodka with the ABV summary, a Review row for Pages 1907 Lager with the unreadable summary. Match-lane fixtures (Old Tom, Silver Branch) and the other-agent fixture (Vintage Park, claimed by Priya) are NOT present. The full click-through (claim → review → approve → auto-advance) is wired but should be exercised in a browser before demo.
+
+**Deviations from ticket:**
+- The ticket lists `lib/queue/myQueue.ts`, `lib/queue/issueSummary.ts`, `lib/queue/claimNext.ts`, and `lib/queue/types.ts` as separate files; I added a fifth — `lib/queue/disposition.ts` — to keep the dispose-and-remove logic as a pure function next to its siblings rather than buried inside the React provider. Same shape as the rest of the queue lib; the provider just wires it.
+- The ticket says the prototype uses "the fixture agent id (`agents[0]`)" as the logged-in agent. I named the constant `DEFAULT_CURRENT_AGENT_ID = "agent-marcus"` and used it in the provider's initial state. P2-5's role switcher will replace this with a live role+identity binding — the constant goes away then.
+- No separate jest-axe sweep for the queue components in this commit. The components reuse the same color+icon+text discipline as the P1-8 review components (which already pass axe). A future P2 commit can extend `tests/a11y.test.tsx` with `QueueClaimBar` / `QueueRow` / `EmptyQueue` renders alongside the P2-5 role-switcher work.
+- The `AsSubmittedView` in the queue review detail reconstructs the form from `verification.fields` (field-by-field `formValue`) because the queue store doesn't hold the raw form values today. Production (P6-2) will load them from `application.form_fields` JSONB and the reconstruction goes away. Functionally identical for the demo.
+
+**Why:**
+P2-1 is where LabelCheck stops being a "verify one application" tool and starts being a worklist. Phase 1 built the verification engine and the review screen the agent uses for one application; P2-1 puts that screen inside a queue so the agent walks through their work the way the mockup describes — pull from the shared pool, finish what they pulled, pull more, see "you're all caught up" at the end. This is the framing that fixes the disconnect the mockup itself called out: the tool isn't a dashboard of separate features, it's an inbox the agent moves through top to bottom.
+
+The **strict filter — only the current agent's claimed exceptions, never match-lane** — is the structural enforcement of D11 + D15 + CONTEXT.md's "Work pool". A clean match never reaches an agent's queue because it's bulk-confirmed by the supervisor on the Operations view (P2-2). A mismatch claimed by another agent never reaches a different agent because the assignment is exclusive once claimed. The selector enforces both rules in code; the test asserts both. A future agent who tries to "show pool items in the queue so the agent can see what's coming" is breaking the pull-not-push contract the workflow depends on (D15: agents pull, the system doesn't push).
+
+The **problems-first sort** (mismatch → review, then by claimedAt ASC) keeps the highest-stakes work at the top of the agent's eye line. A confident mismatch is a real regulatory defect that needs an action; a review is uncertain and might be resolved either way. Putting mismatches first means the agent attacks the most-consequential decisions before the ambiguous ones — the same posture the triage classifier takes inside one application, applied to the queue across applications. Within a tier, oldest claim first respects the WIP discipline: finish what you started before pulling new work.
+
+The **issue-summary one-liner** is the row's whole information surface (the lane pill is the verdict; the summary is the why). It's derived from the WORST verdict's field — not from the model self-report, not from an aggregate. The matcher's per-field `reason` strings are already plain-language ("Alcohol content mismatch: form 40% vs label 45%"); the summary surfaces the worst one. Warning fields get their reason verbatim because the warning's plain-language reason is already optimised for the agent ("must be ALL CAPS", "not present on any label face"). Unreadable / degraded cases skip the per-field path and use `verification.flags[0]` directly so the row says "Back face is unreadable — please re-upload a clearer image" instead of pulling the first non-match field. Three sources, one row: the right reason for the worst case.
+
+The **Get-next action that auto-opens the claimed item** matches the mockup's "pull and start" rhythm. The alternative — Get-next adds the item to the list and the agent has to click it — is one extra interaction that adds nothing. The agent pressed Get-next because they want work; opening the work is the right next thing. This is the seam the mockup's "single next thing to do" principle materialises in.
+
+The **auto-advance after disposition** is the same principle, one level up. Once the agent finishes one application, the right next thing is the next claimed exception, not a return to the queue list. The 800ms timer is short enough to feel responsive and long enough to read the "Recorded: Approved" confirmation. When no claimed work remains, the route falls back to `/queue` so the caught-up state renders — the agent sees they're done and the Get-next button is right there if they want more.
+
+The **route-group layout** (`app/(agent)/queue/layout.tsx`) is what makes the in-memory React store work across the list page and the detail page. The provider lives in the layout; both child routes re-render against the same state. Without the route group, navigating to `/queue/[id]` would unmount the provider and lose all queue mutations on the way back. The `(agent)` parens are a Next.js convention — the segment doesn't appear in the URL, so `/queue` stays `/queue`. P2-5's role switcher will land in this layout (or a parent above it) so the role gate is one path forward of where the URL split happens.
+
+The **NFR-4 / session-only state** discipline holds. The store is in-memory React state, reseeded from fixtures on every fresh tab. No localStorage, no sessionStorage, no server-side cache — a page reload restarts the demo. The MANUAL-CHECKS.md AC-10 review already accepted sessionStorage as "session-only state, not persistence"; the queue uses something even lighter (pure React state) so the AC-10 posture is unchanged.
+
+The **selectors as pure functions** is the seam the P2-3 work router will reuse. `claimNext` takes the state, returns a new state + outcome. The router will be a different implementation of the same pure shape — same inputs (state + agent), same output (new state + outcome). The React provider doesn't care which implementation is on; that's the point.
+
+**Next:** P2-2 — Operations view (admin). The supervisor's home: funnel strip, shared approval pool with "Approve all 420" bulk-confirm, review distribution board across agents, live intake feed. The match-lane bulk-confirm is the other half of the queue/match split P2-1 enforced.
+
+---
+
 ## 2026-06-15 — P1-11 Latency measurement — Phase 1 complete
 
 **Branch:** `feat/latency`
