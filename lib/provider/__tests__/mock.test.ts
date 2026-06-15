@@ -1,11 +1,13 @@
 /**
- * Mock provider tests — skeleton until P0-7 wires Vitest.
+ * Mock provider tests.
  *
- * The assertions below run as TypeScript type checks (compile-time) and
- * as Vitest runtime tests once P0-7 installs Vitest. Both pass under
- * `pnpm build` today; the runtime `describe`/`it` blocks will be picked
- * up by Vitest automatically when it's added.
+ * Two kinds of assertion: type-level guards that fail `pnpm build` if a
+ * `verdict` or `confidence` field is added to the response (D4, D5
+ * enforcement at compile time) and runtime Vitest tests that assert the
+ * canned fixtures match what the matching engine in P1-3 expects.
  */
+
+import { describe, expect, it } from "vitest";
 
 import { MockVisionProvider } from "../mock";
 import type {
@@ -39,16 +41,8 @@ void _verdict_guard;
 void _confidence_guard;
 
 // ---------------------------------------------------------------------------
-// Runtime assertions — picked up by Vitest once P0-7 installs it.
+// Runtime assertions.
 // ---------------------------------------------------------------------------
-
-declare function describe(name: string, fn: () => void): void;
-declare function it(name: string, fn: () => void | Promise<void>): void;
-declare function expect<T>(value: T): {
-  toBe(expected: T): void;
-  toBeDefined(): void;
-  toEqual(expected: unknown): void;
-};
 
 const provider = new MockVisionProvider();
 const baseRequest: Omit<ExtractionRequest, "applicationId"> = {

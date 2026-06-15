@@ -17,16 +17,9 @@
  */
 
 import sharp from "sharp";
-import { preprocessImage } from "../preprocess";
+import { describe, expect, it } from "vitest";
 
-declare function describe(name: string, fn: () => void): void;
-declare function it(name: string, fn: () => void | Promise<void>): void;
-declare function expect<T>(value: T): {
-  toBe(expected: T): void;
-  toBeCloseTo(expected: number, precision?: number): void;
-  toBeDefined(): void;
-  toContain(expected: string): void;
-};
+import { preprocessImage } from "../preprocess";
 
 /** Synthesise a tiny solid-color JPEG with optional EXIF orientation. */
 async function makeJpeg(

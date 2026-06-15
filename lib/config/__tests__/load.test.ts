@@ -16,23 +16,14 @@
  * happen today under `pnpm build`.
  */
 
+import { beforeEach, describe, expect, it } from "vitest";
+
 import {
   getRequiredFields,
   getTolerances,
   getWarningConfig,
   _resetConfigCacheForTesting,
 } from "../index";
-
-declare function describe(name: string, fn: () => void): void;
-declare function it(name: string, fn: () => void | Promise<void>): void;
-declare function beforeEach(fn: () => void): void;
-declare function expect<T>(value: T): {
-  toBe(expected: T): void;
-  toBeDefined(): void;
-  toContain(expected: string): void;
-  toEqual(expected: unknown): void;
-  toMatch(expected: RegExp): void;
-};
 
 describe("config loaders", () => {
   beforeEach(() => {

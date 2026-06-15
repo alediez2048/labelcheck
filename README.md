@@ -15,8 +15,21 @@ pnpm install
 pnpm dev        # opens http://localhost:3000
 pnpm build      # production build
 pnpm lint       # ESLint with strict no-any
-pnpm test       # placeholder; Vitest lands in P0-7
+pnpm test       # Vitest one-shot
+pnpm test:watch # Vitest watch mode
+pnpm test:ui    # Vitest browser UI
+pnpm test:eval  # offline eval harness (placeholder; P5-2 fills it)
 ```
+
+## Testing
+
+Vitest is the runner (configured in `vitest.config.ts`, with the `@/*` alias matching `tsconfig.json`). Module-level tests live in `__tests__/` directories next to the code; top-level acceptance and smoke tests live in `tests/`.
+
+CI runs `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm build`, and `pnpm test` on every push and PR via `.github/workflows/ci.yml`. Node 20 LTS and pnpm 9 are pinned so the local lockfile and the CI runner agree.
+
+**No applicant PII in fixtures (NFR-4, AC-10).** All test images must be either synthetic (generated programmatically with `sharp.create` like the image preprocessor tests) or sourced from the Public COLA Registry (assumption A24). Never commit a real, unapproved label photo.
+
+**`pnpm test:eval`** is a hook reserved for the offline eval harness implemented by P5-2 (`docs/00-build/tickets/P5-2-offline-eval-harness.md`). It runs the verification path against the golden set (real green pairs + synthesized defects) and reports per-field precision/recall, lane accuracy, false-negative rate, warning-check accuracy, and confidence calibration per observability.md. Today it prints a placeholder and exits 0; P5-2 fills it in.
 
 ## Repo layout
 

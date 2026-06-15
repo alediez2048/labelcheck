@@ -4,6 +4,53 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — Phase 0 exit ✅
+
+All seven Phase 0 tickets are done and merged. Per the PRD §5 Phase 0 exit criteria:
+
+- ✅ **The app boots** — `pnpm dev` serves the Tailwind-styled scaffold at `http://localhost:3000` (P0-1).
+- ✅ **The mock adapter returns a structured extraction** — `getProvider()` defaults to `MockVisionProvider`; `extract()` returns canned `ExtractionResponse` data for the three sample IDs and a neutral fallback for unknown IDs (P0-3).
+- ✅ **Types compile** — `types/domain.ts` exports the canonical contract; `pnpm build` succeeds in strict mode (P0-2).
+- ✅ **CI runs** — `.github/workflows/ci.yml` runs lint + build + test on every push and PR. 25 tests across 5 files pass in under 1 second locally (P0-7).
+
+Phase 1 (Core single-application verification — the MVP) is unblocked. The seams P0 named (the provider adapter at `lib/provider/`, the config store at `lib/config/`, the image preprocessor at `lib/image/`, the access gate at `middleware.ts`, the types at `types/`) are exactly the seams P1's matching engine, triage classifier, result API, and review UI attach to.
+
+**Open from Phase 0:**
+- **A18** — verbatim 27 CFR § 16.21 warning text is a placeholder in `config/warning.json`. Replace before production deployment; today the system runs against the placeholder and the matching engine compiles against it.
+
+---
+
+## 2026-06-15 — P0-7 CI and test harness
+
+**Branch:** `feat/ci`
+**Status:** Done
+
+**What landed:**
+- `pnpm add -D vitest @vitest/ui tsx` — Vitest 4.1, the UI runner, and `tsx` for the eval-harness script.
+- `vitest.config.ts` — Node environment; `@/*` alias mirrors `tsconfig.json`; includes `lib/**/*.{test,spec}.ts`, `tests/**/*.{test,spec}.ts`, `app/**/*.{test,spec}.ts`.
+- `package.json` scripts: `test` → `vitest run`; `test:watch` → `vitest`; `test:ui` → `vitest --ui`; `test:eval` → `tsx scripts/eval-harness.ts` (P5-2 hook).
+- `tests/smoke.test.ts` — trivial passing test proving the runner is wired.
+- `scripts/eval-harness.ts` — placeholder; prints "Eval harness wired by P5-2 — not implemented in Phase 0." and exits 0.
+- `.github/workflows/ci.yml` — Node 20, pnpm 9, `pnpm install --frozen-lockfile`, lint + build + test on every push and PR. `ACCESS_PASSCODE` and `ACCESS_COOKIE_SECRET` explicitly emptied during build so the gate stays a no-op during route collection.
+- Refactored `lib/provider/__tests__/mock.test.ts`, `lib/config/__tests__/load.test.ts`, `lib/image/__tests__/preprocess.test.ts`, `lib/access/__tests__/cookie.test.ts` to import from `vitest` instead of using the `declare function` scaffolding from P0-3..P0-6.
+- README — added a Testing section (how to run locally, what `pnpm test:eval` reserves, NFR-4 no-PII-in-fixtures rule).
+
+**Verification:**
+- `pnpm test` clean — 5 files, **25 tests**, pass in 893ms locally.
+- `pnpm test:eval` clean — prints the placeholder, exits 0.
+- `pnpm build` clean (`✓ Compiled successfully in 1718ms`). New middleware bundle weight visible in build output: `ƒ Middleware 34.6 kB`.
+- `pnpm lint` clean.
+
+**Deviations from ticket:**
+- None. All tests that were `declare`-scaffolded in P0-3..P0-6 promoted to real Vitest imports; none were `it.todo`'d.
+
+**Why:**
+P0-7 turns Phase 0's compile-time guarantees into runtime ones. The 25 tests across 5 files prove the type-level guards from P0-3 through P0-6 (extraction has no `verdict` field, dispositions are whole-application, the A18 placeholder is still in place, the image cap really fires at the long edge, the access cookie round-trips and rejects garbage) are not just type-system theater — they execute and pass. That matters because every later ticket reads this test surface as the contract; if Phase 0 shipped with skipped or `it.todo` tests, P1's matching engine would inherit the skipped state and the regression catch would shift to whenever someone noticed. Vitest is the right runner here for one specific reason: it's the standard the techstack already picked, and it reads our `@/*` alias from `vitest.config.ts` without a translator. We considered Jest — rejected because it doesn't understand ESM in 2026 without ts-jest plumbing, and the lint/build pipeline already runs Node ESM via Next.js. Jest would add a second module-resolution model that drifts from the rest of the project. We dropped the `declare function` blocks the P0-3–P0-6 test files used as Vitest-ready scaffolding and replaced them with real `import { describe, it, expect } from "vitest"`. The diff is mechanical; the tests are unchanged in behaviour; the runtime assertions that were previously zero-effect declarations now actually execute. The CI workflow pins Node 20 LTS and pnpm 9 by version because a floating "latest" guarantees a flaky build the day a new major lands; the local lockfile and the CI runner must agree, and that's only possible when both are pinned. `pnpm install --frozen-lockfile` is the safety net for a missing lockfile commit — CI fails loudly instead of silently resolving to whatever's newest. Test execution runs on Ubuntu rather than macOS because the deploy target (a single always-warm container per techstack Hosting) is Linux; catching a Linux-only `sharp` bug in CI is cheaper than catching it in production. `ACCESS_PASSCODE` and `ACCESS_COOKIE_SECRET` are explicitly emptied in the build step so the access gate stays a no-op during route collection — without that, Next's prerender of `/access` might fail in CI if a developer's shell happens to have the vars set. The `pnpm test:eval` script is reserved, not implemented; P5-2 owns the golden-set walker. We resisted scaffolding it here so the CI workflow and the `package.json` script don't need to be re-plumbed when P5-2 lands. The placeholder prints a single line and exits 0 so a curious developer running it today sees a clear "this is wired by P5-2" rather than a "command not found" or a half-built runner. `tsx` is the install cost we accepted to make the eval-harness runnable as a TypeScript file directly (no separate build step for a one-shot script).
+
+**Next:** Phase 1 — Core single-application verification (the MVP). P1-1 (Application input and sample loader) is unblocked. Branch will be `feat/app-input`.
+
+---
+
 ## 2026-06-15 — P0-6 Access gate
 
 **Branch:** `feat/access-gate`
