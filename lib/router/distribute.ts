@@ -18,10 +18,15 @@
  * (empty specializations) always increments `overflowMatches`.
  */
 
+import { requireAdmin } from "@/lib/auth/scope";
 import type { QueueStoreState } from "@/lib/queue/types";
 
 import { claimNext } from "./claim";
-import type { DistributeSummary, SelectFromPoolStrategy } from "./types";
+import type {
+  AssignActor,
+  DistributeSummary,
+  SelectFromPoolStrategy,
+} from "./types";
 
 type Options = {
   now?: () => string;
@@ -30,8 +35,11 @@ type Options = {
 
 export function distribute(
   state: QueueStoreState,
+  actor: AssignActor,
   options: Options = {},
 ): { state: QueueStoreState; summary: DistributeSummary } {
+  requireAdmin(actor);
+
   const availableAgents = state.agents.filter(
     (a) => a.role === "agent" && a.availability === "available",
   );

@@ -209,7 +209,10 @@ describe("selectLiveIntake", () => {
 
 describe("distribute (P2-3 router)", () => {
   it("clears the available-agent share of the pool and reports applied=true", () => {
-    const { summary } = distribute(seed());
+    const { summary } = distribute(seed(), {
+      id: DEFAULT_SUPERVISOR_ID,
+      role: "admin",
+    });
     expect(summary.applied).toBe(true);
     // Three available agents in the seed (Marcus, Priya, Jordan); River
     // is OOO. Pool has three unclaimed exceptions — all get claimed.

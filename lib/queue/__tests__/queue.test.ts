@@ -76,6 +76,39 @@ describe("selectMyQueue (D11, D15, CONTEXT.md Work pool)", () => {
     // Cedar Ridge starts in the pool — must NOT appear until claimed.
     expect(ids.has("cedar-ridge-reserve-001")).toBe(false);
   });
+
+  it("row-scope isolation: switching currentAgentId only shows that agent's claims (D16)", () => {
+    // Seed: Marcus owns harbor-mist + pages-1907-lager; Priya owns
+    // vintage-park-vintners. The selector is keyed off
+    // state.currentAgentId — switching it must swap the visible set
+    // wholesale, and never leak items across agents (D16 row-scoping).
+    const base = seed();
+
+    const marcusView = selectMyQueue({
+      ...base,
+      currentAgentId: "agent-marcus",
+    });
+    const marcusIds = marcusView.map((q) => q.application.applicationId).sort();
+    expect(marcusIds).toEqual(
+      ["harbor-mist-vodka-001", "pages-1907-lager-001"].sort(),
+    );
+
+    const priyaView = selectMyQueue({
+      ...base,
+      currentAgentId: "agent-priya",
+    });
+    const priyaIds = priyaView.map((q) => q.application.applicationId);
+    expect(priyaIds).toEqual(["vintage-park-vintners-001"]);
+
+    // Cross-check: no overlap between the two agents' visible sets.
+    const overlap = priyaIds.filter((id) => marcusIds.includes(id));
+    expect(overlap).toEqual([]);
+
+    // And neither view exposes the other agent's claimed work.
+    expect(marcusIds).not.toContain("vintage-park-vintners-001");
+    expect(priyaIds).not.toContain("harbor-mist-vodka-001");
+    expect(priyaIds).not.toContain("pages-1907-lager-001");
+  });
 });
 
 describe("selectPoolCount", () => {

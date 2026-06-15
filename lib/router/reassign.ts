@@ -19,6 +19,7 @@
  * reconstruct the chain of custody.
  */
 
+import { requireAdmin } from "@/lib/auth/scope";
 import type {
   AuditEvent,
   QueueApplication,
@@ -39,12 +40,7 @@ export function reassign(
   actor: AssignActor,
   options: Options = {},
 ): QueueStoreState {
-  if (actor.role !== "admin") {
-    throw new RouterError(
-      "not_admin",
-      `Reassign requires an admin actor; got role "${actor.role}"`,
-    );
-  }
+  requireAdmin(actor);
 
   const now = options.now ?? (() => new Date().toISOString());
 

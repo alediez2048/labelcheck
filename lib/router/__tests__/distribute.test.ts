@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   BASELINE_MATCH_RATE,
   DEFAULT_CURRENT_AGENT_ID,
+  DEFAULT_SUPERVISOR_ID,
   SEED_AGENTS,
   SEED_APPLICATIONS,
   SEED_AUDIT_EVENTS,
@@ -19,6 +20,9 @@ import {
 import type { QueueStoreState } from "@/lib/queue/types";
 
 import { distribute } from "../distribute";
+import { RouterError, type AssignActor } from "../types";
+
+const ADMIN: AssignActor = { id: DEFAULT_SUPERVISOR_ID, role: "admin" };
 
 function seed(): QueueStoreState {
   return {
@@ -31,15 +35,25 @@ function seed(): QueueStoreState {
 }
 
 describe("distribute", () => {
+  it("non-admin actor throws RouterError('not_admin')", () => {
+    try {
+      distribute(seed(), { id: "agent-marcus", role: "agent" });
+      throw new Error("should have thrown");
+    } catch (e) {
+      expect(e).toBeInstanceOf(RouterError);
+      expect((e as RouterError).code).toBe("not_admin");
+    }
+  });
+
   it("returns applied: true (real router, not the stub)", () => {
-    const { summary } = distribute(seed());
+    const { summary } = distribute(seed(), ADMIN);
     expect(summary.applied).toBe(true);
   });
 
   it("assigns one item per available agent in a single pass", () => {
     // Seed has 3 unclaimed exceptions and 3 available agents (Marcus,
     // Priya, Jordan); River is OOO. One pass → 3 assigned, 0 left.
-    const { state, summary } = distribute(seed(), {
+    const { state, summary } = distribute(seed(), ADMIN, {
       now: () => "2026-06-15T10:00:00Z",
     });
     expect(summary.assignedCount).toBe(3);
@@ -50,7 +64,7 @@ describe("distribute", () => {
   });
 
   it("byAgentId records each agent's exact share", () => {
-    const { summary } = distribute(seed(), {
+    const { summary } = distribute(seed(), ADMIN, {
       now: () => "2026-06-15T10:00:00Z",
     });
     const total = Object.values(summary.byAgentId).reduce(
@@ -69,7 +83,7 @@ describe("distribute", () => {
     // pool, so overflow → coastal-pale (malt). Jordan is a generalist,
     // so dunmore (the remaining review item) is overflow too.
     // Total: 1 specialist match + 2 overflow = 3.
-    const { summary } = distribute(seed(), {
+    const { summary } = distribute(seed(), ADMIN, {
       now: () => "2026-06-15T10:00:00Z",
     });
     expect(summary.specialistMatches).toBe(1);
@@ -80,7 +94,7 @@ describe("distribute", () => {
   });
 
   it("skips out-of-office agents (no entry in byAgentId)", () => {
-    const { summary } = distribute(seed());
+    const { summary } = distribute(seed(), ADMIN);
     expect(summary.byAgentId["agent-river"]).toBeUndefined();
   });
 
@@ -93,7 +107,7 @@ describe("distribute", () => {
         assignedAgentId: a.assignedAgentId,
         claimedAt: a.claimedAt,
       }));
-    const { state } = distribute(before);
+    const { state } = distribute(before, ADMIN);
     for (const before of matchIdsBefore) {
       const after = state.applications.find((a) => a.applicationId === before.id);
       expect(after?.assignedAgentId).toBe(before.assignedAgentId);
@@ -122,7 +136,7 @@ describe("distribute", () => {
         return a;
       }),
     };
-    const { summary } = distribute(preClaimed);
+    const { summary } = distribute(preClaimed, ADMIN);
     expect(summary.assignedCount).toBe(1);
   });
 
@@ -137,7 +151,7 @@ describe("distribute", () => {
         a.id === "agent-river" ? { ...a, availability: "available" as const } : a,
       ),
     };
-    const { state: next, summary } = distribute(drained);
+    const { state: next, summary } = distribute(drained, ADMIN);
     expect(summary.assignedCount).toBe(3);
     const remaining = next.applications.filter(
       (a) => a.assignedAgentId === null && a.verification.lane !== "match",

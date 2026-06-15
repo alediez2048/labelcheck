@@ -4,6 +4,68 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P2-5 Role-based shells (parallel-agent build)
+
+**Branch:** `feat/roles`
+**Status:** Done
+
+**Workflow note:** Third parallel-agent build on the project. Agent A landed `lib/auth/scope.ts` + the centralised `requireAdmin` refactor + the `useQueue()` action signatures (every admin action now returns `{ ok, error? }` instead of throwing to the UI); Agent B landed the two sidebar shells + the role switcher + the route-group layouts + six placeholder pages. Contract dictated upfront — the new `useQueue()` shape — both agents arrived at the same seam from opposite directions, integration clean on the first combined build.
+
+**What landed:**
+
+- `lib/auth/scope.ts` — `Actor` type, `requireAdmin(actor)` (throws `RouterError("not_admin")`), `actorFromAgent(agent)` (builds an Actor from a QueueAgent). Centralises the admin gate so every admin-only operation reads the same predicate.
+- `lib/auth/__tests__/scope.test.ts` — 4 tests covering both helpers.
+- `lib/router/{handAssign,reassign,setSpecialization}.ts` — inline `actor.role !== "admin"` checks replaced with `requireAdmin(actor)`. Behaviour identical; the gate now lives in one place.
+- `lib/router/distribute.ts` — added a required `actor: AssignActor` second positional argument; calls `requireAdmin(actor)` at the top. All non-admin callers now throw.
+- `lib/router/__tests__/distribute.test.ts` — every call site adds the admin actor; new test covers the non-admin-throws path.
+- `lib/operations/__tests__/operations.test.ts` — distribute test passes the admin actor.
+- `lib/queue/QueueProvider.tsx` — every admin-gated action (`bulkApproveMatchLane`, `applyDistribute`, `handAssign`, `reassign`, `setSpecialization`) now derives the actor from `state.currentAgentId` + `actorFromAgent`. `RouterError` caught and surfaced as `{ ok: false, error }`. Missing active agent returns `{ ok: false, error: "No active agent" }`. New action: `setAvailability(agentId, availability)` — admin can edit any agent; agents can edit only themselves. No audit event for this one (agent-self-edit is the common case; admin override of someone else's availability is rare and Profile is the prototype's only path).
+- `lib/queue/__tests__/queue.test.ts` — cross-agent row-scope isolation test on `selectMyQueue` — assert that swapping `currentAgentId` changes the queue contents and never leaks across agents.
+- `components/shell/RoleSwitcher.tsx` — dropdown listing every seeded agent + admin. On pick: `setCurrentAgentId(id)` then `router.push("/operations")` or `/queue` based on the picked actor's role. Esc + click-outside close.
+- `components/shell/AdminShell.tsx` — left sidebar with `LabelCheck` title, "Admin shell" caption, five nav items (Operations / All Applications / Analytics / Team / Knowledge Base), role switcher pinned at the bottom with the PIV/CAC banner. Active row gets the indigo accent + glyph + label (color + icon + text per AC-9).
+- `components/shell/AgentShell.tsx` — same structure with three items (My Queue / My Stats / Profile) and the emerald accent.
+- `app/(admin)/layout.tsx` — wraps every admin route in `<AdminShell>`; `useEffect` `router.replace("/queue")` when `currentAgent?.role !== "admin"`. Renders `null` while the redirect is pending so the wrong shell never flashes.
+- `app/(agent)/layout.tsx` — same pattern, opposite direction. Replaces the old `(agent)/queue/layout.tsx` passthrough (deleted) and covers `/queue`, `/queue/[applicationId]`, `/stats`, `/profile` in one layer.
+- Placeholder pages (each a tiny client page with the "coming in P2-6 / P4-1" notice):
+  - `app/(admin)/applications/page.tsx`
+  - `app/(admin)/analytics/page.tsx`
+  - `app/(admin)/team/page.tsx`
+  - `app/(admin)/knowledge-base/page.tsx`
+  - `app/(agent)/stats/page.tsx`
+  - `app/(agent)/profile/page.tsx` — placeholder PLUS the Availability radio group (Available / Out of office) wired to `setAvailability(currentAgent.id, value)`. Inline rose alert on `{ ok: false, error }`.
+- `app/(admin)/operations/page.tsx` — adapted to the new contract: `bulkApproveMatchLane()` is called argless and `result.ok` is checked; `applyDistribute()` is wrapped in a thin adapter that returns `result.ok ? result.summary : EMPTY_DISTRIBUTE_SUMMARY` so the `ReviewDistributionBoard`'s prop type stays stable. Header now reads `currentAgent` instead of the hardcoded supervisor.
+
+**Verification:**
+- `pnpm test` — 28 files, **239 tests pass + 1 skipped** (233 prior + 6 new).
+- `pnpm build` — clean. **16 routes**: `/`, `/access`, `/api/{access,health,verify}`, `/applications`, `/analytics`, `/knowledge-base`, `/operations`, `/profile`, `/queue`, `/queue/[applicationId]`, `/stats`, `/team`, `/verify`, `/verify/result`.
+- `pnpm lint` — clean.
+- Manual smoke against `pnpm dev`: all eight in-shell routes return 200; `/queue` HTML contains "My Queue", "My Stats", "Profile", "Marcus", and the "simulated" banner string; `/profile` HTML contains the Availability radio group with "Out of office" as one option.
+
+**Deviations from ticket:**
+- The ticket calls for `lib/auth/activeAgent.ts` as a separate in-memory store. Agent A skipped it — `state.currentAgentId` in the QueueProvider IS the active-agent store, and creating a second source of truth would introduce a sync bug surface when the role switcher mutates one but not the other. `lib/auth/scope.ts` takes an explicit `actor` argument; there's no module-level "who's active" anywhere in the auth lib. Defended in Agent A's report.
+- `setAvailability` allows agents to edit their own availability — both the ticket's text and CONTEXT.md's "Availability" entry imply Profile is where agents toggle this. The admin-only `requireAdmin` gate isn't right for self-edit; the action allows `actor.id === agentId` as the alternative.
+- Agent B left the operations page's `applyDistribute` adapter pattern in place rather than changing the `ReviewDistributionBoard.onDistribute` prop type — minimised the blast radius, keeps the component file structurally unchanged.
+- Default actor on a fresh tab is still `agent-marcus` (an agent). A reviewer who lands directly on `/operations` gets bounced to `/queue` first; they need to use the role switcher to land in the Admin shell. Considered switching the default to admin Sasha but the queue tests and fixtures lean on Marcus-as-default; deferred to avoid a multi-test churn. The reviewer flow is one-click-then-Operations.
+
+**Why:**
+P2-5 is the seam that makes the rest of Phase 2's screens (and Phase 3's batch + Phase 4's assistant) cleanly extendable. Before this ticket every page assumed a single hard-coded supervisor; after this ticket every page reads the active actor and the lib layer refuses admin-only operations on a non-admin actor at every entry point. The defense-in-depth posture — UI hides + lib throws — is the same one P1-7's route handler took for "unreadable image as a structured result, not a 500": both layers do the right thing, and a refactor that bypasses one is still caught by the other.
+
+The **`lib/auth/scope.ts` consolidation** is small but load-bearing. P2-3 and P2-4 each grew an inline `actor.role !== "admin"` check at their own admin-gated entry points (handAssign, reassign, setSpecialization). Five entry points means five places a future refactor could silently relax the gate. After P2-5, every gate routes through `requireAdmin(actor)` — one call, one error code, one place to add audit logging or "remember the deny reason" later. The behaviour is unchanged; the surface area shrunk.
+
+The **`{ ok, error }` ContextAction shape on every admin-gated action** is what lets the UI layer surface failures without trying / catching. The previous pattern — actions return their result directly, throw on permission failure — would mean every UI call site needs its own try/catch with a different error message. The new pattern means the UI checks one flag (`result.ok`) and surfaces a stable error string. The lib still throws (defense in depth); the provider converts the throw into the `{ ok, error }` shape exactly once.
+
+The **route-gate redirects in client layouts via `useEffect` + `router.replace`** are the right Next.js 15 pattern for "the active actor is in client state". Server-component layouts can't read React context, so the redirect can't happen at server render time. The client layout reads `useQueue().currentAgent`, calls `useEffect` once on mount and on currentAgent change, and replaces the route if the role doesn't match. Rendering `null` while the redirect is pending prevents the wrong shell from flashing on the screen for a frame. The cost is a one-frame blank during cross-shell navigation; the benefit is a clean redirect contract that production SSO will replace one-for-one (the actor will be resolved server-side, the layout will redirect at server render, the client layout becomes a no-op).
+
+The **role switcher as a sidebar pin** keeps the prototype's identity simulation always-reachable. The reviewer can swap identities at any moment without leaving the page. The PIV/CAC banner under the switcher is the structural reminder that this is a prototype seam, not a real auth control — the reviewer can't mistake the switcher for the production identity flow. NFR-8 is the production answer; the banner is the prototype's honesty about it.
+
+The **two-shell URL split via Next.js route groups** (`(admin)/` and `(agent)/`) doesn't change the URLs (`/operations` stays `/operations`, `/queue` stays `/queue`) but DOES group the layouts cleanly. P2-6's three admin views (`/applications`, `/analytics`, `/team`) land under `(admin)/` and inherit the AdminShell automatically. P2-6's two agent views (`/stats`, `/profile`) already live under `(agent)/` from this ticket. The route-group seam means P2-6 is purely additive — drop the new pages into the right group and they get the shell + the route gate for free.
+
+The **agent self-edit on availability** is a small carve-out that fits the workflow. CONTEXT.md says agents set themselves OOO from Profile; routing through the supervisor for every "I'm taking lunch" flip would be wrong. `setAvailability` allows admin OR self; everything else stays admin-only. Production RBAC will have the same rule by attribute (`subject == target` for the self path).
+
+**Next:** P2-6 — Three admin views (All Applications, Analytics, Team) + two agent views (My Stats, Profile fleshed-out). The route shells exist; this ticket fills the content.
+
+---
+
 ## 2026-06-15 — P2-4 Specialization routing (parallel-agent build)
 
 **Branch:** `feat/specialization`

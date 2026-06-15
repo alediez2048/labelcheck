@@ -17,6 +17,7 @@
  * wire the actor into the provider; today the supervisor id is fixed.
  */
 
+import { requireAdmin } from "@/lib/auth/scope";
 import type {
   AuditEvent,
   QueueApplication,
@@ -36,12 +37,7 @@ export function handAssign(
   actor: AssignActor,
   options: Options = {},
 ): QueueStoreState {
-  if (actor.role !== "admin") {
-    throw new RouterError(
-      "not_admin",
-      `Hand-assign requires an admin actor; got role "${actor.role}"`,
-    );
-  }
+  requireAdmin(actor);
 
   const now = options.now ?? (() => new Date().toISOString());
 
