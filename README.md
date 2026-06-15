@@ -31,6 +31,13 @@ LabelCheck/
 └── data/                 sample COLAs (real + synthesized)
 ```
 
+## Environment
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PROVIDER` | `mock` | Vision provider adapter selector (P0-3). Set to a live provider name once that provider is implemented (`anthropic` after P1-2; `azure-openai` or `olmocr` after P6-1). |
+| `IMAGE_MAX_LONG_EDGE` | `1568` | Long-edge cap for image preprocessing (P0-5). Default is Claude's usable maximum (D7). **Do not set below 1568 without changing the provider** — the smallest text on the label (the government warning) becomes illegible and the warning check silently weakens. |
+
 ## Documentation
 
 Read in this order:
