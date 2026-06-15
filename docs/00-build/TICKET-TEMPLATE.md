@@ -121,3 +121,11 @@ Ticket complete when:
 ```
 {pnpm add ...}
 ```
+
+### Why (fill at completion)
+
+_A one-paragraph rationale for the choices made in this ticket — written when the work lands, not in advance._
+
+Explain: why this scope and not more or less; why these specific technical choices (libraries, file layout, defaults); what trade-offs were accepted; what would have been wrong to do differently. Aim for the why a future reader (or future-you) couldn't reconstruct from the diff alone.
+
+The same paragraph should be mirrored verbatim into the DEV-LOG entry for this ticket so the rationale travels with the historical log, not just the per-ticket file.

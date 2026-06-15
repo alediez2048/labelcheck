@@ -25,10 +25,10 @@ Description: stand up a runnable skeleton with the seams (provider adapter, conf
 - Files: create the Next.js app, tsconfig (strict), .eslintrc, tailwind config, package.json.
 - Refs: techstack.md.
 
-### P0-2 — Domain types and result contract
+### P0-2 — Domain types and result contract ✅ done 2026-06-15
 - Depends: P0-1 · Branch: feat/types · Est: 1.5h
 - Goal: shared types for Application, LabelFace, Field, Verdict, Lane, Disposition, and the verification result.
-- Acceptance: [ ] one shared result type used by API and UI; [ ] enums match CONTEXT.md and schema.md.
+- Acceptance: [x] one shared result type used by API and UI; [x] enums match CONTEXT.md and schema.md.
 - Files: create types/domain.ts.
 - Refs: CONTEXT.md; schema.md; D13.
 
