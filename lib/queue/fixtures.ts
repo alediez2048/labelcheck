@@ -42,6 +42,18 @@ export const SEED_AGENTS: ReadonlyArray<QueueAgent> = [
     availability: "out_of_office",
   },
   {
+    id: "agent-jordan",
+    name: "Jordan Park",
+    role: "agent",
+    // Generalist (P2-4 demo): empty specializations means the routing
+    // strategy goes straight to overflow for them, so any beverage
+    // type can land on Jordan when no specialist is free. Keeps the
+    // pool draining when a thin specialty (e.g., the only malt
+    // specialist OOO) would otherwise stall.
+    specializations: [],
+    availability: "available",
+  },
+  {
     id: "admin-sasha",
     name: "Sasha Okafor",
     role: "admin",

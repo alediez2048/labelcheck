@@ -25,6 +25,7 @@ import type { BeverageType, Lane } from "@/types";
 
 import { HandAssignPicker, type HandAssignPickerAgent } from "./HandAssignPicker";
 import { ReassignPicker, type ReassignPickerAgent } from "./ReassignPicker";
+import { SpecializationEditor } from "./SpecializationEditor";
 
 const BEVERAGE_LABELS: Readonly<Record<BeverageType, string>> = {
   wine: "Wine",
@@ -70,6 +71,8 @@ const CAPACITY = 5;
 export type DistributeSummary = {
   assignedCount: number;
   byAgentId: Record<string, number>;
+  specialistMatches: number;
+  overflowMatches: number;
   applied: true;
 };
 
@@ -90,6 +93,10 @@ type Props = {
     fromAgentId: string,
     toAgentId: string | null,
   ) => RouterActionResult;
+  onSetSpecialization: (
+    agentId: string,
+    types: ReadonlyArray<BeverageType>,
+  ) => { ok: true } | { ok: false; error: string };
   poolItems: ReadonlyArray<DistributionPoolItem>;
   claimedByAgent: Readonly<Record<string, ReadonlyArray<DistributionPoolItem>>>;
 };
@@ -99,6 +106,7 @@ export function ReviewDistributionBoard({
   onDistribute,
   onHandAssign,
   onReassign,
+  onSetSpecialization,
   poolItems,
   claimedByAgent,
 }: Props): React.ReactElement {
@@ -115,6 +123,8 @@ export function ReviewDistributionBoard({
     applicationId: string;
     fromAgentId: string;
   } | null>(null);
+  /** Which agent row has the specialization editor open (by agent id). */
+  const [specOpenFor, setSpecOpenFor] = useState<string | null>(null);
 
   /**
    * Pre-sorted agent list for the pickers — only role=agent, only
@@ -139,9 +149,19 @@ export function ReviewDistributionBoard({
 
   function handleDistribute(): void {
     const result = onDistribute();
-    setNotice(
-      `Routed ${result.assignedCount} exception(s) across the team.`,
-    );
+    const split = result.specialistMatches + result.overflowMatches;
+    // Default to the short notice. Surface the specialist / overflow
+    // split only when the router actually reported one — defensive
+    // against zeroed counters in older summaries.
+    if (split > 0) {
+      setNotice(
+        `Routed ${result.assignedCount} exception(s) across the team — ${result.specialistMatches} to specialists, ${result.overflowMatches} via overflow.`,
+      );
+    } else {
+      setNotice(
+        `Routed ${result.assignedCount} exception(s) across the team.`,
+      );
+    }
   }
 
   function handleHandAssign(applicationId: string, agentId: string): void {
@@ -159,6 +179,26 @@ export function ReviewDistributionBoard({
       setNotice(
         `Hand-assign failed: ${result.error ?? "unknown error"}.`,
       );
+    }
+  }
+
+  function handleSetSpecialization(
+    agentId: string,
+    types: ReadonlyArray<BeverageType>,
+  ): void {
+    const result = onSetSpecialization(agentId, types);
+    setSpecOpenFor(null);
+    if (result.ok) {
+      const agent = snapshot.agents.find((row) => row.agent.id === agentId);
+      const name = agent?.agent.name ?? agentId;
+      if (types.length === 0) {
+        setNotice(`Set ${name} as a generalist (overflow only).`);
+      } else {
+        const label = types.map((t) => BEVERAGE_LABELS[t]).join(", ");
+        setNotice(`Updated ${name}'s specialization to ${label}.`);
+      }
+    } else {
+      setNotice(`Set specialization failed: ${result.error ?? "unknown error"}.`);
     }
   }
 
@@ -315,11 +355,31 @@ export function ReviewDistributionBoard({
                   <p className="text-sm font-semibold text-slate-900">
                     {row.agent.name}
                   </p>
-                  <p className="text-xs text-slate-500">
-                    {row.agent.specializations
-                      .map((s) => BEVERAGE_LABELS[s])
-                      .join(", ")}
-                  </p>
+                  <div className="mt-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSpecOpenFor((cur) =>
+                          cur === row.agent.id ? null : row.agent.id,
+                        )
+                      }
+                      aria-expanded={specOpenFor === row.agent.id}
+                      aria-label={`Edit specialization for ${row.agent.name}`}
+                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    >
+                      <span aria-hidden="true">✎</span>
+                      <span>
+                        {row.agent.specializations.length === 0
+                          ? "Generalist"
+                          : row.agent.specializations
+                              .map((s) => BEVERAGE_LABELS[s])
+                              .join(", ")}
+                      </span>
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                        Edit
+                      </span>
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm text-slate-800">
@@ -334,6 +394,16 @@ export function ReviewDistributionBoard({
                   </span>
                 </div>
               </div>
+              {specOpenFor === row.agent.id && (
+                <SpecializationEditor
+                  open
+                  value={row.agent.specializations}
+                  onSave={(next) =>
+                    handleSetSpecialization(row.agent.id, next)
+                  }
+                  onClose={() => setSpecOpenFor(null)}
+                />
+              )}
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
                   aria-hidden="true"

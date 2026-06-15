@@ -24,7 +24,9 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 import { handAssign as routerHandAssign } from "@/lib/router/handAssign";
 import { reassign as routerReassign } from "@/lib/router/reassign";
 import { distribute as routerDistribute } from "@/lib/router/distribute";
+import { setSpecialization as setSpecializationPure } from "@/lib/router/setSpecialization";
 import { RouterError, type DistributeSummary } from "@/lib/router/types";
+import type { BeverageType } from "@/types";
 
 import { claimNext as claimNextPure, type ClaimResult } from "./claimNext";
 import {
@@ -74,6 +76,15 @@ type QueueContextValue = {
     applicationId: string,
     fromAgentId: string,
     toAgentId: string | null,
+  ) => ActionResult;
+  /**
+   * Admin-only: replace an agent's specializations. The next
+   * Distribute reflects the change; currently-claimed items are NOT
+   * touched (the supervisor uses `reassign` for that).
+   */
+  setSpecialization: (
+    agentId: string,
+    types: ReadonlyArray<BeverageType>,
   ) => ActionResult;
 };
 
@@ -189,6 +200,28 @@ export function QueueProvider({
     [state],
   );
 
+  const setSpecialization = useCallback(
+    (
+      agentId: string,
+      types: ReadonlyArray<BeverageType>,
+    ): ActionResult => {
+      try {
+        const nextState = setSpecializationPure(state, agentId, types, {
+          id: DEFAULT_SUPERVISOR_ID,
+          role: "admin",
+        });
+        setState(nextState);
+        return { ok: true };
+      } catch (error) {
+        if (error instanceof RouterError) {
+          return { ok: false, error: error.message };
+        }
+        throw error;
+      }
+    },
+    [state],
+  );
+
   const value = useMemo<QueueContextValue>(() => {
     return {
       state,
@@ -202,6 +235,7 @@ export function QueueProvider({
       applyDistribute,
       handAssign,
       reassign,
+      setSpecialization,
     };
   }, [
     state,
@@ -212,6 +246,7 @@ export function QueueProvider({
     applyDistribute,
     handAssign,
     reassign,
+    setSpecialization,
   ]);
 
   return (

@@ -3,9 +3,10 @@
  *
  * Picks the next eligible pool item for an agent and sets
  * `assignedAgentId` + `claimedAt` in one synchronous step. The
- * selection step is a strategy parameter — `selectFifo` is the P2-3
- * default; P2-4 swaps in a specialization-aware version without
- * touching the call site.
+ * selection step is a strategy parameter — `selectBySpecialization`
+ * (P2-4) is the default; `selectFifo` (P2-3) remains exported for
+ * tests and for the documented configurable-alternative path
+ * (round-robin push, per D15).
  *
  * Availability is the only soft-fail: an `out_of_office` agent gets
  * `null` back rather than a thrown error, because the UI's
@@ -22,7 +23,7 @@ import type {
   QueueStoreState,
 } from "@/lib/queue/types";
 
-import { selectFifo } from "./selectFifo";
+import { selectBySpecialization } from "./selectBySpecialization";
 import type { ClaimSuccess, SelectFromPoolStrategy } from "./types";
 
 type Options = {
@@ -36,7 +37,7 @@ export function claimNext(
   options: Options = {},
 ): ClaimSuccess | null {
   const now = options.now ?? (() => new Date().toISOString());
-  const strategy = options.strategy ?? selectFifo;
+  const strategy = options.strategy ?? selectBySpecialization;
 
   const agent = state.agents.find((a) => a.id === agentId);
   if (!agent) return null;

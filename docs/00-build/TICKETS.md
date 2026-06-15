@@ -178,10 +178,10 @@ Description: build the product around the core, the agent worklist, the supervis
 - Acceptance: [x] only exceptions routed (`admitToPool` rejects match-lane + unverified); [x] claim assigns + timestamps + emits "assigned" audit event; [x] supervisor hand-assign + reassign (admin-only, emits "override" audit event on reassign, `toAgentId: null` returns to pool); [x] Distribute action on `/operations` clears the pool; [x] Get-next on `/queue` delegates to the same router; [x] selection-step strategy seam ready for P2-4 specialization.
 - Refs: FR-28; D15.
 
-### P2-4 — Specialization routing
+### P2-4 — Specialization routing ✅ done 2026-06-15
 - Depends: P2-3 · Branch: feat/specialization · Est: 2.5h
 - Goal: match each application's beverage type to a specialist, with overflow to any available agent; admin assigns specializations in Team view.
-- Acceptance: [ ] exceptions route to matching specialists; [ ] overflow when no specialist free; [ ] admin can edit specialization.
+- Acceptance: [x] exceptions route to matching specialists (`selectBySpecialization` strategy is now the default in `claim.ts`); [x] overflow when no specialist free (generalists + when no specialty match); [x] admin can edit specialization (`setSpecialization` action + inline `SpecializationEditor` on the per-agent rows in the distribution board). Distribute summary now reports `specialistMatches` + `overflowMatches`.
 - Refs: FR-28; D15; schema specialization.
 
 ### P2-5 — Role-based shells

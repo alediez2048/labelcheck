@@ -47,10 +47,18 @@ export type ClaimSuccess = {
  * real router run from the P2-2 stub's `applied: false`; the Operations
  * view uses it to show the "router applied N" toast vs the
  * "queued for P2-3 router" badge.
+ *
+ * P2-4 adds the specialist-vs-overflow split: `specialistMatches` is
+ * the count of items routed to an agent whose `specializations`
+ * include the item's `beverageType`; `overflowMatches` is the count
+ * routed via the fallback branch (the agent is a generalist OR no
+ * specialist was free). The two sum to `assignedCount`.
  */
 export type DistributeSummary = {
   assignedCount: number;
   byAgentId: Record<string, number>;
+  specialistMatches: number;
+  overflowMatches: number;
   applied: true;
 };
 
@@ -79,7 +87,8 @@ export type RouterErrorCode =
   | "from_agent_mismatch"
   | "agent_unavailable"
   | "no_eligible_pool_item"
-  | "application_not_found";
+  | "application_not_found"
+  | "agent_not_found";
 
 export class RouterError extends Error {
   public readonly code: RouterErrorCode;

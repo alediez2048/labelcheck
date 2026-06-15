@@ -4,6 +4,61 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P2-4 Specialization routing (parallel-agent build)
+
+**Branch:** `feat/specialization`
+**Status:** Done
+
+**Workflow note:** Second ticket executed by parallel subagents — Agent A built the router strategy + `setSpecialization` mutation + provider wiring; Agent B built the `SpecializationEditor` popover + distribution board integration. Same contract-first pattern as P2-3: I dictated the `setSpecialization` signature and the new `DistributeSummary` fields upfront, then handed each agent disjoint file scopes. Combined run was clean on the first build.
+
+**What landed:**
+- `lib/router/selectBySpecialization.ts` — new selection strategy. Priority-sort the pool once; pass 1 returns the first item whose `beverageType` is in `agent.specializations`; pass 2 (overflow) returns the first item by priority regardless of type. A generalist (`specializations: []`) falls straight through to pass 2 because pass 1 finds nothing. Match-lane items are defensively skipped even though the pool excludes them upstream.
+- `lib/router/setSpecialization.ts` — admin-only mutation. Throws `RouterError("not_admin")` for non-admin actors, throws `RouterError("agent_not_found")` for unknown agent ids. Copies the input array via `Array.from`. Emits an `"override"` audit event with `{ actorRole, previousSpecializations, newSpecializations, source: "setSpecialization" }` metadata. Critically does NOT touch `state.applications` — existing claimed items stay with that agent so a specialization edit doesn't yank work mid-disposition.
+- `lib/router/claim.ts` — default strategy switched from `selectFifo` to `selectBySpecialization`. `selectFifo` is still exported for tests and for the documented round-robin-push alternative in D15.
+- `lib/router/distribute.ts` — summary extended with `specialistMatches` + `overflowMatches`. Each successful claim is classified by checking whether the claimed item's `beverageType` is in the agent's `specializations`; an empty `specializations` array (a generalist) always counts as overflow.
+- `lib/router/types.ts` — `DistributeSummary` gains the two counter fields. `RouterError` adds an `"agent_not_found"` code.
+- `lib/router/__tests__/selectBySpecialization.test.ts` — 10 tests covering specialist match, priority within specialty, overflow, generalist, empty pool, defensive match-lane skip, multi-specialty agent.
+- `lib/router/__tests__/setSpecialization.test.ts` — 7 tests covering admin mutation, non-admin throws, empty-array generalist behaviour, applications-not-touched, audit metadata, agent-not-found, defensive array copy.
+- `lib/router/__tests__/distribute.test.ts` — assertions updated for the new summary shape and the new 4-agent (3 active + Jordan generalist) seed; specialist/overflow split verified.
+- `lib/operations/__tests__/operations.test.ts` — agent count assertions bumped 3→4 (excluding admin), distribute counts updated for Jordan.
+- `lib/queue/fixtures.ts` — added `agent-jordan` ("Jordan Park"), `role: "agent"`, `specializations: []` (generalist), `availability: "available"`. Slotted between River and the admin so the demo has a clean overflow row.
+- `lib/queue/QueueProvider.tsx` — added `setSpecialization(agentId, types)` action wrapping the pure mutation with the supervisor as actor. `RouterError` caught and surfaced as `{ ok: false, error }`.
+- `components/operations/SpecializationEditor.tsx` — popover with three toggle chips (Wine / Spirits / Malt), Save/Cancel, caption "Empty selection = generalist (overflow only)" so the supervisor knows what no-pick means. Saved arrays re-sorted into the canonical wine → spirits → malt order so the receiver doesn't see click order.
+- `components/operations/ReviewDistributionBoard.tsx` — the static specialization caption on each per-agent row became a clickable chip-button with a pencil icon + "Edit" label. On click, the editor opens anchored next to it. The Distribute notice now reports the split: "Routed N exception(s) across the team — X to specialists, Y via overflow." Defensive fallback to the short form when both counters are zero.
+- `app/(admin)/operations/page.tsx` — pulls `setSpecialization` from `useQueue()` and threads it as `onSetSpecialization` to the board.
+
+**Verification:**
+- `pnpm test` — 27 files, **233 tests pass + 1 skipped** (215 prior + 18 new).
+- `pnpm build` — clean.
+- `pnpm lint` — clean.
+- Manual smoke against `pnpm dev`: `/operations` HTML contains "Jordan Park" (the new generalist), "Edit" on the specialization buttons, and all three beverage types render in the editor.
+
+**Deviations from ticket:**
+- Agent A added a fifth agent (`agent-jordan`) rather than rewriting River so the existing OOO-malt-specialist demo case stays intact. The overflow demo gets a clean generalist row without churning the original fixtures.
+- Agent A landed a quirk on `AuditEvent.applicationId`: the type today requires a string per-application, but `setSpecialization` is agent-scoped. The agent set `applicationId` to the agent's id and added a comment marking the production migration in P6-2 (widen the column or split the audit-event union). Pragmatic prototype choice; the production schema is the right home for the fix.
+- Agent B re-sorts the saved array into canonical order to avoid leaking click order into state — small UX polish not in the spec but the right call.
+
+**Why:**
+P2-4 is the second parallel-agent build on this project, and the same workflow pattern from P2-3 carried over cleanly: contract-first dispatch, disjoint file scopes, integration clean on the first combined build. The trick that makes it work is the contract dictated upfront — `setSpecialization` signature, the new `DistributeSummary` fields — both agents target the same seam from opposite directions and the merge is trivial. P2-3's lesson held: parallel agents save real time when the work splits along a stable contract, which is what specialization routing does naturally (the algorithm is one half, the admin editor is the other, neither knows the other's internals).
+
+The **strategy swap at `claim.ts`** is the whole point of P2-3's strategy-parameter seam. Hardcoding FIFO would have meant rewriting both the call site and every test setup; strategy-as-parameter meant P2-4 dropped in `selectBySpecialization` with a one-line default change and every existing P2-3 test passes unchanged (by injecting `selectFifo` where needed). This is the same composability discipline as P1-3's per-field-matcher dispatch: each level of the verification stack has a single seam for the level above to plug into.
+
+The **specialist-then-overflow design** is the structural enforcement of FR-28 / D15's "soft partition" rule. A hard partition (specialists only) creates pool starvation on thin specialties — one OOO malt-beverage specialist means the malt items sit forever. The overflow branch keeps the pool moving by falling back to any priority item when no specialist matches. Importantly, the overflow branch preserves the same priority order (mismatch before review, oldest first) — the supervisor isn't sacrificing problem priority for type matching, they're sacrificing type matching for availability when type matching isn't possible. That's the right tradeoff.
+
+The **generalist case is the same code path as overflow**. An agent with `specializations: []` finds no specialist match in pass 1 and falls through to pass 2 — exactly the overflow behaviour, just structurally. The cute consequence: a deployment that turns every agent into a generalist degrades gracefully to FIFO + priority, which is the original P2-3 behaviour. No special case needed; the structure handles it.
+
+The **`setSpecialization` does NOT touch `applications`** is the rule that makes the editor safe. An agent who's halfway through reviewing a wine app shouldn't have it yanked because the supervisor flipped them to a spirits specialist. The work they pulled is theirs to finish; the next pull respects the new specialization. The supervisor's `reassign` from P2-3 is the explicit path if they want to move existing work. Separating "change what they pull next" from "move what they have now" is what makes editing safe at any moment.
+
+The **audit-event-on-specialization-change** is the same defensibility posture P2-3 set for hand-assign and reassign. A future supervisor disputes "why was this agent moved off wine duty?" and the audit log has the actor, the timestamp, and the before/after specializations. Production's `audit_event` table (schema.md) will hold these directly; the in-memory array is the prototype's stand-in.
+
+The **specialist vs overflow counters on `DistributeSummary`** give the supervisor the signal "is specialization actually working?". Healthy: most routed items match a specialist. Unhealthy: lots of overflow — either specialists are unavailable, or the specialty assignments don't fit the day's intake mix. Surfacing the split in the Distribute notice makes the signal one-glance-readable. P5-1's OTel spans will read the same counters, so observability gets the metric for free when the spans land.
+
+The **inline editor on the per-agent rows** is the seam P2-6's full Team view will wrap. P2-6 adds the dedicated Team page with per-agent rows that include specializations + stats + an availability toggle. The editor component here is what P2-6 reuses — the data flow is the same, just embedded in a different shell. The Team view will swap the trigger button for a richer row UI, but the popover stays the same.
+
+**Next:** P2-5 — Role-based shells. The role switcher swaps the current agent between Marcus, Priya, River, Jordan, and Sasha; the agent-shell routes (`/queue`) and admin-shell routes (`/operations`) are gated accordingly. The seams are ready: `setCurrentAgentId` from P2-2 + `role` on every agent in the fixture.
+
+---
+
 ## 2026-06-15 — P2-3 Work router (parallel-agent build)
 
 **Branch:** `feat/router`

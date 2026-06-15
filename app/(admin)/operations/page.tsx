@@ -43,6 +43,7 @@ export default function OperationsPage(): React.ReactElement {
     applyDistribute,
     handAssign,
     reassign,
+    setSpecialization,
   } = useQueue();
 
   const funnel = selectFunnel(state);
@@ -114,6 +115,7 @@ export default function OperationsPage(): React.ReactElement {
           onDistribute={applyDistribute}
           onHandAssign={handAssign}
           onReassign={reassign}
+          onSetSpecialization={setSpecialization}
           poolItems={poolItems}
           claimedByAgent={claimedByAgent}
         />
