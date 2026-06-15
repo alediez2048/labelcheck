@@ -111,6 +111,7 @@ export function _resetConfigCacheForTesting(): void {
 
 export type {
   ConfigFieldKey,
+  FieldRule,
   FieldsByTypeConfig,
   TolerancesConfig,
   WarningConfig,

@@ -89,10 +89,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: create lib/extraction/service.ts.
 - Refs: FR-4, FR-5; D4, D14.
 
-### P1-3 — Matching engine
+### P1-3 — Matching engine ✅ done 2026-06-15
 - Depends: P0-4, P1-2 · Branch: feat/matching · Est: 4h
 - Goal: per-field comparison with the right rule each: brand/type fuzzy, ABV and net contents normalized-exact, producer fuzzy, origin, warning exact (presence, verbatim, caps strict, bold best-effort).
-- Acceptance: [ ] each field rule implemented and unit-tested; [ ] tolerances from config; [ ] warning caps/wording strict; bold uncertain → review.
+- Acceptance: [x] each field rule implemented and unit-tested; [x] tolerances from config; [x] warning caps/wording strict; bold uncertain → review.
 - Files: create lib/matching/*.ts.
 - Refs: FR-7 to FR-12; D6.
 
