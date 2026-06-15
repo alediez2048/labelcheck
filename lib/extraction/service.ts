@@ -16,8 +16,25 @@ import type {
   ExtractionResponse,
   ProviderFaceInput,
 } from "@/lib/provider";
+import {
+  isTransientError,
+  TimeoutError,
+  withRetry,
+  withTimeout,
+} from "@/lib/provider/withTimeout";
 import { getRequiredFields } from "@/lib/config";
 import type { BeverageType, FaceKind, FieldName } from "@/types";
+
+/**
+ * D10 numbers, in one place. Tuning knobs live here so a future P5-2
+ * calibration sweep (or a provider swap in P6-1) doesn't have to chase
+ * literals scattered across the codebase. The 8000ms per-attempt timeout
+ * is a degradation knob, not a hard kill — p95-under-5s is the goal the
+ * route is measured against (NFR-1), not the per-call cutoff.
+ */
+const PROVIDER_TIMEOUT_MS = 8000;
+const PROVIDER_RETRY_ATTEMPTS = 2;
+const PROVIDER_RETRY_BACKOFF_MS = 250;
 
 /**
  * Server-side view of an Application — the same shape as `Application`
@@ -112,7 +129,36 @@ export async function extract(
     fieldSchema,
   };
 
-  // 3. One provider round trip (D14).
+  // 3. One provider round trip (D14), wrapped in the timeout + retry
+  //    budget from D10. A terminal timeout returns a degraded
+  //    ExtractionResponse rather than throwing — the route handler in
+  //    P1-7 surfaces it as the "could not verify in time" review-lane
+  //    result. Non-transient errors (validation, programming bugs)
+  //    propagate so the caller can surface a real error.
   const provider = getProvider();
-  return provider.extract(request);
+  try {
+    return await withRetry(
+      () =>
+        withTimeout(
+          (_signal) => provider.extract(request),
+          PROVIDER_TIMEOUT_MS,
+        ),
+      {
+        attempts: PROVIDER_RETRY_ATTEMPTS,
+        backoffMs: PROVIDER_RETRY_BACKOFF_MS,
+        retryOn: isTransientError,
+      },
+    );
+  } catch (err) {
+    if (err instanceof TimeoutError) {
+      return { faces: [], degraded: "timeout" };
+    }
+    if (isTransientError(err)) {
+      // Exhausted-retry transient error (e.g. provider 503 on both
+      // attempts). The right behaviour is the same as a timeout — the
+      // agent sees an actionable review-lane result, not a stack trace.
+      return { faces: [], degraded: "transient" };
+    }
+    throw err;
+  }
 }

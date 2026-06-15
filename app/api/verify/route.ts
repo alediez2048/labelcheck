@@ -226,6 +226,37 @@ function buildUnreadableResult(opts: {
   };
 }
 
+/**
+ * Build the structured "could not verify in time" result (D10, FR-16).
+ *
+ * Surfaced when the extraction service exhausted its timeout + retry
+ * budget. Lane=review (input-quality issue, not a regulatory failure),
+ * overall confidence pinned to zero so the triage classifier's "minimum
+ * field confidence" intuition still reads, with a single flag the agent
+ * can act on. We reuse `extractionFailed: true` because the downstream
+ * shape is identical — extraction did not yield usable text — but the
+ * message wording distinguishes the timeout from a generic unreadable.
+ */
+function buildTimeoutResult(opts: {
+  applicationId: string;
+  degraded: "timeout" | "transient";
+}): VerificationResult {
+  const message =
+    opts.degraded === "timeout"
+      ? "Could not verify in time — the label-reading service was slow to respond. Please try again, or request a better image from the applicant."
+      : "Could not verify in time — the label-reading service is temporarily unavailable. Please try again in a moment.";
+  return {
+    applicationId: opts.applicationId,
+    lane: "review",
+    overallConfidence: 0,
+    fields: [],
+    warning: EMPTY_WARNING,
+    flags: [message],
+    extractionFailed: true,
+    recommendation: "return_unreadable_image",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Building the standard VerificationResult
 // ---------------------------------------------------------------------------
@@ -358,9 +389,23 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
   }
 
-  // 5. Short-circuit if any face is unreadable (FR-26b). No matching, no
-  //    triage — there's nothing to match against. Lane is `review`
-  //    (input quality), not `mismatch` (regulatory failure).
+  // 5a. Short-circuit on a degraded extraction (D10 — timeout or
+  //     exhausted-retry transient). The structured "could not verify in
+  //     time" result is the same shape the unreadable case uses, with a
+  //     different surface message — both end up as actionable review-lane
+  //     outcomes the agent can resolve without seeing a stack trace.
+  if (extraction.degraded) {
+    return NextResponse.json(
+      buildTimeoutResult({
+        applicationId: decoded.submission.applicationId,
+        degraded: extraction.degraded,
+      }),
+    );
+  }
+
+  // 5b. Short-circuit if any face is unreadable (FR-26b). No matching,
+  //     no triage — there's nothing to match against. Lane is `review`
+  //     (input quality), not `mismatch` (regulatory failure).
   const unreadable = unreadableFaces(extraction);
   if (unreadable.length > 0) {
     return NextResponse.json(
