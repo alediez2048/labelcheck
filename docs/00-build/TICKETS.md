@@ -82,10 +82,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: create the input UI, lib/validation, fixtures/samples.ts.
 - Refs: FR-1, FR-2, FR-3; D9, D12.
 
-### P1-2 — Extraction service
+### P1-2 — Extraction service ✅ done 2026-06-15
 - Depends: P0-3, P1-1 · Branch: feat/extraction · Est: 3h
 - Goal: one model call per application carrying all faces; returns transcribed fields per face plus warning structural flags.
-- Acceptance: [ ] single call, all faces; [ ] returns text-only per face; [ ] warning flags (presence, caps, bold best-effort, legibility).
+- Acceptance: [x] single call, all faces; [x] returns text-only per face; [x] warning flags (presence, caps, bold best-effort, legibility).
 - Files: create lib/extraction/service.ts.
 - Refs: FR-4, FR-5; D4, D14.
 
