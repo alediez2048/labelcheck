@@ -138,10 +138,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: provider call wrapper.
 - Refs: D10; NFR-1.
 
-### P1-10 — Test set and acceptance tests
-- Depends: P1-3, P1-5 · Branch: feat/acceptance-tests · Est: 3h
+### P1-10 — Test set and acceptance tests ✅ done 2026-06-15
+- Depends: P1-3, P1-5 · Branch: feat/acceptance · Est: 3h
 - Goal: green pairs from the Public COLA Registry plus synthesized red cases; assert AC-1 to AC-10.
-- Acceptance: [ ] golden set assembled; [ ] AC-1 to AC-10 automated; [ ] false-negative checks on planted mismatches.
+- Acceptance: [x] golden set assembled (`tests/golden/index.ts`, 9 fixtures across 5 categories); [x] AC-1 to AC-7 automated (`tests/acceptance.test.ts`); [x] AC-9 automated (`tests/a11y.test.tsx` jest-axe sweep + screen-reader pass logged in `tests/MANUAL-CHECKS.md`); [x] AC-10 automated (`tests/static/no-pii-to-disk.test.ts` static grep + code review logged); [x] AC-8 explicitly deferred to P3-1 (skipped test); [x] false-negative probes assert lane !== match on planted mismatches.
 - Files: tests/golden/*, tests/acceptance.test.ts.
 - Refs: AC-1 to AC-10; A24 to A26; observability.md.
 

@@ -140,6 +140,159 @@ const FIXTURES: Record<string, ExtractionResponse> = {
       ),
     ],
   },
+
+  // -------------------------------------------------------------------------
+  // sample-warning-missing-001 — bourbon; warning ABSENT on every face
+  // (drives AC-4 — a missing warning is a real mismatch)
+  // -------------------------------------------------------------------------
+  "sample-warning-missing-001": {
+    faces: [
+      face("front", {
+        brand_name: "OLD CEDAR",
+        class_type: "KENTUCKY STRAIGHT BOURBON",
+        alcohol_content: "40% ALC/VOL",
+        net_contents: "750 ML",
+      }),
+      face("back", {
+        brand_name: "OLD CEDAR",
+        producer_name: "OLD CEDAR DISTILLERY",
+        producer_address: "456 BARREL LN, LOUISVILLE KY",
+      }),
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  // sample-fuzzy-brand-001 — wine; STONE'S THROW on the label vs Stone's
+  // Throw on the form (drives AC-5 — apostrophe + case + whitespace
+  // variants must still match within the fuzzy tolerance)
+  // -------------------------------------------------------------------------
+  "sample-fuzzy-brand-001": {
+    faces: [
+      face("front", {
+        brand_name: "STONE'S THROW",
+        class_type: "TABLE WINE",
+        alcohol_content: "13% ALC/VOL",
+        net_contents: "750 ML",
+        country_of_origin: "USA",
+      }),
+      face(
+        "back",
+        {
+          brand_name: "STONE'S THROW",
+          producer_name: "STONE'S THROW VINEYARDS",
+          producer_address: "9 ORCHARD WAY, PASO ROBLES CA",
+          government_warning: CANONICAL_WARNING,
+        },
+        WARNING_OK,
+      ),
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  // sample-unreadable-001 — front face with no usable text, low legibility
+  // (drives AC-6 — the route handler short-circuits to lane=review with
+  // recommendation=return_unreadable_image)
+  // -------------------------------------------------------------------------
+  "sample-unreadable-001": {
+    faces: [
+      {
+        kind: "front",
+        fields: {},
+        warning: {
+          presence: false,
+          allCaps: false,
+          boldConfident: "no",
+          legibility: "low",
+        },
+      },
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  // False-negative probes (observability.md: false-negative rate is the
+  // headline safety metric). Each probe LOOKS clean on the surface but
+  // carries a real defect; the pipeline MUST NOT clear it into the
+  // match lane.
+  // -------------------------------------------------------------------------
+
+  // FN probe 1 — every form field aligns with the label EXCEPT the warning,
+  // which is title-cased instead of ALL CAPS. The bold flag is "yes" so
+  // the only signal is the case violation — easy to overlook.
+  "sample-fn-probe-warning-case-001": {
+    faces: [
+      face("front", {
+        brand_name: "RIVER BEND",
+        fanciful_name: "Cabernet",
+        class_type: "TABLE WINE",
+        alcohol_content: "14% ALC/VOL",
+        net_contents: "750 ML",
+        country_of_origin: "USA",
+      }),
+      face(
+        "back",
+        {
+          brand_name: "RIVER BEND",
+          producer_name: "RIVER BEND WINERY",
+          producer_address: "12 RIVER RD, SONOMA CA",
+          government_warning: TITLECASED_WARNING,
+        },
+        // Same as WARNING_TITLECASE but boldConfident: "yes" so the only
+        // surface defect is the title-case heading.
+        {
+          presence: true,
+          allCaps: false,
+          boldConfident: "yes",
+          legibility: "good",
+        },
+      ),
+    ],
+  },
+
+  // FN probe 2 — ABV mismatch by 0.5% (close enough to look fine on a
+  // skim; the matcher requires stated-equals-stated per FR-9).
+  "sample-fn-probe-abv-half-001": {
+    faces: [
+      face("front", {
+        brand_name: "BLACK FOREST",
+        class_type: "KENTUCKY STRAIGHT BOURBON",
+        alcohol_content: "40.5% ALC/VOL", // form will say 40%
+        net_contents: "750 ML",
+      }),
+      face(
+        "back",
+        {
+          brand_name: "BLACK FOREST",
+          producer_name: "BLACK FOREST DISTILLERY",
+          producer_address: "33 OAK LN, LEXINGTON KY",
+          government_warning: CANONICAL_WARNING,
+        },
+        WARNING_OK,
+      ),
+    ],
+  },
+
+  // FN probe 3 — single-character brand drift. Hard to spot at a glance.
+  "sample-fn-probe-brand-drift-001": {
+    faces: [
+      face("front", {
+        brand_name: "VINTAGE PEAK", // form will say VINTAGE PARK
+        class_type: "TABLE WINE",
+        alcohol_content: "13.5% ALC/VOL",
+        net_contents: "750 ML",
+        country_of_origin: "USA",
+      }),
+      face(
+        "back",
+        {
+          brand_name: "VINTAGE PEAK",
+          producer_name: "VINTAGE PEAK CELLARS",
+          producer_address: "21 RIDGE LN, NAPA CA",
+          government_warning: CANONICAL_WARNING,
+        },
+        WARNING_OK,
+      ),
+    ],
+  },
 };
 
 /**
