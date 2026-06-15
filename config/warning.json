@@ -1,0 +1,8 @@
+{
+  "version": "0.0.1-placeholder",
+  "canonicalText": "__TODO_VERBATIM_TEXT_A18__ (replace once assumption A18 is resolved; see requirements FR-11)",
+  "headingText": "GOVERNMENT WARNING:",
+  "headingCapsRequired": true,
+  "headingBoldRequired": true,
+  "headingBoldEnforcement": "best_effort"
+}

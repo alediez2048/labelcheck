@@ -1,0 +1,30 @@
+{
+  "distilled_spirits": [
+    "brandName",
+    "classType",
+    "alcoholContent",
+    "netContents",
+    "producerName",
+    "producerAddress",
+    "government_warning"
+  ],
+  "wine": [
+    "brandName",
+    "classType",
+    "alcoholContent",
+    "netContents",
+    "producerName",
+    "producerAddress",
+    "countryOfOrigin",
+    "government_warning"
+  ],
+  "malt_beverage": [
+    "brandName",
+    "classType",
+    "alcoholContent",
+    "netContents",
+    "producerName",
+    "producerAddress",
+    "government_warning"
+  ]
+}

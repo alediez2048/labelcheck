@@ -1,0 +1,35 @@
+{
+  "brandName": {
+    "rule": "fuzzy",
+    "minSimilarity": 0.92,
+    "normalize": ["case", "punctuation", "whitespace"]
+  },
+  "classType": {
+    "rule": "fuzzy",
+    "minSimilarity": 0.92,
+    "normalize": ["case", "punctuation", "whitespace"]
+  },
+  "alcoholContent": {
+    "rule": "stated_equals_stated",
+    "normalize": ["unit", "whitespace"],
+    "note": "A19: real TTB ABV tolerance tables not implemented in prototype"
+  },
+  "netContents": {
+    "rule": "stated_equals_stated",
+    "normalize": ["unit", "whitespace", "case"]
+  },
+  "producerName": {
+    "rule": "fuzzy",
+    "minSimilarity": 0.90,
+    "normalize": ["case", "punctuation", "whitespace"]
+  },
+  "producerAddress": {
+    "rule": "fuzzy",
+    "minSimilarity": 0.85,
+    "normalize": ["case", "punctuation", "whitespace"]
+  },
+  "countryOfOrigin": {
+    "rule": "exact",
+    "normalize": ["case", "whitespace"]
+  }
+}
