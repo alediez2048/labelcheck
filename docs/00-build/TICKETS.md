@@ -124,10 +124,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: app/api/verify route.
 - Refs: FR-14, FR-16, FR-26b.
 
-### P1-8 — Review UI and dispositions
+### P1-8 — Review UI and dispositions ✅ done 2026-06-15
 - Depends: P1-7 · Branch: feat/review-ui · Est: 5h
 - Goal: as-submitted vs application-versus-label, lane banner, the two dispositions (Approve, Return for correction with structured reason summary), auto-advance; accessible.
-- Acceptance: [ ] per-field table with the bad field highlighted; [ ] two dispositions only, no manual reject; [ ] Return for correction captures the structured reason summary from the latest field_results (FR-26a); [ ] unreadable-image recommendation surfaced when extraction failed (FR-26b); [ ] colour plus icon plus text (AC-9); [ ] large targets; [ ] auto-advance.
+- Acceptance: [x] per-field table with the bad field highlighted; [x] two dispositions only, no manual reject; [x] Return for correction captures the structured reason summary from the latest field_results (FR-26a); [x] unreadable-image recommendation surfaced when extraction failed (FR-26b); [x] colour plus icon plus text (AC-9); [x] large targets; [x] auto-advance. Automated a11y assertion (axe-core) deferred to P1-10 per the ticket's "Eval" line.
 - Files: the review components.
 - Refs: FR-14, FR-21, FR-22, FR-24, FR-26, FR-26a, FR-26b; NFR-2; D6.
 

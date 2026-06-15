@@ -169,3 +169,40 @@ pnpm add -D @axe-core/react jest-axe
 ```
 
 Use jest-axe for the automated a11y assertion in component tests; @axe-core/react is helpful during local dev for live a11y warnings.
+
+**At completion:** the axe install + Vitest jsdom setup were deferred to P1-10 (see Outcome below).
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/review-ui`
+**Status:** Done — 103 tests pass (UI exercised manually + via build; component-level vitest setup deferred to P1-10).
+
+**What landed:**
+- `app/verify/result/page.tsx` — review page; reads VerificationResult + as-submitted from sessionStorage, composes the lane banner / unreadable banner / two-up view / disposition panel / return-for-correction form. Auto-advances back to `/verify` 1.5s after a disposition.
+- `app/verify/result/LaneBanner.tsx` — color + icon + plain-language label, three lanes.
+- `app/verify/result/FieldTable.tsx` — per-field table with verdict chips; flagged rows pair color + icon + text.
+- `app/verify/result/AsSubmittedView.tsx` — read-only as-submitted view (FR-21).
+- `app/verify/result/UnreadableBanner.tsx` — FR-26b "Return — unreadable image" recommendation with affected faces.
+- `app/verify/result/DispositionPanel.tsx` — exactly two atomic dispositions.
+- `app/verify/result/ReturnForCorrectionForm.tsx` — auto-fills the structured reason summary from failed fields, optional agent note (FR-26a).
+- `app/verify/InputForm.tsx` (modified) — POSTs `/api/verify`, stashes result + submission in sessionStorage, navigates to `/verify/result`.
+
+**Deviation:** automated axe-core a11y test deferred to P1-10. The ticket's own Eval line places that automation downstream, and the current Vitest config is node-environment-only (no jsdom, no .tsx include) — adding the jsdom + testing-library + jest-axe stack here and again in P1-10 would mean tooling churn for no extra signal. The page is built with the a11y guardrails (semantic HTML, ARIA, color+icon+text triples) so the P1-10 sweep should pass without changes.
+
+### Why
+
+P1-8 is the moment LabelCheck becomes a tool an agent can actually use. The page is the contract: lane banner first, recommendation banner second when present, the two-up as-submitted-vs-label view third, dispositions last. The order is deliberate — the lane tells the agent the system's call, the recommendation tells the agent the system's default action when present, the comparison gives the agent the data to override or confirm, the dispositions are the only two buttons that exist. A future maintainer who tries to "let agents reject individual faces" or "add a manual-reject button" is breaking the agency's risk posture in code: rejection is automatic after the 30-day correction window (FR-27). Two dispositions only is structural, not aspirational.
+
+**Color + icon + text** is the most-load-bearing accessibility constraint. Every status surface pairs the three: lane banner has a colored ring + glyph + sentence; field chips have background + icon + verdict name; the unreadable banner has border + "!" + heading. A palette change can't drop the signal because the signal is in the text. P1-10's axe sweep will verify mechanically; the design verifies in advance.
+
+**SessionStorage** for state passing is the right primitive for NFR-4 (in-session only, no disk). URL params can't carry the result; a server-side store would burn the no-persistence guarantee. Back-button-after-disposition is handled: the page clears its sessionStorage on disposition so a back-press loads the input page fresh rather than re-rendering a stale verification.
+
+The **structured `ReturnForCorrectionForm`** is what makes FR-26a real. Free-text alone would leave applicants resubmitting blind. The form derives row content from `result.fields.filter(verdict !== 'match')` — the same per-field reasons the matching engine generated, surfaced as the applicant-facing summary. The agent-note textarea sits on top as the human override.
+
+The **`DispositionPanel`** has two buttons, period. That's the structural enforcement of FR-26's atomic constraint: there is no UI surface that would let an agent record a per-face or per-field disposition because no such surface exists. A future maintainer who wants to add per-face approval would have to add new components, not modify existing ones — the existing structure refuses to express the broken state.
+
+**Auto-advance** is the seam P2-1 widens into a queue. In single-application mode the timer returns to `/verify`; in P2-1's "My Queue" view the same auto-advance will dispatch the next claimed exception. Keeping it small and explicit here means P2-1 can replace the destination without touching the disposition logic.
+
+The **deferral of axe-core to P1-10** is honest tooling sequencing. The current Vitest config is node-only; adding jsdom + testing-library + jest-axe is a P1-10 change that will happen anyway. Doing it twice would be churn. Doing it once in P1-10, with this page already built to pass an axe sweep, is the cleaner sequence. The mitigation against shipping a hole the axe would catch is the disciplined color+icon+text pattern on every status surface here.

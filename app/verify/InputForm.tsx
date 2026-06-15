@@ -16,14 +16,34 @@
 
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
 import type { Sample, SampleForm } from "@/fixtures/samples";
 import type { ConfigFieldKey } from "@/lib/config";
-import type { BeverageType, FaceKind } from "@/types";
+import type { BeverageType, FaceKind, VerificationResult } from "@/types";
 
 import { FaceUploader } from "./FaceUploader";
 import { SamplePicker } from "./SamplePicker";
+
+/**
+ * sessionStorage key the result page reads on mount. SessionStorage is
+ * scoped to the tab, cleared on close — meets NFR-4 (no persistence) and
+ * removes the need to thread the VerificationResult through a URL.
+ */
+const RESULT_STORAGE_KEY = "labelcheck:verification-result";
+/**
+ * Stash the as-submitted application alongside the result so the review
+ * page can render the as-submitted side without a second round-trip.
+ */
+const SUBMISSION_STORAGE_KEY = "labelcheck:submitted-application";
+
+type StoredSubmission = {
+  applicationId: string;
+  beverageType: BeverageType;
+  form: SampleForm;
+  faces: Array<{ kind: FaceKind; previewUrl: string }>;
+};
 
 type FaceState = {
   kind: FaceKind;
@@ -85,13 +105,38 @@ type Props = {
   samples: Sample[];
 };
 
+async function fileToBase64(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(binary);
+}
+
+async function sampleUrlToBase64(url: string): Promise<{ bytes: string; mime: string }> {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const buf = await blob.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  const mime = blob.type === "image/png" ? "image/png" : "image/jpeg";
+  return { bytes: btoa(binary), mime };
+}
+
 export function InputForm({ fieldsByType, samples }: Props): React.ReactElement {
+  const router = useRouter();
   const [beverageType, setBeverageType] = useState<BeverageType>("distilled_spirits");
   const [form, setForm] = useState<SampleForm>(DEFAULT_FORM);
   const [faces, setFaces] = useState<FaceState[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formErrors, setFormErrors] = useState<string[]>([]);
-  const [preview, setPreview] = useState<unknown>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
 
   // Revoke object URLs on unmount.
   useEffect(
@@ -126,13 +171,13 @@ export function InputForm({ fieldsByType, samples }: Props): React.ReactElement 
         sourceUrl: f.imageSrc,
       })),
     );
+    setSelectedSampleId(sample.id);
     setFieldErrors({});
     setFormErrors([]);
-    setPreview(null);
   }, []);
 
   const onSubmit = useCallback(
-    (e: React.FormEvent<HTMLFormElement>) => {
+    async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       const nextFieldErrors: FieldErrors = {};
       const nextFormErrors: string[] = [];
@@ -153,25 +198,91 @@ export function InputForm({ fieldsByType, samples }: Props): React.ReactElement 
       if (Object.keys(nextFieldErrors).length > 0 || nextFormErrors.length > 0) {
         setFieldErrors(nextFieldErrors);
         setFormErrors(nextFormErrors);
-        setPreview(null);
         return;
       }
 
       setFieldErrors({});
       setFormErrors([]);
-      setPreview({
-        beverageType,
-        form,
-        faces: faces.map((f) => ({
-          kind: f.kind,
-          source: f.file ? "upload" : "sample",
-          ...(f.file
-            ? { fileName: f.file.name, sizeBytes: f.file.size, mime: f.file.type }
-            : { url: f.sourceUrl }),
-        })),
-      });
+      setSubmitting(true);
+      try {
+        // Encode each face as base64. Sample faces come from public URLs;
+        // uploads come from File handles. Both end up as base64 strings
+        // matching the route's JSON wire shape (P1-7).
+        const facePayloads = await Promise.all(
+          faces.map(async (f) => {
+            if (f.file) {
+              const bytes = await fileToBase64(f.file);
+              const mime = f.file.type === "image/png" ? "image/png" : "image/jpeg";
+              return { kind: f.kind, bytes, mime };
+            }
+            const fetched = await sampleUrlToBase64(f.sourceUrl ?? f.previewUrl);
+            return { kind: f.kind, bytes: fetched.bytes, mime: fetched.mime };
+          }),
+        );
+        // applicationId: the chosen sample id when a sample was loaded
+        // (drives the mock provider's canned fixture), otherwise a
+        // browser-generated id for uploads.
+        const applicationId =
+          selectedSampleId ??
+          (typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `app-${Date.now()}`);
+        const body = {
+          applicationId,
+          beverageType,
+          form,
+          faces: facePayloads,
+        };
+        const res = await fetch("/api/verify", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as {
+            error?: string;
+            fields?: string[];
+          };
+          setFormErrors([err.error ?? "Verification failed — please review the form."]);
+          // Map field-scoped errors back to field highlights.
+          if (Array.isArray(err.fields)) {
+            const fieldErrs: FieldErrors = {};
+            for (const f of err.fields) {
+              if (FORM_FIELD_KEYS.includes(f as keyof SampleForm)) {
+                fieldErrs[f as keyof SampleForm] = err.error ?? "Invalid";
+              }
+            }
+            setFieldErrors(fieldErrs);
+          }
+          return;
+        }
+        const result = (await res.json()) as VerificationResult;
+        const submission: StoredSubmission = {
+          applicationId,
+          beverageType,
+          form,
+          faces: faces.map((f) => ({ kind: f.kind, previewUrl: f.previewUrl })),
+        };
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(
+            RESULT_STORAGE_KEY,
+            JSON.stringify(result),
+          );
+          window.sessionStorage.setItem(
+            SUBMISSION_STORAGE_KEY,
+            JSON.stringify(submission),
+          );
+        }
+        router.push("/verify/result");
+      } catch {
+        setFormErrors([
+          "Could not reach the verification service. Please try again.",
+        ]);
+      } finally {
+        setSubmitting(false);
+      }
     },
-    [beverageType, faces, fieldsByType, form],
+    [beverageType, faces, fieldsByType, form, router, selectedSampleId],
   );
 
   const requiredFields = fieldsByType[beverageType];
@@ -244,26 +355,12 @@ export function InputForm({ fieldsByType, samples }: Props): React.ReactElement 
 
         <button
           type="submit"
-          className="w-full rounded-md bg-emerald-600 px-4 py-3 text-base font-semibold text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+          disabled={submitting}
+          className="w-full rounded-md bg-emerald-600 px-4 py-3 text-base font-semibold text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:bg-emerald-400"
         >
-          Verify
+          {submitting ? "Verifying…" : "Verify"}
         </button>
       </form>
-
-      {preview !== null && (
-        <section
-          aria-live="polite"
-          className="mt-8 rounded-md border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900"
-        >
-          <h2 className="text-sm font-semibold">Submission preview</h2>
-          <p className="mt-1 text-xs text-emerald-800">
-            Validated. P1-7 will POST this shape to <code>/api/verify</code>.
-          </p>
-          <pre className="mt-3 overflow-x-auto rounded bg-white p-3 text-xs text-slate-800">
-            {JSON.stringify(preview, null, 2)}
-          </pre>
-        </section>
-      )}
     </main>
   );
 }
