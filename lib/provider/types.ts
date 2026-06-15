@@ -41,8 +41,8 @@ export type ProviderFaceInput = {
 export type ExtractionRequest = {
   applicationId: string;
   beverageType: BeverageType;
-  faces: ProviderFaceInput[];
-  fieldSchema: FieldName[];
+  faces: ReadonlyArray<ProviderFaceInput>;
+  fieldSchema: ReadonlyArray<FieldName>;
 };
 
 /**
