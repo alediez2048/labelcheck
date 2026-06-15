@@ -171,3 +171,45 @@ The router routes wine exceptions to wine specialists, spirits to spirits, malt 
 ```
 (none — all logic + UI; reuse Next.js, Tailwind, and the P0/P1 toolchain)
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/specialization`
+**Status:** Done — 233 tests pass + 1 skipped (+18 new); lint + build clean.
+**Workflow:** Parallel-agent build (second one on the project). Algorithm + provider on one agent, UI editor + wiring on the other, contract dictated upfront.
+
+**What landed:**
+- `lib/router/selectBySpecialization.ts` — specialist-first / overflow-second strategy; generalists fall straight through to overflow.
+- `lib/router/setSpecialization.ts` — admin-only mutation; does NOT touch `applications`; emits `"override"` audit event with before/after metadata.
+- `lib/router/claim.ts` — default strategy switched to `selectBySpecialization`. `selectFifo` still exported.
+- `lib/router/distribute.ts` — summary extended with `specialistMatches` + `overflowMatches`.
+- `lib/router/types.ts` — `DistributeSummary` + `RouterError` "agent_not_found" code.
+- 17 new tests across two suites (`selectBySpecialization`, `setSpecialization`); 1 reshape of `distribute.test.ts`.
+- `lib/queue/fixtures.ts` — `agent-jordan` (generalist, available); the other agents unchanged.
+- `lib/queue/QueueProvider.tsx` — `setSpecialization(agentId, types)` action.
+- `components/operations/SpecializationEditor.tsx` — three-chip popover; "Empty = generalist (overflow only)" caption; canonical-order save.
+- `components/operations/ReviewDistributionBoard.tsx` — the per-agent specialization caption is now a clickable chip-button with editor anchor. Distribute notice reports the split.
+- `app/(admin)/operations/page.tsx` — threads `setSpecialization` to the board.
+
+**Deviations:**
+- Added a 5th agent (`agent-jordan`) rather than rewriting River — preserves the OOO-malt-specialist demo while giving overflow a clean row.
+- `AuditEvent.applicationId` is required by the existing type; `setSpecialization` is agent-scoped, so the agent's id is used in that field with a comment marking the production-schema fix.
+- Saved arrays are re-sorted into canonical order (wine → spirits → malt) so receivers don't see click order.
+
+### Why
+
+P2-4 is the second parallel-agent build. Same pattern as P2-3: contract-first dispatch, disjoint file scopes, clean integration. The strategy swap at `claim.ts` is the whole point of P2-3's strategy-parameter seam — a one-line default change drops in P2-4's selection rule without touching the call sites or the existing tests.
+
+The **specialist-then-overflow design** is the structural enforcement of FR-28 / D15's "soft partition" rule. A hard partition starves the pool on thin specialties; the overflow branch keeps the pool moving while preserving priority order (mismatch before review, oldest first).
+
+The **generalist case is the same code path as overflow**. An empty `specializations` array finds nothing in pass 1 and falls to pass 2 — same structure, no special case. Turning every agent into a generalist gracefully degrades to the P2-3 FIFO + priority behaviour.
+
+**`setSpecialization` does NOT touch `applications`** is the rule that makes the editor safe at any moment. The supervisor's `reassign` from P2-3 is the explicit path for moving existing work. Separating "change what they pull next" from "move what they have now" is what keeps mid-disposition edits safe.
+
+The **audit-event-on-specialization-change** is the same defensibility posture as P2-3's hand-assign and reassign. Production's `audit_event` table holds these directly; the in-memory array is the prototype's stand-in.
+
+The **specialist vs overflow counters** give the supervisor a "is specialization actually working?" signal. Healthy = most routed items match a specialist; unhealthy = lots of overflow means either specialists are unavailable or the day's intake mix doesn't fit the team. P5-1's OTel spans will read the same counters when they land.
+
+The **inline editor on the per-agent rows** is the seam P2-6's full Team view will wrap. The editor component stays the same; P2-6 just embeds it in a richer shell.

@@ -37,16 +37,16 @@ describe("distribute", () => {
   });
 
   it("assigns one item per available agent in a single pass", () => {
-    // Seed has 3 unclaimed exceptions and 2 available agents (Marcus,
-    // Priya); River is OOO. One pass → 2 assigned, 1 left in pool.
+    // Seed has 3 unclaimed exceptions and 3 available agents (Marcus,
+    // Priya, Jordan); River is OOO. One pass → 3 assigned, 0 left.
     const { state, summary } = distribute(seed(), {
       now: () => "2026-06-15T10:00:00Z",
     });
-    expect(summary.assignedCount).toBe(2);
+    expect(summary.assignedCount).toBe(3);
     const remainingPool = state.applications.filter(
       (a) => a.assignedAgentId === null && a.verification.lane !== "match",
     );
-    expect(remainingPool.length).toBe(1);
+    expect(remainingPool.length).toBe(0);
   });
 
   it("byAgentId records each agent's exact share", () => {
@@ -60,6 +60,23 @@ describe("distribute", () => {
     expect(total).toBe(summary.assignedCount);
     expect(summary.byAgentId["agent-marcus"]).toBe(1);
     expect(summary.byAgentId["agent-priya"]).toBe(1);
+    expect(summary.byAgentId["agent-jordan"]).toBe(1);
+  });
+
+  it("splits specialist matches from overflow matches in the summary", () => {
+    // Marcus (spirits) picks cedar-ridge — a spirits mismatch — so
+    // specialistMatches += 1. Priya (wine) has no wine items in the
+    // pool, so overflow → coastal-pale (malt). Jordan is a generalist,
+    // so dunmore (the remaining review item) is overflow too.
+    // Total: 1 specialist match + 2 overflow = 3.
+    const { summary } = distribute(seed(), {
+      now: () => "2026-06-15T10:00:00Z",
+    });
+    expect(summary.specialistMatches).toBe(1);
+    expect(summary.overflowMatches).toBe(2);
+    expect(summary.specialistMatches + summary.overflowMatches).toBe(
+      summary.assignedCount,
+    );
   });
 
   it("skips out-of-office agents (no entry in byAgentId)", () => {

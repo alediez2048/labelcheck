@@ -128,7 +128,7 @@ describe("selectPoolSnapshot + selectAgentLoad", () => {
   it("selectDistribution combines pool + agent load", () => {
     const snapshot = selectDistribution(seed());
     expect(snapshot.pool.total).toBe(3);
-    expect(snapshot.agents.length).toBe(3); // 3 agents, 1 admin filtered
+    expect(snapshot.agents.length).toBe(4); // 4 agents (Marcus, Priya, River, Jordan), 1 admin filtered
   });
 });
 
@@ -211,11 +211,11 @@ describe("distribute (P2-3 router)", () => {
   it("clears the available-agent share of the pool and reports applied=true", () => {
     const { summary } = distribute(seed());
     expect(summary.applied).toBe(true);
-    // Two available agents in the seed (Marcus, Priya); River is OOO.
-    // Pool has three unclaimed exceptions, so both agents get one.
-    expect(summary.assignedCount).toBe(2);
+    // Three available agents in the seed (Marcus, Priya, Jordan); River
+    // is OOO. Pool has three unclaimed exceptions — all get claimed.
+    expect(summary.assignedCount).toBe(3);
     expect(Object.keys(summary.byAgentId).sort()).toEqual(
-      ["agent-marcus", "agent-priya"].sort(),
+      ["agent-jordan", "agent-marcus", "agent-priya"].sort(),
     );
   });
 });

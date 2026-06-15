@@ -40,3 +40,4 @@ data/sample-colas/fail/images/
 
 # Memory directory is private per-machine
 memory/
+*.tsbuildinfo
