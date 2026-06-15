@@ -4,6 +4,36 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P1-4 Confidence derivation
+
+**Branch:** `feat/confidence`
+**Status:** Done
+
+**What landed:**
+- `lib/matching/confidence.ts` — pure `deriveConfidence({ verdict, margin, rule, legibility, config })` returning a 0..1 scalar. Does NOT accept the model's self-reported overall confidence as a parameter (D5 — structural defense, not a check).
+- `lib/matching/match.ts` — orchestrator return type promoted from `MatchResult[]` to `FieldResult[]`. Adds `legibilityFor()` to look up the face's warning.legibility as a coarse face-level proxy and `attachConfidence()` to wrap each match.
+- `config/tolerances.json` — new `confidence` sub-object with `threshold`, `legibilityFactors`, `notFoundConfidence`, `lowConfidenceVerdict`, and a documentation `note`.
+- `lib/config/schema.ts` — `ConfidenceConfigSchema` added to `TolerancesConfigSchema` (both `.strict()` so a typo at startup fails loudly).
+- `lib/config/index.ts` — `ConfidenceConfig` type re-exported.
+- `lib/matching/__tests__/confidence.test.ts` — 13 tests covering the headline D5 cases: near-miss → below threshold (the test that validates D5), comfortable match → near 1.0, exact mismatch → high confidence (routes to mismatch lane, NOT review), exact match with low legibility → below threshold, not_found → mid-confidence, low_confidence verdict → mid-low, default legibility, purity (same inputs → same output), and clamp-to-[0,1].
+
+**Verification:**
+- `pnpm test` clean — 9 files, **69 tests** (56 prior + 13 new), all pass in 624ms.
+- `pnpm build` clean (`✓ Compiled successfully in 1550ms`). No new routes.
+- `pnpm lint` clean.
+- The orchestrator tests from P1-3 still pass — they assert on `verdict`, which is unchanged; the new `confidence` field is additive.
+
+**Deviations from ticket:**
+- The `confidence` block is a new sub-object inside `tolerances.json` rather than a new top-level config file. One file edit, one Zod sub-schema, one loader, and a `.strict()` schema means a typo like `"thresholdd"` fails at startup. The alternative (a separate `confidence.json`) was rejected as ceremony.
+- `MatchResult` → `FieldResult` happens at the orchestrator boundary, not in a separate `withConfidence(matchResult)` step. Every caller eventually wants confidence; wrapping would force every site to reach in twice (`r.matchResult.verdict`, `r.confidence`).
+
+**Why:**
+P1-4 is the smallest ticket in Phase 1 by line count and the largest by load-bearing weight. D5 calls confidence-from-model "the most-likely-to-be-fixed-incorrectly decision in the system" — a future maintainer staring at a `model.confidence` field will absolutely think "why are we ignoring this number?" The defence is structural: this function takes the model's per-region legibility flag as input but does not accept the model's overall self-reported confidence as a parameter at all. There's no place to plug it in without editing the signature, which means a reviewer notices. `deriveConfidence` is a pure function — no `Date.now()`, no `Math.random()`, no logger calls. That's not aesthetic — it's what makes P5-2's calibration curve possible. The eval harness replays historical extractions through this function and expects bit-identical outputs; any nondeterminism would silently invalidate the curve. The formula is intentionally simple and inspectable: fuzzy fields use `0.5 + 0.5 * (|margin| / range)`, where the range is `1 − minSimilarity` from the config (typically 0.08). That makes the near-miss case mechanical — a margin near zero produces a confidence near 0.5, which is below the 0.7 threshold and routes to review. Exact-match fields short-circuit to 1.0 because there's no continuous metric — pass and fail are binary, and a confident mismatch must go to the mismatch lane, not the review lane. The legibility multiplier sits at the END of the chain — base confidence is computed first, then legibility scales it — so a low-legibility region can drag an otherwise-clean field below the threshold even when the rule "technically passed", which is exactly what we want for image-quality-driven review. The per-field legibility proxy is a known coarseness: the extraction response carries `warning.legibility` per face but doesn't carry per-field legibility, so the orchestrator uses that face-level signal for every field on that face. P5-2 calibration will tell us if it generalises. We changed the orchestrator's return type from `MatchResult[]` to `FieldResult[]` rather than wrap it because every caller eventually wants confidence and `FieldResult` is already the public domain type in `types/domain.ts`. Promoting at the matching boundary is the right place — earlier (per-field matchers) we don't have legibility; later (P1-5 triage) we'd be deriving confidence in the wrong module. Trade-off accepted: `margin` becomes invisible to the public API, which means P1-5 can't second-guess the confidence value with the raw margin. That's correct — second-guessing is a smell, and P5-2 has access to the full evaluation history regardless. Config schema: `confidence` is a sibling key inside `tolerances.json`, not a separate file. The strict Zod schema catches a typo like `"thresholdd"` at startup rather than silently substituting a default — same "rule lookup must be loud" pattern as P0-4.
+
+**Next:** P1-5 — Triage classifier (roll per-field verdicts + confidence into one of three lanes with the priority order — warning failures always surface).
+
+---
+
 ## 2026-06-15 — P1-3 Matching engine
 
 **Branch:** `feat/matching`

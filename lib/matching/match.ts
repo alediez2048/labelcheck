@@ -13,9 +13,14 @@
 
 import { getTolerances, getWarningConfig, getRequiredFields, type FieldRule, type TolerancesConfig, type WarningConfig } from "@/lib/config";
 import type { ExtractionResponse, FaceExtraction } from "@/lib/provider";
-import type { BeverageType, FaceKind, FieldName } from "@/types";
+import type { BeverageType, FaceKind, FieldName, FieldResult } from "@/types";
 
 import { matchAbv } from "./abv";
+import {
+  deriveConfidence,
+  ruleInputFor,
+  type LegibilitySignal,
+} from "./confidence";
 import { matchFuzzy } from "./fuzzy";
 import { matchNetContents } from "./netContents";
 import { matchOrigin } from "./origin";
@@ -23,6 +28,8 @@ import type { MatchResult } from "./types";
 import { matchWarning } from "./warning";
 
 export type { MatchResult } from "./types";
+
+type ConfidenceRuleArg = ReturnType<typeof ruleInputFor> | { kind: "warning" };
 
 /**
  * Form fields as they arrive at the matching engine — camelCase keys
@@ -124,23 +131,75 @@ export type MatchApplicationInput = {
   warningConfig?: WarningConfig;
 };
 
-export function matchApplication(input: MatchApplicationInput): MatchResult[] {
+/**
+ * Look up the model's per-region legibility flag for the face a field
+ * was found on. For the prototype we use the face's `warning.legibility`
+ * as a proxy for the WHOLE face's image quality — the warning is the
+ * smallest, hardest-to-read region, so if it's legible the rest of the
+ * face very likely is too. P5-2 calibration will tell us if this proxy
+ * is too coarse; per-field legibility is a future provider concern.
+ */
+function legibilityFor(
+  faces: ReadonlyArray<FaceExtraction>,
+  sourceFace: FaceKind | null,
+): LegibilitySignal {
+  if (sourceFace === null) return "good";
+  const face = faces.find((f) => f.kind === sourceFace);
+  return face?.warning.legibility ?? "good";
+}
+
+/**
+ * Promote a `MatchResult` to a `FieldResult` by deriving confidence in
+ * code from the margin + legibility (D5). `margin` is internal to the
+ * matching engine; `confidence` is what the triage classifier reads.
+ */
+function attachConfidence(
+  result: MatchResult,
+  rule: ConfidenceRuleArg,
+  legibility: LegibilitySignal,
+  confidenceConfig: TolerancesConfig["confidence"],
+): FieldResult {
+  const confidence = deriveConfidence({
+    verdict: result.verdict,
+    margin: result.margin,
+    rule,
+    legibility,
+    config: confidenceConfig,
+  });
+  return {
+    field: result.field,
+    formValue: result.formValue,
+    extractedValue: result.extractedValue,
+    verdict: result.verdict,
+    confidence,
+    reason: result.reason,
+    sourceFace: result.sourceFace,
+  };
+}
+
+export function matchApplication(input: MatchApplicationInput): FieldResult[] {
   const tolerances = input.tolerances ?? getTolerances();
   const warningConfig = input.warningConfig ?? getWarningConfig();
   const requiredFields = getRequiredFields(input.beverageType);
 
-  const results: MatchResult[] = [];
+  const results: FieldResult[] = [];
 
   for (const configKey of requiredFields) {
     const field = CONFIG_KEY_TO_FIELD_NAME[configKey];
     if (field === undefined) continue;
 
     if (field === "government_warning") {
+      const warningResult = matchWarning({
+        faces: input.extraction.faces,
+        config: warningConfig,
+      });
       results.push(
-        matchWarning({
-          faces: input.extraction.faces,
-          config: warningConfig,
-        }),
+        attachConfidence(
+          warningResult,
+          { kind: "warning" },
+          legibilityFor(input.extraction.faces, warningResult.sourceFace),
+          tolerances.confidence,
+        ),
       );
       continue;
     }
@@ -150,8 +209,7 @@ export function matchApplication(input: MatchApplicationInput): MatchResult[] {
     const rule = getRule(tolerances, field);
 
     if (!rule) {
-      // A required field has no tolerance config — surface it explicitly.
-      results.push({
+      const matchResult: MatchResult = {
         field,
         formValue,
         extractedValue: extracted?.value ?? null,
@@ -159,11 +217,27 @@ export function matchApplication(input: MatchApplicationInput): MatchResult[] {
         reason: `No tolerance rule configured for ${FIELD_LABELS[field]}`,
         margin: 0,
         sourceFace: extracted?.face ?? null,
-      });
+      };
+      results.push(
+        attachConfidence(
+          matchResult,
+          { kind: "exact" },
+          legibilityFor(input.extraction.faces, matchResult.sourceFace),
+          tolerances.confidence,
+        ),
+      );
       continue;
     }
 
-    results.push(dispatch({ field, formValue, extracted, rule }));
+    const matchResult = dispatch({ field, formValue, extracted, rule });
+    results.push(
+      attachConfidence(
+        matchResult,
+        ruleInputFor(rule),
+        legibilityFor(input.extraction.faces, matchResult.sourceFace),
+        tolerances.confidence,
+      ),
+    );
   }
 
   return results;
