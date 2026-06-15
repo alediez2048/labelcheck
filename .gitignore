@@ -8,11 +8,12 @@ venv/
 .pytest_cache/
 *.egg-info/
 
-# Node (for when the app gets built)
+# Node (Next.js app)
 node_modules/
 .next/
 .turbo/
 dist/
+next-env.d.ts
 
 # Env / secrets
 .env
