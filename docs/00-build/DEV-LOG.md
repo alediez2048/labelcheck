@@ -4,6 +4,34 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P0-5 Image preprocessing
+
+**Branch:** `feat/image-prep`
+**Status:** Done
+
+**What landed:**
+- `lib/image/preprocess.ts` — `preprocessImage(bytes, mime)` returns `{ bytes, width, height, mime }`. One chained sharp call: `.rotate().resize({ fit: "inside", withoutEnlargement: true })` expresses D7 as one line — cap the long edge at the configurable maximum if oversize, pass through unchanged otherwise, never upscale.
+- `lib/image/index.ts` — barrel re-export.
+- `lib/image/__tests__/preprocess.test.ts` — fixtures generated programmatically with `sharp.create` (no committed binaries). Covers: in-spec passthrough at 1200×800; landscape cap (3000×2000 → 1568×1045); portrait cap (2000×3000 → 1045×1568); EXIF orientation 6 normalises (400×600 stored → 600×400 displayed); corrupt bytes throw `Error("Image could not be decoded")`; `IMAGE_MAX_LONG_EDGE=1024` override respected.
+- `README.md` — adds an Environment section documenting `PROVIDER` and `IMAGE_MAX_LONG_EDGE`, with the explicit "do not set below 1568 without changing the provider" warning (D7).
+- `pnpm add sharp` (0.35.1) — promoted from transitive to explicit dep.
+
+**Verification:**
+- `pnpm build` clean (`✓ Compiled successfully in 956ms`)
+- `pnpm lint` clean (`✔ No ESLint warnings or errors`)
+- Structured log shape (`event`, `inputWidth`, `inputHeight`, `outputWidth`, `outputHeight`, `longEdgeCap`) is stable and PII-free — ready for the OpenTelemetry span swap in P5-1.
+
+**Deviations from ticket:**
+- Fixtures are generated programmatically in `beforeAll`-style setup inside each test rather than committed as binary JPEGs under `tests/fixtures/images/`. Self-documenting and keeps the repo light; the symptom of `sharp.create` breaking is loud and global, not specific to this test.
+- One `eslint-disable-next-line no-console` carve-out for the structured log point, marked narrowly. The alternative (a logger package) is out of scope until P5-1.
+
+**Why:**
+P0-5 expresses D7 as a single chained sharp call: `.rotate().resize({ fit: "inside", withoutEnlargement: true })`. That one line is the entire safety case for the warning check — the smallest, highest-stakes text on the label. The temptation a future agent will face is to "improve latency" by shrinking the cap from 1568; D7 calls this out specifically, and the file's top comment makes the same point. We resisted writing the cap as `if (longEdge > maxEdge) resize else pass-through` because the chained `fit: "inside" + withoutEnlargement: true` expresses the exact same rule in sharp's vocabulary and is harder to break — there's no separate branch a future change can edit to insert a sneaky downscale. `.rotate()` with no args applies EXIF orientation; `.rotate(90)` rotates an **additional** 90 degrees on top. We call out this footgun in the comment because a future agent reading the code at midnight will absolutely add an angle by reflex. The two-pass metadata read (input metadata up front for the log; output metadata after the pipeline) is intentional — the log fires with pre-rotation dimensions so debugging "why is this image rotated" is one log line, and the result reports post-cap dimensions so consumers don't re-decode. Fixtures generated programmatically (via `sharp.create`) rather than committed binary JPEGs: the test reads "make a 3000x2000 image; expect 1568 long edge" which is self-documenting; a committed `oversize-3000x2000.jpg` requires opening it externally to know the assertion is meaningful. The repo stays lighter. `IMAGE_MAX_LONG_EDGE` is env-overridable with a Number-validated fallback — a bad value (`"abc"`, `0`, negative) silently falls back to the 1568 default rather than crashing the app; the only failure mode that actually matters here is "the cap is below 1568", and an unparseable value falls back to the right default. The `console.info` lint-disable for the structured log point is the one carve-out accepted; the log shape is the same shape OpenTelemetry's `image.preprocess` span will carry in P5-1, so the eventual swap is purely transport — the structured fields are stable. Bytes never log. Paths never log. A future change that adds a `path` or a `bytes` field silently violates NFR-4; the lint-disable is narrow enough that a reviewer will catch it.
+
+**Next:** P0-6 — Access gate (shared-passcode middleware as a spend shield; documented as NOT a security control).
+
+---
+
 ## 2026-06-15 — P0-4 Configuration store
 
 **Branch:** `feat/config`

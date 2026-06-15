@@ -46,10 +46,10 @@ Description: stand up a runnable skeleton with the seams (provider adapter, conf
 - Files: create config/warning.json, config/tolerances.json, config/fields-by-type.json.
 - Refs: FR-25; A18, A10.
 
-### P0-5 — Image preprocessing
+### P0-5 — Image preprocessing ✅ done 2026-06-15
 - Depends: P0-1 · Branch: feat/image-prep · Est: 2h
 - Goal: normalize orientation and cap at the provider's max usable resolution; no downscaling below it; in memory.
-- Acceptance: [ ] EXIF orientation handled; [ ] images capped at ~1568px long edge; [ ] no temp files persisted.
+- Acceptance: [x] EXIF orientation handled; [x] images capped at ~1568px long edge; [x] no temp files persisted.
 - Files: create lib/image/preprocess.ts (sharp).
 - Refs: D7; NFR-4.
 
