@@ -16,6 +16,7 @@
 
 import type {
   BeverageType,
+  DispositionRecord,
   FaceKind,
   Lane,
   VerificationResult,
@@ -79,10 +80,46 @@ export type QueueItem = {
   lane: Lane;
 };
 
+/**
+ * Application status — mirrors `application.status` in schema.md.
+ *
+ * The active queue (`applications`) only holds rows that are still
+ * `in_queue`; once dispositioned, rows move to `dispositionedApplications`
+ * with a non-`in_queue` status derived from the disposition.
+ */
+export type ApplicationStatus =
+  | "in_queue"
+  | "approved"
+  | "needs_correction"
+  | "rejected";
+
+/**
+ * An application after disposition — the read-model for All Applications
+ * history, Analytics, Team, and My Stats. Preserves the original
+ * application shape + the disposition record + the derived status.
+ *
+ * Production reads from the join of `application` × `disposition` (plus
+ * the materialized `metric_rollup` for the dashboards); the prototype
+ * computes the same shape on the fly from this in-memory list.
+ */
+export type DispositionedApplication = QueueApplication & {
+  disposition: DispositionRecord;
+  status: Exclude<ApplicationStatus, "in_queue">;
+};
+
 /** Shape stored in the React context. */
 export type QueueStoreState = {
   agents: ReadonlyArray<QueueAgent>;
   applications: ReadonlyArray<QueueApplication>;
+  /**
+   * Historical record of dispositioned applications — feeds the
+   * Analytics dashboards, Team table, My Stats, and the history slice
+   * of All Applications. `recordDisposition` appends here when an
+   * application leaves `applications`. In production this is a read
+   * from `application` joined to its latest `disposition`; the shape
+   * here mirrors that row.
+   */
+  dispositionedApplications: ReadonlyArray<DispositionedApplication>;
   currentAgentId: string;
   /**
    * Rolling baseline match rate (0..1) — what fraction of past

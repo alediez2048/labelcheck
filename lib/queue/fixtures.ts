@@ -15,9 +15,14 @@
  * point at public sample images from `public/fixtures/images/`.
  */
 
-import type { VerificationResult } from "@/types";
+import type { BeverageType, FieldResult, VerificationResult } from "@/types";
 
-import type { AuditEvent, QueueAgent, QueueApplication } from "./types";
+import type {
+  AuditEvent,
+  DispositionedApplication,
+  QueueAgent,
+  QueueApplication,
+} from "./types";
 
 export const SEED_AGENTS: ReadonlyArray<QueueAgent> = [
   {
@@ -72,6 +77,19 @@ export const DEFAULT_SUPERVISOR_ID = "admin-sasha";
  * keeping up" pulse signal.
  */
 export const BASELINE_MATCH_RATE = 0.7;
+
+/**
+ * Auditable constant for the hours-saved KPI on the Analytics dashboard.
+ *
+ * A pre-LabelCheck reviewer spent roughly four minutes — 240 seconds —
+ * per application: download the artwork, eyeball the form, transcribe
+ * values into the checklist, write the disposition. The dashboard's
+ * "hours saved" calc multiplies the gap between this baseline and the
+ * measured `avg_handling_seconds` by `processed`, dividing by 3600 to
+ * get hours. Hardcoded as a single named number so the math is
+ * auditable (you can find every consumer with one grep).
+ */
+export const AVG_MANUAL_HANDLING_SECONDS = 240;
 
 /**
  * Seed audit log — empty for the demo. The router (P2-3) appends
@@ -425,3 +443,513 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     verifiedDurationMs: 3300,
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Historical dispositioned applications (P2-6) — eight weeks of synthetic
+// history so the Analytics dashboard's volume trend, KPI cards, throughput
+// chart, and top-mismatch-reasons chart have enough data to look populated.
+//
+// Lane mix across the 25 rows: 15 match (60%), 6 mismatch (24%), 4 review
+// (16%). Disposition mix: ~17 approved (68%), ~6 needs_correction (24%),
+// 2 rejected (8%). Throughput is varied across agent-marcus / agent-priya
+// / agent-jordan with the supervisor approving the match-lane rows.
+//
+// In production this list is replaced by reads from `application` joined
+// to `disposition` (plus the `metric_rollup` materialization for the
+// dashboard hot paths). The shape here mirrors that join.
+// ---------------------------------------------------------------------------
+
+const HISTORICAL_FACES = PLACEHOLDER_FACES;
+
+type HistoricalSeed = {
+  applicationId: string;
+  brand: string;
+  beverageType: BeverageType;
+  lane: VerificationResult["lane"];
+  /** Which agent decided this row. Supervisor approves match lane. */
+  decidedBy: string;
+  /** Wall-clock day the row was received + dispositioned. */
+  day: string; // YYYY-MM-DD
+  receivedHHmm: string; // HH:MM (UTC)
+  /** Disposition outcome. Drives `status`. */
+  disposition: "approve" | "return_for_correction" | "auto_reject";
+  /** For mismatch / review rows: which fields failed (drives top reasons). */
+  mismatchFields?: ReadonlyArray<{
+    field: FieldResult["field"];
+    formValue: string;
+    extractedValue: string;
+    reason: string;
+  }>;
+  /** Seconds between receivedAt and decidedAt. Drives avg handling time. */
+  handlingSeconds: number;
+  verifiedDurationMs: number;
+};
+
+const HISTORICAL_SEEDS: ReadonlyArray<HistoricalSeed> = [
+  // ---------- Week 1 (current week, ending 2026-06-15) ----------
+  {
+    applicationId: "hist-stonebridge-merlot-001",
+    brand: "Stonebridge Vintners",
+    beverageType: "wine",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-06-12",
+    receivedHHmm: "09:10",
+    disposition: "approve",
+    handlingSeconds: 90,
+    verifiedDurationMs: 3100,
+  },
+  {
+    applicationId: "hist-bluepeak-bourbon-001",
+    brand: "Blue Peak Bourbon",
+    beverageType: "distilled_spirits",
+    lane: "mismatch",
+    decidedBy: "agent-marcus",
+    day: "2026-06-13",
+    receivedHHmm: "11:22",
+    disposition: "return_for_correction",
+    mismatchFields: [
+      {
+        field: "alcohol_content",
+        formValue: "40%",
+        extractedValue: "43% ALC/VOL",
+        reason: "Alcohol content mismatch",
+      },
+    ],
+    handlingSeconds: 175,
+    verifiedDurationMs: 3500,
+  },
+  {
+    applicationId: "hist-tidewater-ipa-001",
+    brand: "Tidewater IPA",
+    beverageType: "malt_beverage",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-06-11",
+    receivedHHmm: "08:42",
+    disposition: "approve",
+    handlingSeconds: 85,
+    verifiedDurationMs: 3000,
+  },
+  // ---------- Week 2 (ending 2026-06-08) ----------
+  {
+    applicationId: "hist-glenmoor-scotch-001",
+    brand: "Glenmoor Highland Scotch",
+    beverageType: "distilled_spirits",
+    lane: "review",
+    decidedBy: "agent-marcus",
+    day: "2026-06-05",
+    receivedHHmm: "10:15",
+    disposition: "return_for_correction",
+    mismatchFields: [
+      {
+        field: "country_of_origin",
+        formValue: "USA",
+        extractedValue: "SCOTLAND",
+        reason: "Country of origin mismatch — likely import",
+      },
+    ],
+    handlingSeconds: 210,
+    verifiedDurationMs: 4200,
+  },
+  {
+    applicationId: "hist-riverbend-rose-001",
+    brand: "Riverbend Rosé",
+    beverageType: "wine",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-06-06",
+    receivedHHmm: "09:35",
+    disposition: "approve",
+    handlingSeconds: 95,
+    verifiedDurationMs: 3300,
+  },
+  {
+    applicationId: "hist-northwind-lager-001",
+    brand: "Northwind Lager",
+    beverageType: "malt_beverage",
+    lane: "mismatch",
+    decidedBy: "agent-jordan",
+    day: "2026-06-04",
+    receivedHHmm: "14:05",
+    disposition: "return_for_correction",
+    mismatchFields: [
+      {
+        field: "government_warning",
+        formValue: "GOVERNMENT WARNING:",
+        extractedValue: "Government Warning:",
+        reason: "Warning heading must be ALL CAPS",
+      },
+    ],
+    handlingSeconds: 165,
+    verifiedDurationMs: 3700,
+  },
+  {
+    applicationId: "hist-meadowlark-zin-001",
+    brand: "Meadowlark Zinfandel",
+    beverageType: "wine",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-06-07",
+    receivedHHmm: "11:10",
+    disposition: "approve",
+    handlingSeconds: 80,
+    verifiedDurationMs: 2900,
+  },
+  // ---------- Week 3 (ending 2026-06-01) ----------
+  {
+    applicationId: "hist-fjordlight-aquavit-001",
+    brand: "Fjordlight Aquavit",
+    beverageType: "distilled_spirits",
+    lane: "review",
+    decidedBy: "agent-marcus",
+    day: "2026-05-29",
+    receivedHHmm: "12:20",
+    disposition: "auto_reject",
+    mismatchFields: [
+      {
+        field: "producer_name",
+        formValue: "Fjordlight Distillers",
+        extractedValue: "Fjord Light Distillers",
+        reason: "Producer name near-miss — could not verify",
+      },
+    ],
+    handlingSeconds: 240,
+    verifiedDurationMs: 4500,
+  },
+  {
+    applicationId: "hist-summit-cab-001",
+    brand: "Summit Cabernet",
+    beverageType: "wine",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-30",
+    receivedHHmm: "10:00",
+    disposition: "approve",
+    handlingSeconds: 100,
+    verifiedDurationMs: 3200,
+  },
+  {
+    applicationId: "hist-amberhill-ale-001",
+    brand: "Amber Hill Ale",
+    beverageType: "malt_beverage",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-28",
+    receivedHHmm: "08:55",
+    disposition: "approve",
+    handlingSeconds: 90,
+    verifiedDurationMs: 3100,
+  },
+  {
+    applicationId: "hist-westgate-rye-001",
+    brand: "Westgate Rye",
+    beverageType: "distilled_spirits",
+    lane: "mismatch",
+    decidedBy: "agent-marcus",
+    day: "2026-05-31",
+    receivedHHmm: "13:40",
+    disposition: "return_for_correction",
+    mismatchFields: [
+      {
+        field: "net_contents",
+        formValue: "750 mL",
+        extractedValue: "700 mL",
+        reason: "Net contents mismatch",
+      },
+    ],
+    handlingSeconds: 180,
+    verifiedDurationMs: 3600,
+  },
+  // ---------- Week 4 (ending 2026-05-25) ----------
+  {
+    applicationId: "hist-cobalt-pinot-001",
+    brand: "Cobalt Pinot Noir",
+    beverageType: "wine",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-21",
+    receivedHHmm: "09:20",
+    disposition: "approve",
+    handlingSeconds: 85,
+    verifiedDurationMs: 3000,
+  },
+  {
+    applicationId: "hist-blackpine-stout-001",
+    brand: "Blackpine Stout",
+    beverageType: "malt_beverage",
+    lane: "mismatch",
+    decidedBy: "agent-jordan",
+    day: "2026-05-22",
+    receivedHHmm: "11:05",
+    disposition: "return_for_correction",
+    mismatchFields: [
+      {
+        field: "alcohol_content",
+        formValue: "5.5%",
+        extractedValue: "6.2% ALC/VOL",
+        reason: "Alcohol content mismatch",
+      },
+    ],
+    handlingSeconds: 160,
+    verifiedDurationMs: 3500,
+  },
+  {
+    applicationId: "hist-orchardline-cider-001",
+    brand: "Orchardline Cider",
+    beverageType: "malt_beverage",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-23",
+    receivedHHmm: "10:40",
+    disposition: "approve",
+    handlingSeconds: 95,
+    verifiedDurationMs: 3300,
+  },
+  // ---------- Week 5 (ending 2026-05-18) ----------
+  {
+    applicationId: "hist-driftwood-rum-001",
+    brand: "Driftwood Rum",
+    beverageType: "distilled_spirits",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-14",
+    receivedHHmm: "09:00",
+    disposition: "approve",
+    handlingSeconds: 90,
+    verifiedDurationMs: 3100,
+  },
+  {
+    applicationId: "hist-bluegrass-chard-001",
+    brand: "Bluegrass Chardonnay",
+    beverageType: "wine",
+    lane: "review",
+    decidedBy: "agent-marcus",
+    day: "2026-05-15",
+    receivedHHmm: "13:30",
+    disposition: "return_for_correction",
+    mismatchFields: [
+      {
+        field: "brand_name",
+        formValue: "Bluegrass",
+        extractedValue: "Blue Grass",
+        reason: "Brand name near-miss",
+      },
+    ],
+    handlingSeconds: 220,
+    verifiedDurationMs: 4400,
+  },
+  {
+    applicationId: "hist-hightide-pilsner-001",
+    brand: "High Tide Pilsner",
+    beverageType: "malt_beverage",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-16",
+    receivedHHmm: "10:25",
+    disposition: "approve",
+    handlingSeconds: 85,
+    verifiedDurationMs: 3000,
+  },
+  // ---------- Week 6 (ending 2026-05-11) ----------
+  {
+    applicationId: "hist-ridgepoint-syrah-001",
+    brand: "Ridgepoint Syrah",
+    beverageType: "wine",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-07",
+    receivedHHmm: "10:00",
+    disposition: "approve",
+    handlingSeconds: 90,
+    verifiedDurationMs: 3100,
+  },
+  {
+    applicationId: "hist-coppervein-gin-001",
+    brand: "Coppervein Gin",
+    beverageType: "distilled_spirits",
+    lane: "mismatch",
+    decidedBy: "agent-marcus",
+    day: "2026-05-08",
+    receivedHHmm: "11:50",
+    disposition: "return_for_correction",
+    mismatchFields: [
+      {
+        field: "government_warning",
+        formValue: "GOVERNMENT WARNING:",
+        extractedValue: "GOVT WARNING:",
+        reason: "Warning heading abbreviated",
+      },
+    ],
+    handlingSeconds: 175,
+    verifiedDurationMs: 3700,
+  },
+  {
+    applicationId: "hist-foxglen-porter-001",
+    brand: "Foxglen Porter",
+    beverageType: "malt_beverage",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-09",
+    receivedHHmm: "09:10",
+    disposition: "approve",
+    handlingSeconds: 80,
+    verifiedDurationMs: 2950,
+  },
+  // ---------- Week 7 (ending 2026-05-04) ----------
+  {
+    applicationId: "hist-saltmarsh-vodka-001",
+    brand: "Saltmarsh Vodka",
+    beverageType: "distilled_spirits",
+    lane: "review",
+    decidedBy: "agent-marcus",
+    day: "2026-04-30",
+    receivedHHmm: "14:20",
+    disposition: "auto_reject",
+    mismatchFields: [
+      {
+        field: "producer_address",
+        formValue: "123 Main St, Atlanta GA",
+        extractedValue: null as unknown as string, // not_found surfaced
+        reason: "Producer address not visible on label",
+      },
+    ],
+    handlingSeconds: 240,
+    verifiedDurationMs: 4500,
+  },
+  {
+    applicationId: "hist-willowfield-shiraz-001",
+    brand: "Willowfield Shiraz",
+    beverageType: "wine",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-05-01",
+    receivedHHmm: "10:00",
+    disposition: "approve",
+    handlingSeconds: 90,
+    verifiedDurationMs: 3100,
+  },
+  // ---------- Week 8 (ending 2026-04-27) ----------
+  {
+    applicationId: "hist-deepcove-tequila-001",
+    brand: "Deepcove Tequila",
+    beverageType: "distilled_spirits",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-04-23",
+    receivedHHmm: "09:30",
+    disposition: "approve",
+    handlingSeconds: 85,
+    verifiedDurationMs: 3000,
+  },
+  {
+    applicationId: "hist-sundown-lager-001",
+    brand: "Sundown Lager",
+    beverageType: "malt_beverage",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-04-24",
+    receivedHHmm: "11:00",
+    disposition: "approve",
+    handlingSeconds: 90,
+    verifiedDurationMs: 3200,
+  },
+  {
+    applicationId: "hist-pearlridge-prosecco-001",
+    brand: "Pearlridge Prosecco",
+    beverageType: "wine",
+    lane: "match",
+    decidedBy: DEFAULT_SUPERVISOR_ID,
+    day: "2026-04-25",
+    receivedHHmm: "10:15",
+    disposition: "approve",
+    handlingSeconds: 95,
+    verifiedDurationMs: 3300,
+  },
+];
+
+function buildHistoricalApplication(
+  seed: HistoricalSeed,
+): DispositionedApplication {
+  const receivedAt = `${seed.day}T${seed.receivedHHmm}:00Z`;
+  const receivedMs = Date.parse(receivedAt);
+  const decidedAt = new Date(
+    receivedMs + seed.handlingSeconds * 1000,
+  ).toISOString();
+  // Claimed a minute or so before disposition for exception lanes.
+  const claimedAt =
+    seed.lane === "match"
+      ? null
+      : new Date(receivedMs + (seed.handlingSeconds - 60) * 1000).toISOString();
+  const assignedAgentId =
+    seed.lane === "match" ? null : seed.decidedBy;
+
+  const fields: FieldResult[] = (seed.mismatchFields ?? []).map((mf) => ({
+    field: mf.field,
+    formValue: mf.formValue,
+    extractedValue: mf.extractedValue,
+    verdict:
+      mf.extractedValue === null
+        ? "not_found"
+        : seed.lane === "review"
+          ? "low_confidence"
+          : "mismatch",
+    confidence:
+      seed.lane === "review"
+        ? 0.55
+        : mf.extractedValue === null
+          ? 0.5
+          : 1,
+    reason: mf.reason,
+    sourceFace: "front",
+  }));
+
+  const overallConfidence =
+    seed.lane === "match" ? 0.95 : seed.lane === "mismatch" ? 0.8 : 0.55;
+
+  const status: DispositionedApplication["status"] =
+    seed.disposition === "approve"
+      ? "approved"
+      : seed.disposition === "return_for_correction"
+        ? "needs_correction"
+        : "rejected";
+
+  // For auto-reject scenarios there is no Disposition (rejections are
+  // system-generated when the correction window lapses). We still need a
+  // DispositionRecord on the row so the historical join is uniform —
+  // model it as a `return_for_correction` decision (the original disp)
+  // that later auto-rejected. The `status` field carries the terminal
+  // truth; consumers should read `status`, not derive from disposition.
+  const dispositionAction =
+    seed.disposition === "auto_reject"
+      ? "return_for_correction"
+      : seed.disposition;
+
+  return {
+    applicationId: seed.applicationId,
+    brand: seed.brand,
+    beverageType: seed.beverageType,
+    faces: HISTORICAL_FACES,
+    verification: verification({
+      applicationId: seed.applicationId,
+      lane: seed.lane,
+      overallConfidence,
+      fields,
+      flags: seed.mismatchFields?.map((m) => m.reason) ?? [],
+    }),
+    assignedAgentId,
+    claimedAt,
+    receivedAt,
+    verifiedDurationMs: seed.verifiedDurationMs,
+    disposition: {
+      applicationId: seed.applicationId,
+      disposition: dispositionAction,
+      decidedAt,
+      decidedBy: seed.decidedBy,
+    },
+    status,
+  };
+}
+
+export const SEED_DISPOSITIONED_APPLICATIONS: ReadonlyArray<DispositionedApplication> =
+  HISTORICAL_SEEDS.map(buildHistoricalApplication);

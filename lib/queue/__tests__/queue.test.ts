@@ -26,6 +26,7 @@ function seed(): QueueStoreState {
   return {
     agents: SEED_AGENTS,
     applications: SEED_APPLICATIONS,
+    dispositionedApplications: [],
     currentAgentId: DEFAULT_CURRENT_AGENT_ID,
     baselineMatchRate: BASELINE_MATCH_RATE,
     auditEvents: SEED_AUDIT_EVENTS,
@@ -272,7 +273,7 @@ describe("claimNext (D15, CONTEXT.md Claim / Availability)", () => {
 });
 
 describe("recordDisposition", () => {
-  it("removes the dispositioned application from the queue", () => {
+  it("removes the dispositioned application from the queue and appends to history", () => {
     const state = seed();
     const result = recordDisposition(
       state,
@@ -292,6 +293,43 @@ describe("recordDisposition", () => {
         (a) => a.applicationId === "harbor-mist-vodka-001",
       ),
     ).toBeUndefined();
+    // The row moves to the historical record with status "approved"
+    // (P2-6 — Analytics + history read from this list).
+    const dispositioned = result.state.dispositionedApplications.find(
+      (a) => a.applicationId === "harbor-mist-vodka-001",
+    );
+    expect(dispositioned).toBeDefined();
+    expect(dispositioned?.status).toBe("approved");
+    expect(dispositioned?.disposition.decidedBy).toBe(DEFAULT_CURRENT_AGENT_ID);
+  });
+
+  it("maps return_for_correction → status: needs_correction", () => {
+    const state = seed();
+    const result = recordDisposition(
+      state,
+      {
+        applicationId: "harbor-mist-vodka-001",
+        disposition: "return_for_correction",
+        agentId: DEFAULT_CURRENT_AGENT_ID,
+        returnReason: {
+          failedFields: [
+            {
+              field: "alcohol_content",
+              formValue: "40%",
+              extractedValue: "45% ALC/VOL",
+              reason: "ABV mismatch",
+            },
+          ],
+        },
+      },
+      () => "2026-06-15T10:30:00Z",
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    const dispositioned = result.state.dispositionedApplications.find(
+      (a) => a.applicationId === "harbor-mist-vodka-001",
+    );
+    expect(dispositioned?.status).toBe("needs_correction");
   });
 
   it("attaches the return reason on return_for_correction", () => {

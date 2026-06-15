@@ -1,19 +1,18 @@
 /**
- * /profile — Profile placeholder + Availability toggle (P2-5; full
- * profile lands in P2-6).
+ * /profile — Profile (P2-6; mockup.md "Profile"; D15; CONTEXT.md
+ * Availability + Specialization).
  *
- * The full Profile UI (identity, team, specialization) arrives in
- * P2-6; the Availability toggle ships now because the P2-3 work
- * router already gates pulls and reassigns on `agent.availability`.
- * Without this toggle the OOO branch is unreachable in the demo, so
- * a reviewer can't see that "out of office" skips the agent in
- * Distribute and pauses their pulls.
+ * The agent's account screen: identity card (name, role, agent id),
+ * team caption (the prototype has no team grouping yet —
+ * documented), a read-only specialization display (admin sets it in
+ * Team per D15; the caption surfaces that), and the existing
+ * availability radio toggle ported verbatim from P2-5 so the OOO
+ * branch of the work router stays demonstrable.
  *
- * `setAvailability` returns `{ ok, error? }`; we surface the inline
- * error if the lib-layer guard refuses, otherwise an inline status
- * confirms the new value. No optimistic UI — the provider mutation is
- * synchronous (in-memory state), so the next render carries the new
- * availability immediately.
+ * Row-scoped to `currentAgent.id` (D16; FR-29). If the active actor
+ * is not an agent (e.g. the role switcher landed on the supervisor
+ * mid-render), render a clear notice instead of leaking the
+ * supervisor's surface.
  */
 
 "use client";
@@ -21,6 +20,7 @@
 import React, { useState } from "react";
 
 import { useQueue } from "@/lib/queue/QueueProvider";
+import type { BeverageType } from "@/types";
 
 type Availability = "available" | "out_of_office";
 
@@ -46,6 +46,25 @@ const AVAILABILITY_TREATMENT: Readonly<
   },
 };
 
+const ROLE_TREATMENT: Readonly<
+  Record<"agent" | "admin", { label: string; pillClass: string }>
+> = {
+  agent: {
+    label: "Agent",
+    pillClass: "bg-indigo-100 text-indigo-900 border-indigo-300",
+  },
+  admin: {
+    label: "Admin",
+    pillClass: "bg-violet-100 text-violet-900 border-violet-300",
+  },
+};
+
+const BEVERAGE_LABELS: Readonly<Record<BeverageType, string>> = {
+  wine: "Wine",
+  distilled_spirits: "Spirits",
+  malt_beverage: "Malt",
+};
+
 export default function ProfilePage(): React.ReactElement {
   const { currentAgent, setAvailability } = useQueue();
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +87,7 @@ export default function ProfilePage(): React.ReactElement {
   }
 
   const active = currentAgent.availability;
+  const roleTreatment = ROLE_TREATMENT[currentAgent.role];
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -77,13 +97,80 @@ export default function ProfilePage(): React.ReactElement {
         </p>
         <h1 className="mt-1 text-3xl font-bold text-slate-900">Profile</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {currentAgent.name} — coming in P2-6.
+          Your identity, team, and routing settings.
         </p>
       </header>
 
       <section
-        aria-labelledby="availability-heading"
+        aria-labelledby="identity-heading"
         className="mt-8 rounded-lg border border-slate-200 bg-white p-5"
+      >
+        <header className="border-b border-slate-100 pb-3">
+          <h2
+            id="identity-heading"
+            className="text-base font-semibold text-slate-800"
+          >
+            Identity
+          </h2>
+        </header>
+        <div className="mt-4 flex flex-wrap items-baseline gap-3">
+          <p className="text-2xl font-bold text-slate-900">
+            {currentAgent.name}
+          </p>
+          <span
+            aria-label={`Role: ${roleTreatment.label}`}
+            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${roleTreatment.pillClass}`}
+          >
+            {roleTreatment.label}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-slate-500">{currentAgent.id}</p>
+        <p className="mt-3 text-sm text-slate-600">
+          <span className="font-semibold text-slate-700">Team:</span> Agent
+          <span className="ml-2 text-xs text-slate-500">
+            (the prototype has no team grouping yet — production reads
+            `agent.team` from the schema.)
+          </span>
+        </p>
+      </section>
+
+      <section
+        aria-labelledby="specialization-heading"
+        className="mt-6 rounded-lg border border-slate-200 bg-white p-5"
+      >
+        <header className="border-b border-slate-100 pb-3">
+          <h2
+            id="specialization-heading"
+            className="text-base font-semibold text-slate-800"
+          >
+            Specialization
+          </h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Set by admins in Team. Drives which beverage types the work
+            router sends you (D15).
+          </p>
+        </header>
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {currentAgent.specializations.length === 0 ? (
+            <li className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
+              Generalist (overflow only)
+            </li>
+          ) : (
+            currentAgent.specializations.map((t) => (
+              <li
+                key={t}
+                className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-900"
+              >
+                {BEVERAGE_LABELS[t]}
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+
+      <section
+        aria-labelledby="availability-heading"
+        className="mt-6 rounded-lg border border-slate-200 bg-white p-5"
       >
         <header className="border-b border-slate-100 pb-3">
           <h2

@@ -204,3 +204,53 @@ The Admin shell is fully populated: Operations + All Applications + Analytics + 
 ```
 (none — all UI + selector logic; reuse Next.js, Tailwind, and the P0/P1 toolchain. Charts are hand-rolled SVG / CSS for accessibility and zero-dep simplicity.)
 ```
+
+---
+
+## Outcome — done 2026-06-15 — Phase 2 complete
+
+**Branch:** `feat/admin-views`
+**Status:** Done. Phase 2 closes here.
+**Workflow:** Fourth parallel-agent build. Agent A: data layer + analytics selectors + 6 chart components + Analytics page. Agent B: Applications filter + UI, Team table, My Stats, Profile.
+
+**What landed:**
+- Data: `ApplicationStatus` enum, `DispositionedApplication`, `state.dispositionedApplications`, `recordDisposition` refactor to APPEND, `AVG_MANUAL_HANDLING_SECONDS = 240`, 25 historical seed rows over 8 weeks.
+- `lib/analytics/{types,metrics}.ts` — 7 selectors (division + agent variants), 20 tests.
+- `components/analytics/{RangeToggle,KpiCards,VolumeTrend,TriageDonut,TopMismatchReasons,ThroughputByAgent}.tsx` — hand-rolled charts with numeric legends.
+- `app/(admin)/analytics/page.tsx` — division dashboard.
+- `lib/applications/filter.ts` + 14 tests.
+- `components/applications/{ApplicationsFilters,ApplicationsTable}.tsx`.
+- `app/(admin)/applications/page.tsx` — searchable + filterable record.
+- `components/team/TeamTable.tsx` — per-member metrics + inline SpecializationEditor + Availability toggle.
+- `app/(admin)/team/page.tsx`.
+- `app/(agent)/stats/page.tsx` — agent slice (KpiCards with hoursSavedHidden, agent-scoped TriageDonut, recent decisions).
+- `app/(agent)/profile/page.tsx` — identity card + read-only specialization chips + preserved availability toggle.
+
+**Tests:** 30 files, 274 pass + 1 skipped (+35 new). Lint + build clean.
+
+**Deviations:**
+- Mockup's "applicant" column on All Applications omitted (PII; fixture doesn't carry it).
+- `recordDisposition` APPENDS + removes (dual list, not a single status-discriminated list) — cleaner perf + correctness profile.
+- Hours saved hidden on My Stats (meaningless per agent; would mislead).
+- 25 historical rows include one cast for `extractedValue: null` on a `not_found` field.
+- Auto-rejected rows are pre-seeded with `status: "rejected"` directly; the disposition path doesn't produce that status (FR-27's 30-day auto-reject will, in production).
+
+### Why
+
+P2-6 closes Phase 2: the queue + routing + shells now have the analytics + record surfaces the supervisor and per-agent views need.
+
+The **dual-list data layer** (active `applications` + historical `dispositionedApplications`) enforces "the live queue is fast; the history grows monotonically". Mixing them with a `status` discriminator would mean every queue read filters by status — a quiet performance and correctness gotcha as history grows.
+
+The **selectors mirror schema.md `metric_rollup`** so the prototype-to-production swap is one-for-one. P6-2's persistence work plugs into the same call sites without touching the UI.
+
+The **agent-scoped variants on `triageBreakdown` and `topMismatchReasons`** are row-scope discipline in the function signature. Same function, scoped by parameter — not two parallel functions that could drift.
+
+The **`hoursSavedHidden` prop** on KpiCards is honest: hours saved is meaningful at division level (the agency's ROI signal) but meaningless per agent. Hiding it on the per-agent view avoids the misread.
+
+The **TeamTable reuses `SpecializationEditor`** from `components/operations/` verbatim — same no-duplication discipline as P1-7's FieldTable reuse on the Operations bottom-quartile expansion.
+
+The **per-row Availability toggle** on TeamTable lets the supervisor flip an agent OOO. Structural complement to P2-5's self-edit rule on Profile: admins flip anyone's; agents flip their own. `setAvailability`'s allow-rule (admin OR self) makes both surfaces work without separate gates.
+
+The **25 historical rows** are the data density Analytics needs. 9 active apps don't fill a volume-trend chart or a top-mismatch-reasons bar; the historical rows give the charts visible data without losing the hand-curated quality.
+
+The **WCAG AA discipline on charts** — numeric legend or table caption beside every visual — is the same color+icon+text rule applied to data viz. AC-9 holds across the new analytics surface.
