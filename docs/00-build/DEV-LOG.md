@@ -4,6 +4,36 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P0-6 Access gate
+
+**Branch:** `feat/access-gate`
+**Status:** Done
+
+**What landed:**
+- `middleware.ts` at the repo root — Edge-runtime gate. No-op when `ACCESS_PASSCODE` is unset; 500 fail-closed when set but `ACCESS_COOKIE_SECRET` is unset; otherwise verifies the `lc_access` HMAC cookie and either passes through, redirects browsers to `/access`, or 401s API calls. Matcher excludes `_next`, `favicon.ico`, `access`, `api/access`, `api/health`.
+- `lib/access/cookie.ts` — WebCrypto HMAC-SHA256 sign/verify of a fixed payload (`"ok"`); base64url helpers; `timingSafeEqualString` for the passcode comparison. Edge-runtime compatible (no `node:crypto`).
+- `app/access/page.tsx` — passcode entry form with a loud amber "spend shield, not security" banner citing NFR-8 / P6-3.
+- `app/api/access/route.ts` — POST handler. Constant-time passcode compare; on success signs the cookie and sets it `HttpOnly`, `Secure`, `SameSite=Lax`; sanitises the `next` redirect target to same-origin.
+- `app/api/health/route.ts` — `{ ok: true }`; excluded from the gate so deploy probes don't need a passcode.
+- `.env.example` — documents all four env vars (`ACCESS_PASSCODE`, `ACCESS_COOKIE_SECRET`, `PROVIDER`, `IMAGE_MAX_LONG_EDGE`) with the spend-shield warning.
+- `lib/access/__tests__/cookie.test.ts` — Vitest-ready (auto-discovered at P0-7) covering round-trip, wrong secret, empty/garbage cookies, base64url shape, and `timingSafeEqualString` cases.
+- `README.md` — Environment table expanded with `ACCESS_PASSCODE` and `ACCESS_COOKIE_SECRET` rows, each citing the "not authentication" rule.
+
+**Verification:**
+- `pnpm build` clean (`✓ Compiled successfully in 1308ms`). Build output shows the new routes: `ƒ /access`, `ƒ /api/access`, `ƒ /api/health`.
+- `pnpm lint` clean (`✔ No ESLint warnings or errors`).
+- The TS 5.7+ generic typing of `Uint8Array<ArrayBufferLike>` required two explicit `Uint8Array<ArrayBuffer>` annotations (return type of `fromBase64Url` and the `sig` local in `verifyCookie`). Compiles strict mode; no casts.
+
+**Deviations from ticket:**
+- None on behaviour. The TS-typing fix required two explicit generic annotations rather than the simpler `Uint8Array` the ticket implied — documented inline in `cookie.ts`.
+
+**Why:**
+P0-6 is the SPEND SHIELD, full stop. The README says it, the entry page says it, `middleware.ts` says it, `cookie.ts` says it, and this DEV-LOG entry says it — four times — because the risk this ticket carries is that a future operator looks at a passcode-gated URL and concludes "we have auth." We don't. Production identity is PIV/CAC + SSO + RBAC + audit inside the FedRAMP boundary, and that's P6-3. Everything in this ticket is calibrated to make that confusion impossible: the env var is `ACCESS_PASSCODE` not `AUTH_SECRET`; the cookie is `lc_access` not `lc_auth`; the page banner uses the literal phrase "spend shield"; the JSDoc on `cookie.ts` repeats it. The scheme is HMAC over a fixed payload, not "the cookie IS the passcode." The cookie never carries the passcode in any form — it's a proof-of-knowledge token signed with `ACCESS_COOKIE_SECRET`. We considered a JWT and a session id and rejected both: a JWT brings claims, expiry, refresh logic, none of which fit a spend shield; a session id requires server-side state, which Phase 0 has none of (NFR-4) and an Edge-runtime middleware can't easily reach. The two-env-var split (`ACCESS_PASSCODE` for the human, `ACCESS_COOKIE_SECRET` for the server) means rotating the cookie secret invalidates every active session without changing the passcode users have to remember. WebCrypto over `node:crypto` because the middleware runs at the Edge runtime by default; `crypto.subtle.verify` is constant-time by spec, preferable to a hand-rolled string compare on the HMAC output. `timingSafeEqualString` is exported for the one place we DO compare strings directly (the passcode submission); the length leak it carries is not material because the passcode length is operator-known and fixed per deploy. The matcher excludes by design: a future agent who adds a public asset and forgets to add it to the matcher will see their asset return 401 and immediately understand why — that's the right failure mode. **Fail-closed on misconfiguration**: `ACCESS_PASSCODE` set but `ACCESS_COOKIE_SECRET` unset returns 500, not bypass; half-configured is more dangerous than unconfigured because it suggests the operator INTENDED to gate but the gate is open, so the 500 forces a fix.
+
+**Next:** P0-7 — CI and test harness (Vitest installed; lint/build/test run in CI; the test stub from P0-1 replaced; the type-level test guards from P0-3, P0-4, P0-5, P0-6 light up as real runtime tests).
+
+---
+
 ## 2026-06-15 — P0-5 Image preprocessing
 
 **Branch:** `feat/image-prep`

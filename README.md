@@ -33,8 +33,12 @@ LabelCheck/
 
 ## Environment
 
+Copy `.env.example` to `.env` and fill in the values you need. `.env` is gitignored at the repo root.
+
 | Variable | Default | Purpose |
 |---|---|---|
+| `ACCESS_PASSCODE` | unset | Spend-shield passcode for the deployed app (P0-6). Unset for local dev — the access gate becomes a no-op. **Not authentication** — production uses PIV/CAC + SSO + RBAC + audit (NFR-8, P6-3). |
+| `ACCESS_COOKIE_SECRET` | unset | Server-side HMAC secret for signing the access cookie (P0-6). **Required when `ACCESS_PASSCODE` is set.** Use 32+ bytes of randomness. |
 | `PROVIDER` | `mock` | Vision provider adapter selector (P0-3). Set to a live provider name once that provider is implemented (`anthropic` after P1-2; `azure-openai` or `olmocr` after P6-1). |
 | `IMAGE_MAX_LONG_EDGE` | `1568` | Long-edge cap for image preprocessing (P0-5). Default is Claude's usable maximum (D7). **Do not set below 1568 without changing the provider** — the smallest text on the label (the government warning) becomes illegible and the warning check silently weakens. |
 
