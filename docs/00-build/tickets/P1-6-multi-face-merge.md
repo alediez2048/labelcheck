@@ -148,3 +148,31 @@ The pipeline now goes: input → extraction (one call, all faces) → matching (
 ```
 (none — pure code over existing types)
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/multiface`
+**Status:** Done — 94 tests pass (82 prior + 12 new), lint + build clean.
+
+**What landed:**
+- `lib/matching/merge.ts` — `mergeFaces(perFaceResults): FieldResult[]`. Groups by field, picks best per priority tiers `match > mismatch > low_confidence > not_found`; within tier highest confidence wins; on equal confidence deterministic `front > back > neck`.
+- `lib/matching/match.ts` — orchestrator refactored. `readingsFor` replaces `findExtracted` (first-face-wins). Per-face matcher calls produce per-face `FieldResult`s; `mergeFaces` collapses to one per field. The warning bypasses the generic merge — `matchWarning` already does cross-face by construction (D12).
+- `lib/matching/__tests__/merge.test.ts` — 12 tests: 6 direct unit tests on `mergeFaces` priority order + tie-breaks, 6 integration tests through `matchApplication` covering single-face, front+back, front+back+neck, front-only-with-warning, altered-warning-on-back, equal-confidence tie-break.
+
+**Deviation:** ticket text described "warning verdict is `not_found`" for a front-only no-warning upload; the actual (preserved) behaviour is `verdict: "mismatch"` with reason "not present". This matches the existing AC-4 tests in `classify.test.ts` and `match.test.ts` and aligns with the agency's risk posture — a missing warning is a real, regulatory-grade defect, not an "I couldn't check it" case. The ticket's own parenthetical agrees; the verdict-name slip is the inconsistency.
+
+### Why
+
+P1-6 is the layer that makes the **Application** — not a single face — the unit of verification (D13). Real labels distribute information across faces by design: the front carries the brand identity, the back carries the regulated text (warning, address, lot codes), the neck (when present) often repeats the brand or the bottle number. Treating each face independently and then unioning gives the right semantics — a field is satisfied if **any** face carries it — without forcing every face to carry every field, which would false-flag normal labels as defective (D12).
+
+The merge priority order — match > mismatch > low_confidence > not_found — is intentionally NOT "majority wins" or "average". Majority would hide a defect on a single face behind two clean faces. Averaging would smear strong and weak signals together. The priority order picks the **most informative** read available: a clean match is the strongest possible signal; a confident mismatch is a real defect; low_confidence routes to review; not_found is the absence of signal and only wins when nothing else is available. This is the same conservative posture as the P1-5 triage classifier — merge and classifier reinforce each other.
+
+The **highest-confidence-within-tier** tie-break makes the multi-face merge picky in the right direction: when the same field shows up on multiple faces, we keep the cleaner read. The confidence number is the code-derived signal from P1-4 — for fuzzy fields it's the similarity margin, for exact fields it's binary 1.0. A face with a slightly off transcription loses to a face with a clean one, and that propagates into the public result so the review UI in P1-8 points the agent at the face that's actually worth looking at (FR-15). Without this, "first-face-wins" would arbitrarily lock in whichever face happens to be uploaded first.
+
+The **deterministic face-order tie-break (front > back > neck)** sounds cosmetic but it's load-bearing for two reasons. Test fixtures: equal-confidence cases would be flaky if the merge picked whichever face it encountered first in iteration order — the fixed rule means `pnpm test` is reproducible byte-for-byte. Review UX: when two faces both pass cleanly, the agent usually wants to look at the front first — it carries the brand identity and is the canonical "what does this product call itself" face. Routing the merged `sourceFace` to front in ties matches the agent's mental model.
+
+The **warning bypasses `mergeFaces`** because `matchWarning` already does cross-face logic by construction: it walks all faces looking for presence, picks the one with the warning text, then runs the strict verbatim + caps + bold checks against that face. Routing the warning back through the generic merge would either double-count or, worse, produce per-face per-face warning FieldResults that don't make sense ("warning not found on the front face" as a separate signal from "warning found on the back face"). The cleaner design is: warning has its own merge; everything else uses the generic one.
+
+A **front-only upload with no warning** correctly produces `government_warning: mismatch` reason "not present", and the triage classifier routes it to the mismatch lane. A future "I uploaded the wrong face" UX (P1-9's degraded-extraction path is the closest analogue) could add a "warning not checked" disposition, but that's a different feature — for now the right behaviour is to surface the absence of the warning as a real defect because the system can't distinguish "user forgot to upload the back" from "the bottle ships without a back warning". The agency's risk posture says: **flag it, let a human disambiguate**.

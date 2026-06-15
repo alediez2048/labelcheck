@@ -4,6 +4,43 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P1-6 Multi-face merge
+
+**Branch:** `feat/multiface`
+**Status:** Done
+
+**What landed:**
+- `lib/matching/merge.ts` — `mergeFaces(perFaceResults: ReadonlyArray<FieldResult>): FieldResult[]`. Groups results by field, picks the best per the priority tiers `match > mismatch > low_confidence > not_found`. Within tier: highest confidence wins; on equal confidence, deterministic face order `front > back > neck`. Tie-break order matters for stable test fixtures and for the review UI pointer (FR-15).
+- `lib/matching/match.ts` — orchestrator refactored. Instead of "first face's reading wins" (`findExtracted`), the engine now collects per-face readings (`readingsFor`), runs the matcher on each, attaches confidence, and feeds the per-face FieldResults through `mergeFaces`. The government warning bypasses `mergeFaces` because `matchWarning` already merges across faces by construction (D12); it contributes one result that passes through as a single-element group.
+- `lib/matching/__tests__/merge.test.ts` — 12 new tests across two surfaces:
+  - **Unit (mergeFaces):** any-face-matches wins, no-match-but-mismatch wins, low_confidence-over-not_found, all-not_found case, deterministic face-priority tie-break, group-by-field.
+  - **Integration (matchApplication):** single front face → missing warning is a real mismatch (sourceFace null), front+back with warning on back → all match (warning sourceFace='back'), three-face split with brand on neck / ABV on front / warning on back → each sourceFace correctly tagged, front-only with warning on the front → warning passes with sourceFace='front', altered warning on the back-only face → mismatch with sourceFace='back', equal-confidence brand on front+back → front wins by deterministic tie-break.
+
+**Verification:**
+- `pnpm test` clean — 11 files, **94 tests** (82 prior + 12 new), all pass in 640ms.
+- `pnpm build` clean. No new routes (P1-7 wires the result API).
+- `pnpm lint` clean.
+
+**Deviations from ticket:**
+- The ticket text described "warning verdict is `not_found`" for a front-only upload with no warning; the actual behaviour (preserved here, confirmed by existing tests in `classify.test.ts` AC-4 and `match.test.ts` AC-4) is that a missing warning produces `verdict: "mismatch"` with reason `"not present"` and the triage classifier routes that to the mismatch lane. That is the correct agency-risk posture: a missing warning is a real, regulatory-grade defect, not an "I couldn't check it" case. The parenthetical in the ticket ("this is the correct behaviour: missing warning is a real mismatch") agrees with the implementation; the verdict-name slip in the bullet list is the inconsistency.
+
+**Why:**
+P1-6 is the layer that makes the Application — not a single face — the unit of verification (D13). Real labels distribute information across faces by design: the front carries the brand and the brand identity work, the back carries the regulated text (warning, address, lot codes), the neck (when present) often carries the brand again or the bottle number. Treating each face independently and then unioning gives the right semantics — a field is satisfied if **any** face carries it — without forcing every face to carry every field, which would false-flag normal labels as defective.
+
+The merge priority order — match > mismatch > low_confidence > not_found — is intentionally NOT "majority wins" or "average". Majority would hide a defect on a single face behind two clean faces. Averaging would similarly smear strong and weak signals together. The priority order picks the **most informative** read available: a clean match is the strongest possible signal; a confident mismatch is a real defect; low_confidence routes to review; not_found is the absence of signal and only wins when nothing else is available. This is the same conservative posture as P1-5's triage classifier — the merge and the classifier reinforce each other.
+
+The highest-confidence-within-tier tie-break makes the multi-face merge **picky** in the right direction: when the same field shows up on multiple faces, we keep the cleaner read. The confidence number is the code-derived signal from P1-4 — for fuzzy fields it's the similarity margin, for exact fields it's binary 1.0. A face with a slightly off transcription (lower margin) loses to a face with a clean transcription, and that propagates into the public result so the review UI in P1-8 points the agent at the face that's actually worth looking at (FR-15). Without this, "first-face-wins" would arbitrarily lock in whichever face happens to be uploaded first.
+
+Deterministic face-order tie-break (front > back > neck) sounds cosmetic but it's load-bearing for two reasons. (1) Test fixtures: equal-confidence cases would be flaky if the merge picked whichever face it encountered first in `Map.values()` iteration order. The fixed front>back>neck rule means `pnpm test` is reproducible byte-for-byte regardless of input order. (2) Review UX: when two faces both pass cleanly, the agent usually wants to look at the front first — it carries the brand identity and is the canonical "what does this product call itself" face. Routing the merged sourceFace to front in ties matches the agent's mental model.
+
+The warning bypasses `mergeFaces` because `matchWarning` already does cross-face logic by construction: it walks all faces looking for presence, picks the one with the warning text, then runs the strict verbatim + caps + bold checks against that face. Routing the warning back through the generic merge would either double-count (the warning would appear with a single result and merge would pass it through unchanged — wasted work) or, worse, produce per-face per-face warning FieldResults that don't make sense (e.g. "warning not found on the front face" as a separate signal from "warning found on the back face"). The cleaner design is: warning has its own merge; everything else uses the generic one.
+
+A front-only upload with no warning correctly produces `government_warning: mismatch` with reason "not present", and the triage classifier in P1-5 routes that to the mismatch lane. A future "I uploaded the wrong face" UX (P1-9's degraded-extraction path is the closest analogue) could add a "warning not checked" disposition, but that's a different feature — for now the right behaviour is to surface the absence of the warning as a real defect because the system can't distinguish "user forgot to upload the back" from "the bottle ships without a back warning". The agency's risk posture says: **flag it, let a human disambiguate**.
+
+**Next:** P1-7 — Result API (assemble the public VerificationResult shape from extraction + merged FieldResults + triage, including the `extractionFailed` + `recommendation: "return_unreadable_image"` wiring per FR-26b).
+
+---
+
 ## 2026-06-15 — P1-5 Triage classifier
 
 **Branch:** `feat/triage`

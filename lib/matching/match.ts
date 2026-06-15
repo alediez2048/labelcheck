@@ -22,6 +22,7 @@ import {
   type LegibilitySignal,
 } from "./confidence";
 import { matchFuzzy } from "./fuzzy";
+import { mergeFaces } from "./merge";
 import { matchNetContents } from "./netContents";
 import { matchOrigin } from "./origin";
 import type { MatchResult } from "./types";
@@ -76,22 +77,24 @@ const FIELD_LABELS: Readonly<Record<FieldName, string>> = {
 };
 
 /**
- * Find an extracted value for a given field across all faces.
- * Returns the first face's value (D12 — "satisfied if found on ANY face").
- * The multi-face merge in P1-6 will refine this with priority + dedup;
- * for now first-found-wins.
+ * Per-face readings of one field across all label faces. Faces that
+ * lack a usable string for the field are excluded — the caller decides
+ * whether an empty list means "not found anywhere" (emit a single
+ * not_found sentinel) or "the matcher only needs the faces that read
+ * something".
  */
-function findExtracted(
+function readingsFor(
   faces: ReadonlyArray<FaceExtraction>,
   field: FieldName,
-): { value: string; face: FaceKind } | null {
+): Array<{ value: string; face: FaceKind }> {
+  const out: Array<{ value: string; face: FaceKind }> = [];
   for (const face of faces) {
     const value = face.fields[field];
     if (typeof value === "string" && value.length > 0) {
-      return { value, face: face.kind };
+      out.push({ value, face: face.kind });
     }
   }
-  return null;
+  return out;
 }
 
 function getRule(tolerances: TolerancesConfig, field: FieldName): FieldRule | undefined {
@@ -182,7 +185,11 @@ export function matchApplication(input: MatchApplicationInput): FieldResult[] {
   const warningConfig = input.warningConfig ?? getWarningConfig();
   const requiredFields = getRequiredFields(input.beverageType);
 
-  const results: FieldResult[] = [];
+  // Per-face per-field results. The warning is special-cased — its
+  // matcher already merges across faces by construction (D12), so it
+  // contributes exactly one result that goes straight through merge
+  // (a single-element group is returned as-is).
+  const perFaceResults: FieldResult[] = [];
 
   for (const configKey of requiredFields) {
     const field = CONFIG_KEY_TO_FIELD_NAME[configKey];
@@ -193,7 +200,7 @@ export function matchApplication(input: MatchApplicationInput): FieldResult[] {
         faces: input.extraction.faces,
         config: warningConfig,
       });
-      results.push(
+      perFaceResults.push(
         attachConfidence(
           warningResult,
           { kind: "warning" },
@@ -205,42 +212,81 @@ export function matchApplication(input: MatchApplicationInput): FieldResult[] {
     }
 
     const formValue = getFormValue(input.form, field);
-    const extracted = findExtracted(input.extraction.faces, field);
     const rule = getRule(tolerances, field);
+    const readings = readingsFor(input.extraction.faces, field);
 
-    if (!rule) {
-      const matchResult: MatchResult = {
-        field,
-        formValue,
-        extractedValue: extracted?.value ?? null,
-        verdict: "low_confidence",
-        reason: `No tolerance rule configured for ${FIELD_LABELS[field]}`,
-        margin: 0,
-        sourceFace: extracted?.face ?? null,
-      };
-      results.push(
-        attachConfidence(
-          matchResult,
-          { kind: "exact" },
-          legibilityFor(input.extraction.faces, matchResult.sourceFace),
-          tolerances.confidence,
-        ),
+    if (readings.length === 0) {
+      // No face had a reading — emit a single not_found per the rule
+      // (which still produces the right verdict via the matcher's null
+      // branch).
+      perFaceResults.push(
+        runOne({
+          field,
+          formValue,
+          extracted: null,
+          rule,
+          faces: input.extraction.faces,
+          tolerances,
+        }),
       );
       continue;
     }
 
-    const matchResult = dispatch({ field, formValue, extracted, rule });
-    results.push(
-      attachConfidence(
-        matchResult,
-        ruleInputFor(rule),
-        legibilityFor(input.extraction.faces, matchResult.sourceFace),
-        tolerances.confidence,
-      ),
-    );
+    for (const reading of readings) {
+      perFaceResults.push(
+        runOne({
+          field,
+          formValue,
+          extracted: reading,
+          rule,
+          faces: input.extraction.faces,
+          tolerances,
+        }),
+      );
+    }
   }
 
-  return results;
+  return mergeFaces(perFaceResults);
+}
+
+/**
+ * Match one face's reading for one field, attach a code-derived
+ * confidence, return a FieldResult. Pulled out so the orchestrator can
+ * call it per face for the multi-face merge (D12).
+ */
+function runOne(opts: {
+  field: FieldName;
+  formValue: string;
+  extracted: { value: string; face: FaceKind } | null;
+  rule: FieldRule | undefined;
+  faces: ReadonlyArray<FaceExtraction>;
+  tolerances: TolerancesConfig;
+}): FieldResult {
+  const { field, formValue, extracted, rule, faces, tolerances } = opts;
+  if (!rule) {
+    const matchResult: MatchResult = {
+      field,
+      formValue,
+      extractedValue: extracted?.value ?? null,
+      verdict: "low_confidence",
+      reason: `No tolerance rule configured for ${FIELD_LABELS[field]}`,
+      margin: 0,
+      sourceFace: extracted?.face ?? null,
+    };
+    return attachConfidence(
+      matchResult,
+      { kind: "exact" },
+      legibilityFor(faces, matchResult.sourceFace),
+      tolerances.confidence,
+    );
+  }
+  const matchResult = dispatch({ field, formValue, extracted, rule });
+  return attachConfidence(
+    matchResult,
+    ruleInputFor(rule),
+    legibilityFor(faces, matchResult.sourceFace),
+    tolerances.confidence,
+  );
 }
 
 function dispatch(opts: {
