@@ -31,5 +31,15 @@
   "countryOfOrigin": {
     "rule": "exact",
     "normalize": ["case", "whitespace"]
+  },
+  "confidence": {
+    "threshold": 0.7,
+    "legibilityFactors": {
+      "good": 1.0,
+      "low": 0.5
+    },
+    "notFoundConfidence": 0.5,
+    "lowConfidenceVerdict": 0.4,
+    "note": "threshold is the split between confident and uncertain used by P1-5 triage. legibilityFactors multiply the base confidence per the model's per-region legibility flag. The model's overall self-reported confidence is NEVER used here (D5)."
   }
 }

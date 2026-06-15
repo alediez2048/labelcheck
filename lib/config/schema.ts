@@ -84,9 +84,39 @@ export const FieldRuleSchema = z.discriminatedUnion("rule", [
 export type FieldRule = z.infer<typeof FieldRuleSchema>;
 
 /**
+ * Confidence derivation parameters (P1-4, D5).
+ *
+ * `threshold` is the split between "confident" and "uncertain" that P1-5
+ * triage uses. `legibilityFactors` multiply the base confidence per the
+ * model's per-region legibility flag from `FaceExtraction.warning`.
+ * `notFoundConfidence` and `lowConfidenceVerdict` set the mid-range
+ * scalars for the corresponding `Verdict` values.
+ *
+ * The model's OWN overall self-reported confidence is never used here
+ * (D5). It is logged-only.
+ */
+const ConfidenceConfigSchema = z
+  .object({
+    threshold: z.number().min(0).max(1),
+    legibilityFactors: z
+      .object({
+        good: z.number().min(0).max(1),
+        low: z.number().min(0).max(1),
+      })
+      .strict(),
+    notFoundConfidence: z.number().min(0).max(1),
+    lowConfidenceVerdict: z.number().min(0).max(1),
+    note: z.string().optional(),
+  })
+  .strict();
+
+export type ConfidenceConfig = z.infer<typeof ConfidenceConfigSchema>;
+
+/**
  * Per-field tolerance table. Keys are the camelCase form field names
  * (matching `FormFields` in `types/domain.ts`); the values are the
- * matching rules the engine (P1-3) applies.
+ * matching rules the engine (P1-3) applies. `confidence` carries the
+ * derivation parameters used by P1-4 / consumed by P1-5 triage.
  */
 export const TolerancesConfigSchema = z
   .object({
@@ -97,6 +127,7 @@ export const TolerancesConfigSchema = z
     producerName: FieldRuleSchema,
     producerAddress: FieldRuleSchema,
     countryOfOrigin: FieldRuleSchema,
+    confidence: ConfidenceConfigSchema,
   })
   .strict();
 

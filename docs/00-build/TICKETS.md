@@ -96,10 +96,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: create lib/matching/*.ts.
 - Refs: FR-7 to FR-12; D6.
 
-### P1-4 — Confidence derivation
+### P1-4 — Confidence derivation ✅ done 2026-06-15
 - Depends: P1-3 · Branch: feat/confidence · Est: 2h
 - Goal: code-derived confidence from match margin plus the model legibility flag; never the model's self-reported number.
-- Acceptance: [ ] confidence per field computed in code; [ ] near-miss lands low-confidence regardless of model claim.
+- Acceptance: [x] confidence per field computed in code; [x] near-miss lands low-confidence regardless of model claim.
 - Files: lib/matching/confidence.ts.
 - Refs: FR-5; D5.
 

@@ -110,6 +110,7 @@ export function _resetConfigCacheForTesting(): void {
 }
 
 export type {
+  ConfidenceConfig,
   ConfigFieldKey,
   FieldRule,
   FieldsByTypeConfig,
