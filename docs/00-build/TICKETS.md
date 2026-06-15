@@ -117,10 +117,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: lib/matching/merge.ts.
 - Refs: D12.
 
-### P1-7 — Result API
+### P1-7 — Result API ✅ done 2026-06-15
 - Depends: P1-5 · Branch: feat/result-api · Est: 2h
 - Goal: structured result (lane, confidence, per-field breakdown, flags); unreadable image returns the needs-a-better-image result with an explicit "Return — unreadable image" recommendation, not an error.
-- Acceptance: [ ] AC-1 to AC-6 behaviours present; [ ] unreadable → review result with explicit recommendation surfaced (FR-16, FR-26b); [ ] validation errors are clean messages.
+- Acceptance: [x] AC-1, AC-2, AC-6 behaviours present at integration-test layer (full AC-1 to AC-6 in P1-10); [x] unreadable → review result with explicit recommendation surfaced (FR-16, FR-26b); [x] validation errors are clean messages.
 - Files: app/api/verify route.
 - Refs: FR-14, FR-16, FR-26b.
 

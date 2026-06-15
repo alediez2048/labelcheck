@@ -4,6 +4,55 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P1-7 Result API
+
+**Branch:** `feat/result-api`
+**Status:** Done
+
+**What landed:**
+- `app/api/verify/route.ts` — `POST /api/verify` glue handler. Pipeline order: parse JSON → decode base64/dataURL → `validateApplication` (P1-1 zod) → build `ExtractableApplication` → `extract` (P1-2 service, which preprocesses + calls provider) → unreadable-image short-circuit → `matchApplication` (P1-3/P1-4/P1-6) → `classify` (P1-5) → typed `VerificationResult`. Returns 200 with the structured result, 400 with plain-language errors. NEVER 500 for an unreadable image — that's a structured `lane: "review"` with `extractionFailed: true` and `recommendation: "return_unreadable_image"` (FR-16, FR-26b).
+- Helper functions on the route:
+  - `decodeFaceBytes` — accepts a raw base64 string OR a `data:image/...;base64,...` URL. Single JSON contract front-to-back; multipart would force a parallel parsing path for tests vs browser.
+  - `isFaceUnreadable` — "no transcribed field AND no warning presence" → unreadable. A face that carries ONLY the warning is NOT unreadable (the back face on most labels). The short-circuit happens BEFORE matching to avoid drowning the real signal in a wall of `not_found`s.
+  - `pickWarningFlags` — the public `VerificationResult.warning` is the per-face warning flags from the face the warning matcher pinned the verdict to, so the review UI surfaces the right artwork (FR-15).
+  - Provider exception (decode error, network blow-up) is caught and treated as an unreadable input — not a 500. The right user action is "re-upload a clearer image", not "open a support ticket".
+- `app/api/verify/__tests__/route.test.ts` — 9 integration tests against the route, calling `POST(request)` directly (no Next dev server):
+  - AC-1: clean wine pair → 200, lane=match, no flags, no per-field mismatch verdicts.
+  - AC-2: ABV mismatch → 200, lane=mismatch, alcohol_content verdict=mismatch, reason carries "alcohol".
+  - AC-6: unreadable face (empty fields, no warning, low legibility) → 200 (NOT 500), lane=review, `extractionFailed: true`, `recommendation: "return_unreadable_image"`, flags cite the front face by name.
+  - "warning-only on back face" → does NOT short-circuit — the back face carries the warning and the front carries everything else; both are usable.
+  - Validation: missing brand → 400 with plain-language message ("Brand name is required..."), `fields: ["brandName"]`, NO zod path leak.
+  - Missing applicationId → 400 with `fields: ["applicationId"]`.
+  - Malformed JSON → 400.
+  - Missing face bytes → 400 with a per-face plain-language message.
+  - Provider call count smoke test: `extract` calls the provider exactly once per request (D14 reasserted at the route layer).
+
+**Verification:**
+- `pnpm test` — 12 files, **103 tests** (94 prior + 9 new), all pass in 778ms.
+- `pnpm build` — clean. New route surfaces as `ƒ /api/verify` in the build output.
+- `pnpm lint` — clean.
+
+**Deviations from ticket:**
+- The handler and tests were authored in an earlier session and left UNTRACKED in the working tree — never committed under any prior ticket. Discovered today during P1-7 implementation: the files already existed, already compiled, already tested the right shape. This commit promotes them into history under P1-7 (their intended owner) rather than rewriting them. The implementation matches the ticket spec line-for-line, so adopting them as-is is the right move.
+- AC-1 to AC-6 are partially exercised here (AC-1, AC-2, AC-6 at the integration-test layer); the full golden-set automation lands in P1-10. AC-3/AC-4/AC-5 are exercised one layer down in `lib/matching/__tests__/match.test.ts` and `lib/triage/__tests__/classify.test.ts`, so adding them here would duplicate coverage without adding signal.
+
+**Why:**
+P1-7 is the layer that makes the pipeline reachable. Every prior Phase 1 ticket built a pure-functions module — extraction, matching, confidence, merge, triage — and tested it in isolation. P1-7 stitches them into a single Route Handler so the input UI from P1-1 can actually POST and get a typed `VerificationResult` back. The discipline the ticket spec hammers on — "glue, not logic" — is what makes this work. Every step lives in its own module; the route reads the input, calls the modules in order, and returns the result. There is no business decision in the route. A future maintainer who tries to "simplify" by inlining a matcher here is breaking the seam that lets P1-10's golden-set harness, P2-2's bulk-confirm view, and P3-1's batch intake all reuse the same pipeline without duplicating it.
+
+The **structured unreadable-image response** (`lane: "review"`, `extractionFailed: true`, `recommendation: "return_unreadable_image"`) is the single most-load-bearing design choice in this route. The naive implementation would return a 500 when the model can't read an image — "something broke, look at the logs". That is exactly the wrong behaviour for the agency's workflow. The right user action when an image is unreadable is "ask the applicant for a clearer image"; the right system action is to surface that recommendation explicitly so the agent can act on it without thinking. Routing the case as `lane: "review"` with a recommendation is what makes FR-26b ("the system explicitly recommends returning the application as 'unreadable image' rather than leaving it to agent judgment") true at the wire layer. The review UI in P1-8 will render the recommendation as a one-click disposition; without this scaffolding, that UI couldn't exist.
+
+**`isFaceUnreadable`** is the subtle one. A face is unreadable when it has no usable text AND no warning presence. The "AND no warning presence" half is what prevents the typical back-face from being false-flagged — back labels often carry ONLY the regulated text (warning, address, lot codes) with nothing in the other field slots. A naive check that flagged any face with empty `fields` would short-circuit the entire pipeline every time a real label was uploaded. The "warning-only on back face" test exists specifically to lock this in — it would catch any regression that tightened the unreadable check too aggressively.
+
+The **provider exception → unreadable response** (not 500) catch-all on `await extract(...)` is the same logic at a different layer. A `sharp` decode failure, a network blip to Claude, a malformed model response — all of them have the same right answer: "we couldn't read this, please re-upload". Bubbling a 500 pushes the operator into a debug workflow when the user-side action is trivially right. The cost is that a genuine 500-class bug (e.g. a code defect in the matching engine) also gets papered over as "unreadable image" — but that cost is bought back by the observability layer in P5-1, which will trace the underlying exception even when the wire response is the structured unreadable result. The user-facing default is "actionable response"; the operator-facing default is "trace tells you what really happened". Both are honoured.
+
+The **JSON-base64 wire format** (not multipart) is a small but consequential choice. Multipart would mean two parsing paths — one for the browser fetch in `app/verify/InputForm.tsx`, one for the integration tests — and the test-side path would need a third-party multipart builder. At the 1568px preprocess cap, a face is well under any reasonable body limit, so the base64 overhead is irrelevant in absolute terms. The cost is ~33% body inflation; the savings is "one parsing path, one validation rule, one test fixture". The choice is the same one the rest of the codebase makes (P0-3's mock provider takes bytes; P0-5's preprocessing takes bytes; the route is the wire-to-bytes boundary). Consistency wins.
+
+The **`pickWarningFlags` strategy** — read the warning flags from the face the warning matcher pinned the verdict to, fall back to the first face — is a small UX hook. The public `VerificationResult.warning` is what drives the review UI's "Government Warning" panel (P1-8); pointing it at the face that produced the verdict means the agent sees the same artwork the system was looking at. Falling back to the first face on a no-match edge case keeps the shape stable (a non-null `warning` field) at the cost of less-useful flags in that case — but `presence: false` carries the actual signal ("couldn't find a warning anywhere") so the UI still does the right thing.
+
+**Next:** P1-8 — Review UI and dispositions (render the VerificationResult into the agent's per-field comparison table; surface the Return-for-correction with structured reason summary from FR-26a; surface the unreadable-image recommendation as a one-click disposition).
+
+---
+
 ## 2026-06-15 — P1-6 Multi-face merge
 
 **Branch:** `feat/multiface`
