@@ -53,10 +53,10 @@ Description: stand up a runnable skeleton with the seams (provider adapter, conf
 - Files: create lib/image/preprocess.ts (sharp).
 - Refs: D7; NFR-4.
 
-### P0-6 — Access gate
+### P0-6 — Access gate ✅ done 2026-06-15
 - Depends: P0-1 · Branch: feat/access-gate · Est: 1h
 - Goal: shared-passcode middleware as a spend shield, env-configured.
-- Acceptance: [ ] unauthenticated requests blocked; [ ] passcode from env; [ ] documented as a spend shield, not security.
+- Acceptance: [x] unauthenticated requests blocked; [x] passcode from env; [x] documented as a spend shield, not security.
 - Files: create middleware.ts; env docs.
 - Refs: NFR-8.
 
