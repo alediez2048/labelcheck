@@ -11,7 +11,13 @@ import { describe, expect, it } from "vitest";
 
 import { claimNext } from "../claimNext";
 import { recordDisposition } from "../disposition";
-import { DEFAULT_CURRENT_AGENT_ID, SEED_AGENTS, SEED_APPLICATIONS } from "../fixtures";
+import {
+  BASELINE_MATCH_RATE,
+  DEFAULT_CURRENT_AGENT_ID,
+  SEED_AGENTS,
+  SEED_APPLICATIONS,
+  SEED_AUDIT_EVENTS,
+} from "../fixtures";
 import { deriveIssueSummary } from "../issueSummary";
 import { selectMyQueue, selectPoolCount } from "../myQueue";
 import type { QueueStoreState } from "../types";
@@ -21,6 +27,8 @@ function seed(): QueueStoreState {
     agents: SEED_AGENTS,
     applications: SEED_APPLICATIONS,
     currentAgentId: DEFAULT_CURRENT_AGENT_ID,
+    baselineMatchRate: BASELINE_MATCH_RATE,
+    auditEvents: SEED_AUDIT_EVENTS,
   };
 }
 

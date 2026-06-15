@@ -1,35 +1,50 @@
 /**
- * Routing distribute seam (P2-2 stub; P2-3 fills the body).
+ * Distribute the shared pool across available agents (P2-3).
  *
- * The Operations view's Distribute action calls into this function
- * to spread the shared exception pool across specialised agents.
- * P2-3 (Work router) owns the actual policy — specialization match,
- * load balancing, availability — and exports the same function
- * shape this stub does so the route module doesn't change when the
- * real implementation lands.
+ * Replaces the P2-2 stub. One pass through the available-agent list:
+ * each `available` agent with `role === "agent"` gets one claim
+ * attempt; the loop stops when the pool is empty or no remaining
+ * agent can claim. The P2-4 specialization-aware strategy will mean
+ * an agent with no matching pool item simply gets nothing this pass
+ * — overflow handling lives there, not here.
  *
- * The stub is intentionally a no-op that returns the count of items
- * that WOULD be distributed. The Operations view surfaces that
- * count back to the supervisor so the action's effect is visible
- * even before P2-3 ships.
+ * Returns `applied: true` to discriminate this real run from the P2-2
+ * stub's `applied: false`; the Operations view uses it to swap the
+ * toast copy between "router queued for P2-3" and "router applied N".
  */
 
 import type { QueueStoreState } from "@/lib/queue/types";
 
-export type DistributeResult = {
-  /** How many pool items would be assigned in a real run. */
-  pendingCount: number;
-  /**
-   * Whether the router actually ran. False until P2-3 lands. The UI
-   * uses this to show a "queued for P2-3 router" badge instead of
-   * silently no-op'ing.
-   */
-  applied: boolean;
+import { claimNext } from "./claim";
+import type { DistributeSummary, SelectFromPoolStrategy } from "./types";
+
+type Options = {
+  now?: () => string;
+  strategy?: SelectFromPoolStrategy;
 };
 
-export function distribute(state: QueueStoreState): DistributeResult {
-  const pendingCount = state.applications.filter(
-    (a) => a.assignedAgentId === null && a.verification.lane !== "match",
-  ).length;
-  return { pendingCount, applied: false };
+export function distribute(
+  state: QueueStoreState,
+  options: Options = {},
+): { state: QueueStoreState; summary: DistributeSummary } {
+  const availableAgents = state.agents.filter(
+    (a) => a.role === "agent" && a.availability === "available",
+  );
+
+  let nextState = state;
+  const byAgentId: Record<string, number> = {};
+  let assignedCount = 0;
+
+  for (const agent of availableAgents) {
+    const result = claimNext(nextState, agent.id, options);
+    if (result === null) continue;
+    nextState = result.state;
+    byAgentId[agent.id] = (byAgentId[agent.id] ?? 0) + 1;
+    assignedCount += 1;
+  }
+
+  return {
+    state: nextState,
+    summary: { assignedCount, byAgentId, applied: true },
+  };
 }

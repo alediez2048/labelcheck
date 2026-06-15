@@ -21,6 +21,7 @@ import {
   DEFAULT_SUPERVISOR_ID,
   SEED_AGENTS,
   SEED_APPLICATIONS,
+  SEED_AUDIT_EVENTS,
 } from "@/lib/queue/fixtures";
 import { recordDisposition } from "@/lib/queue/disposition";
 import { distribute } from "@/lib/router/distribute";
@@ -37,6 +38,7 @@ function seed(): QueueStoreState {
     applications: SEED_APPLICATIONS,
     currentAgentId: DEFAULT_CURRENT_AGENT_ID,
     baselineMatchRate: BASELINE_MATCH_RATE,
+    auditEvents: SEED_AUDIT_EVENTS,
   };
 }
 
@@ -205,10 +207,15 @@ describe("selectLiveIntake", () => {
   });
 });
 
-describe("distribute (P2-3 stub)", () => {
-  it("reports the pending-count and applied=false until P2-3 lands", () => {
-    const result = distribute(seed());
-    expect(result.applied).toBe(false);
-    expect(result.pendingCount).toBe(3);
+describe("distribute (P2-3 router)", () => {
+  it("clears the available-agent share of the pool and reports applied=true", () => {
+    const { summary } = distribute(seed());
+    expect(summary.applied).toBe(true);
+    // Two available agents in the seed (Marcus, Priya); River is OOO.
+    // Pool has three unclaimed exceptions, so both agents get one.
+    expect(summary.assignedCount).toBe(2);
+    expect(Object.keys(summary.byAgentId).sort()).toEqual(
+      ["agent-marcus", "agent-priya"].sort(),
+    );
   });
 });

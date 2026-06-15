@@ -17,7 +17,7 @@
 
 import type { VerificationResult } from "@/types";
 
-import type { QueueAgent, QueueApplication } from "./types";
+import type { AuditEvent, QueueAgent, QueueApplication } from "./types";
 
 export const SEED_AGENTS: ReadonlyArray<QueueAgent> = [
   {
@@ -60,6 +60,13 @@ export const DEFAULT_SUPERVISOR_ID = "admin-sasha";
  * keeping up" pulse signal.
  */
 export const BASELINE_MATCH_RATE = 0.7;
+
+/**
+ * Seed audit log — empty for the demo. The router (P2-3) appends
+ * entries here on claim, hand-assign, and reassign so the operations
+ * surface can show the recent-activity strip without persistence.
+ */
+export const SEED_AUDIT_EVENTS: ReadonlyArray<AuditEvent> = [];
 
 // Build a placeholder VerificationResult with the lane outcomes the
 // mockup names. The pipeline tests already prove the matcher / triage

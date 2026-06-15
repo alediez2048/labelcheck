@@ -172,10 +172,10 @@ Description: build the product around the core, the agent worklist, the supervis
 - Acceptance: [x] funnel (received/auto-verified+avg latency/ready-to-approve/needs-review); [x] Approve-all preceded by aggregate review surface (count, bottom-quartile inline + tap-expandable, flagged-field-in-match list, delta-vs-baseline pill); [x] distribution board with shared-pool by beverage + per-agent load + Distribute action (P2-3 router stub); [x] live intake feed with destination strings.
 - Refs: D11, D15; mockup.md.
 
-### P2-3 — Work router
+### P2-3 — Work router ✅ done 2026-06-15
 - Depends: P1-5 · Branch: feat/router · Est: 3h
 - Goal: triage to a shared exception pool; match lane bulk-confirmed, not individually routed; claim sets assignment; supervisor hand-assign.
-- Acceptance: [ ] only exceptions routed; [ ] claim assigns and timestamps; [ ] supervisor can reassign.
+- Acceptance: [x] only exceptions routed (`admitToPool` rejects match-lane + unverified); [x] claim assigns + timestamps + emits "assigned" audit event; [x] supervisor hand-assign + reassign (admin-only, emits "override" audit event on reassign, `toAgentId: null` returns to pool); [x] Distribute action on `/operations` clears the pool; [x] Get-next on `/queue` delegates to the same router; [x] selection-step strategy seam ready for P2-4 specialization.
 - Refs: FR-28; D15.
 
 ### P2-4 — Specialization routing

@@ -92,8 +92,34 @@ export type QueueStoreState = {
    * `metric_rollup` read; the prototype seeds a constant.
    */
   baselineMatchRate: number;
+  /**
+   * Synthetic audit log — every router-driven assignment, hand-assign,
+   * and reassign appends an entry here (P2-3). Production maps these
+   * 1:1 onto the `audit_event` table in schema.md; the prototype
+   * surfaces them inline (no persistence, NFR-4).
+   */
+  auditEvents: ReadonlyArray<AuditEvent>;
 };
 
 export type ClaimOutcome =
   | { ok: true; claimed: QueueApplication }
   | { ok: false; reason: "no_eligible_pool_item" | "agent_unavailable" };
+
+/**
+ * Audit log entry written by router operations (P2-3).
+ *
+ * `eventType: "assigned"` covers claim and supervisor hand-assign;
+ * `eventType: "override"` covers supervisor reassign (incl. return-to-
+ * pool) and the implicit "prior claim cleared" case in admitToPool.
+ * Production's `audit_event` table holds the same shape (schema.md);
+ * `metadata` carries the operation-specific context (previous
+ * assignee, actor role, from/to ids).
+ */
+export type AuditEvent = {
+  id: string;
+  applicationId: string;
+  actorId: string;
+  eventType: "assigned" | "override";
+  occurredAt: string;
+  metadata?: Readonly<Record<string, unknown>>;
+};

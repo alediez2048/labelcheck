@@ -4,6 +4,64 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P2-3 Work router (parallel-agent build)
+
+**Branch:** `feat/router`
+**Status:** Done
+
+**Workflow note:** This ticket was the first split across two parallel subagents under the new agent-dispatch workflow. Agent A (router lib + provider) and Agent B (UI pickers + Operations page wiring) worked simultaneously against a shared function contract dictated upfront (`applyDistribute`, `handAssign`, `reassign` signatures). Neither agent's file scope overlapped — A owned `lib/router/`, `lib/queue/QueueProvider.tsx`, `lib/queue/{types,fixtures,claimNext}.ts`, lib tests; B owned `components/operations/{HandAssignPicker,ReassignPicker,ReviewDistributionBoard}.tsx` and `app/(admin)/operations/page.tsx`. Both reported back cleanly with the contract intact; combined run was `pnpm lint` + `pnpm build` + `pnpm test` clean on the first attempt.
+
+**What landed:**
+- `lib/router/types.ts` — `AssignActor`, `ClaimSuccess`, `DistributeSummary`, `SelectFromPoolStrategy`, and a `RouterError` class with a typed `code` field (`match_lane_rejected | unverified_rejected | not_admin | from_agent_mismatch | agent_unavailable | no_eligible_pool_item | application_not_found`).
+- `lib/router/selectFifo.ts` — default selection strategy: prioritize mismatch over review, then by `receivedAt` ASC. Defensive `match` filter even though admit rejects it. The agent parameter is ignored here; P2-4's specialization strategy will use it without changing the call site.
+- `lib/router/admit.ts` — `admitToPool(state, applicationId, options?)`. Rejects `lane === "match"` and unverified. Idempotent on already-pooled exceptions. If clearing a prior assignment, emits an `"override"` audit event.
+- `lib/router/claim.ts` — `claimNext(state, agentId, options?): ClaimSuccess | null`. Availability check returns `null` (graceful, not a throw). Strategy parameter defaults to `selectFifo`. Emits an `"assigned"` audit event on success.
+- `lib/router/handAssign.ts` — admin-only (throws `RouterError("not_admin")` otherwise). If the target was unclaimed, sets `claimedAt`; if already claimed, preserves the original `claimedAt` (the hand-off doesn't reset the WIP clock). Emits `"assigned"` audit with `previousAssignee` in metadata.
+- `lib/router/reassign.ts` — admin-only. Validates `from` matches the current assignee. `toAgentId: null` returns the item to the pool and clears `claimedAt`; a string `toAgentId` preserves `claimedAt`. Emits `"override"` audit with `{ from, to }`.
+- `lib/router/distribute.ts` — replaced the P2-2 stub. One-pass loop over `role: "agent"` + `availability: "available"` agents. Returns `{ state, summary: { assignedCount, byAgentId, applied: true } }`. Filters admins out — supervisors hand-assign, they don't get auto-routed.
+- `lib/router/__tests__/{admit,claim,selectFifo,handAssign,reassign,distribute}.test.ts` — six suites, **41 new tests**.
+- `lib/queue/types.ts` — added `auditEvents: ReadonlyArray<AuditEvent>` to `QueueStoreState`; added the `AuditEvent` type (`id, applicationId, actorId, eventType, occurredAt, metadata?`).
+- `lib/queue/fixtures.ts` — `SEED_AUDIT_EVENTS: []` seed.
+- `lib/queue/QueueProvider.tsx` — added `applyDistribute`, `handAssign(applicationId, agentId)`, `reassign(applicationId, fromAgentId, toAgentId | null)` actions. RouterError caught and surfaced as `{ ok: false, error: msg }`; success is `{ ok: true }`. Uses `DEFAULT_SUPERVISOR_ID` + `role: "admin"` as the actor.
+- `lib/queue/claimNext.ts` — delegates to `lib/router/claim.ts` while preserving the existing `(state, now?): { state, outcome }` queue-facing signature so `/queue` works unchanged.
+- `lib/operations/__tests__/operations.test.ts` — updated the `distribute()` assertion to the new shape (`applied: true`, `assignedCount: 2`, `byAgentId` keyed by Marcus and Priya). Seed got `SEED_AUDIT_EVENTS` and `baselineMatchRate` added for type-correctness.
+- `lib/queue/__tests__/queue.test.ts` — same seed fix (Agent A discovered the existing seed had no `auditEvents` / `baselineMatchRate` because Vitest's structural type-check is loose; tightened to match the strict `QueueStoreState`).
+- `components/operations/HandAssignPicker.tsx` — popover with availability + load + specialization, Esc/click-outside close, keyboard-navigable rows.
+- `components/operations/ReassignPicker.tsx` — same shape plus a distinct indigo "Return to pool" row at the top (`onPick(null)`). Shows OOO agents too (greyed pill) — Agent B's judgment call, surfaced explicitly in their report: the supervisor needs to be able to move work OFF an OOO agent without forcing them back online via Profile first.
+- `components/operations/ReviewDistributionBoard.tsx` — Props extended with `onDistribute`, `onHandAssign`, `onReassign`, `poolItems`, `claimedByAgent`. Shared-pool row gains a `<details>` "Hand-assign individual items" list with per-item Hand-assign buttons. Each per-agent row gains a `<details>` "Claimed items (N)" list with per-item Reassign buttons. The Distribute notice now reads "Routed N exception(s) across the team" from the real `DistributeSummary`.
+- `app/(admin)/operations/page.tsx` — replaced the direct `distribute(state)` import with `applyDistribute`, `handAssign`, `reassign` from `useQueue()`. Derives `poolItems` (unassigned, non-match) and `claimedByAgent` (per-agent role=agent, non-match) inline from `state.applications`.
+
+**Verification:**
+- `pnpm test` — 25 files, **215 tests pass + 1 skipped** (174 prior + 41 new).
+- `pnpm build` — clean. Routes unchanged in size; `/operations` still 4.54 kB.
+- `pnpm lint` — clean.
+- Manual smoke against `pnpm dev`: `/operations` HTML contains "Hand-assign", "Reassign", "Claimed items", "Hand-assign individual items"; the Distribute action wires through to the provider.
+
+**Deviations from ticket:**
+- Agent A: `admit.ts` accepts an optional `{ now, actorId }`; `actorId` defaults to `"system"` since the ticket didn't specify an actor for the prior-claim clearing path. A future caller can pass the supervisor id for attribution.
+- Agent A: `distribute.ts` filters out admin-role agents from the auto-routing pass. Supervisors pull via hand-assign explicitly; auto-routing admins would be a routing surprise.
+- Agent B: the reassign picker shows OOO agents with a greyed availability pill instead of filtering them. Reasoning: the supervisor needs to be able to reassign work AWAY from an OOO agent, which means the reassign list should include OOO targets too (returning to pool is also an option). The UI agent flagged this in their report. Acceptable.
+- Both agents updated `lib/queue/__tests__/queue.test.ts` to match the strict store shape. Pre-existing gap, not new debt.
+
+**Why:**
+P2-3 was the first ticket on this project worked by parallel agents, and the workflow proved out exactly as intended. The trick was the contract-first dispatch: rather than dispatching agents with overlapping scope and asking them to coordinate, I dictated the function signatures the UI would consume (`applyDistribute`, `handAssign`, `reassign`) upfront, then handed each agent a disjoint file set. Agent A built against the contract from the algorithm side; Agent B built against the same contract from the UI side. Both arrived at the contract from opposite directions and the seams aligned on the first integration. The parallel saving is real (two agents working simultaneously instead of one sequentially), but the prerequisite is that the work splits cleanly along a stable contract — and not every ticket does.
+
+The **work router is the single coordination point for exceptions** (D15). Phase 1 enforced "the model reads, code decides" inside one application; P2-3 enforces "the router decides who works what" across the pool. Both halves are the same posture at different scopes: explicit, deterministic, in code. The router refuses to route the match lane — that's structural, with both a runtime guard (`admit` throws) and a typed `RouterError` code (`match_lane_rejected`) so a future maintainer can't accidentally re-route match work through a refactor. The bulk-confirm path on Operations stays disjoint from the router, exactly the way CONTEXT.md draws the line between bulk-confirm and auto-clear.
+
+The **strategy parameter on `claimNext`** is the seam P2-4 plugs into. P2-3 ships with `selectFifo` — mismatch before review, oldest first. P2-4 will swap in a specialization-aware strategy that scores each pool item against the agent's `specializations` and picks the best match (with FIFO as a tiebreak). Hardcoding the FIFO logic inside `claimNext` would have meant rewriting both the call site and the test setup when P2-4 lands. Strategy-as-parameter means the call site is stable; only the strategy module changes. The same pattern works for the `selectFromPool` test seam — every router test passes a controllable strategy so the logic under test is the right one for that test, not whatever `selectFifo` happens to do today.
+
+The **availability-returns-null-not-throws** rule in `claim.ts` is a small choice with a real consequence. Out-of-office isn't an error; it's a routing state. Throwing would force every caller to wrap with try/catch and would conflate "couldn't reach the agent" with "the agent isn't pulling right now". Returning null lets the caller decide — `distribute()` skips to the next agent, `applyDistribute` ignores it, the UI shows "no eligible item" instead of a stack trace. The `handAssign` and `reassign` paths still throw because those are admin actions where a wrong actor is a real programming bug, not a routing state — different semantics, different return shape.
+
+The **preserve-claimedAt-on-hand-off rule** is what makes the queue's "oldest first" sort honest. When a supervisor hands an item from agent A to agent B, the WIP clock keeps ticking — agent B starts at the same `claimedAt` agent A had. If hand-off reset the clock, supervisors could "freshen" old items by reassigning them, which would game the queue priority. The same rule applies in reverse for "return to pool" — the `claimedAt` is cleared because the item is genuinely re-entering the pool's pre-claim state. Each rule encodes a real workflow invariant in the code.
+
+The **audit-event logging** mirrors the production `audit_event` table (schema.md). Every router-side mutation — claim, hand-assign, reassign — emits an event with `actorId`, `eventType` (`"assigned"` or `"override"`), and metadata that names the previous and next state. The in-memory event log is the prototype's version of an append-only audit table. P6-2's persistence layer will swap the in-memory array for a database write; the producer side stays identical. The reason this matters for the prototype is that the supervisor reassign flow has to be defensible after the fact — a future agent disputes a reassignment, the supervisor has to show what they did and why. The audit event is the structural enforcement of that.
+
+The **UI agent's "show OOO agents in the reassign picker" judgment call** is right. The alternative — hide them — would mean the supervisor can't move work off an out-of-office agent's plate. The Profile screen (P2-6) is where availability gets toggled, but a returning-from-vacation agent shouldn't have to manually unset OOO before the supervisor can re-route their work. Including OOO agents with a greyed pill keeps the workflow possible without requiring back-and-forth between two screens.
+
+**Next:** P2-4 — Specialization-aware pull routing. The strategy seam in `claim.ts` is ready; the body of the routing function changes, the call sites don't.
+
+---
+
 ## 2026-06-15 — P2-2 Operations view (admin shell)
 
 **Branch:** `feat/operations`
