@@ -131,10 +131,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: the review components.
 - Refs: FR-14, FR-21, FR-22, FR-24, FR-26, FR-26a, FR-26b; NFR-2; D6.
 
-### P1-9 — Timeout and degrade
+### P1-9 — Timeout and degrade ✅ done 2026-06-15
 - Depends: P1-2 · Branch: feat/timeout · Est: 1.5h
 - Goal: ~8s per-call timeout, one retry, graceful low-confidence result on timeout.
-- Acceptance: [ ] slow call degrades, not hangs; [ ] one retry; [ ] p95 goal honoured, not a hard per-call kill.
+- Acceptance: [x] slow call degrades, not hangs; [x] one retry; [x] p95 goal honoured, not a hard per-call kill.
 - Files: provider call wrapper.
 - Refs: D10; NFR-1.
 

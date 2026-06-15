@@ -71,9 +71,17 @@ export type FaceExtraction = {
  * No `verdict`, `match`, or `confidence` at this level. That is the
  * matching engine's job (P1-3). A future agent tempted to add one is
  * doing P1-3's work in the wrong place.
+ *
+ * `degraded` is set by the extraction service (P1-9) when the provider
+ * call could not complete cleanly within the retry budget — `"timeout"`
+ * for a terminal timeout, `"transient"` for an exhausted-retry transient
+ * error. When set, `faces` is empty and the route handler builds the
+ * "could not verify in time" review-lane result rather than running
+ * matching against a degenerate input.
  */
 export type ExtractionResponse = {
   faces: FaceExtraction[];
+  degraded?: "timeout" | "transient";
 };
 
 /**

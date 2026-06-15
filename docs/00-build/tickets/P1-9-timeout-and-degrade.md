@@ -141,3 +141,35 @@ The verification path is now resilient: a slow provider degrades to a clean retr
 ```
 (none — uses AbortController from the platform; vitest fake timers for tests)
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/timeout`
+**Status:** Done — 121 tests pass, lint + build clean.
+
+**What landed:**
+- `lib/provider/withTimeout.ts` — `withTimeout` + `withRetry` + `TimeoutError` + `isTransientError`.
+- `lib/extraction/service.ts` (modified) — provider call wrapped with the D10 budget (8000ms timeout, 2 attempts, 250ms backoff). Terminal timeout → `{ faces: [], degraded: "timeout" }`; exhausted transient → `{ faces: [], degraded: "transient" }`; non-transient throws propagate.
+- `lib/provider/types.ts` (modified) — `ExtractionResponse.degraded?` flag.
+- `app/api/verify/route.ts` (modified) — branches on `extraction.degraded` BEFORE the unreadable-face check; returns lane=review with plain-language "could not verify in time" flag.
+- `lib/provider/__tests__/withTimeout.test.ts` — 16 tests covering withTimeout (happy / reject / abort-signal), withRetry (no-retry / single-retry / exhausted-budget / non-transient-no-retry), isTransientError classification, and extract() integration (double-timeout-degrades, double-503-degrades, non-transient-propagates, fast-happy-path, flaky-then-success).
+
+**Deviation:** the original integration test used fake timers to race against the 8s deadlines; that tangled with `sharp`'s native async preprocessing. Rewrote the integration to throw `TimeoutError` directly from the spy provider — same code path, no flaky timer dance. Unit tests still verify the deadline behaviour where sharp isn't in the path.
+
+### Why
+
+P1-9 makes the provider call resilient without making it brittle. D10's posture — one retry, small backoff, structured-degraded-on-failure, with a per-attempt timeout that's a safety net for the long-tail provider response — is the right resilience pattern for a regulated workflow.
+
+The **8s per-attempt timeout is NOT a 5s hard kill**. The 5s target (NFR-1) is what we measure in P1-11; the 8s timeout is what we cut. Two different numbers, two different jobs. Tightening the timeout to 5s would defeat the safety net for the long-tail response: a 6s call that would have succeeded gets killed, the user pays for two failures, and we end up worse off than the no-timeout baseline.
+
+**One retry, period.** D10 explicitly limits the budget. More retries inflate cost and latency without buying meaningful resilience — transient errors that survive both an 8s deadline and a 250ms backoff are not "transient" in any useful sense. The right action on a double-failure is to surface the structured degraded response and let the agent decide whether to try again manually.
+
+The **degraded ExtractionResponse pattern** is the same Error Handling discipline as the unreadable-image short-circuit in P1-7. Both end up as `lane: "review"` with `extractionFailed: true` and a plain-language flag the agent can act on. The structural sameness is intentional — the agent's mental model is "the verification couldn't be completed; here's why and what to do" — and we don't fragment that into two different UX paths just because the proximate cause is different.
+
+The **`isTransientError` classification is deliberately conservative**. Retrying validation errors or schema mismatches just hides defects. The predicate retries on the noise floor of any cross-network call (timeout, abort, connection-reset, 429, 5xx) and nothing else. A future provider exposing custom retry-after metadata could extend the predicate, but the default should never be "retry everything that throws".
+
+The **AbortSignal pass-through** in `withTimeout` is a small detail with a real consequence: the inner function can voluntarily cancel its own work when the deadline elapses. The Anthropic SDK's `messages.create` accepts an `AbortSignal`, so on a timeout we can actually cancel the in-flight provider call rather than letting it run to completion in the background, paying for tokens we'll throw away.
+
+The **fake-timer test redesign** is honest scope management. The original integration used `vi.useFakeTimers()` to simulate the 8s+250ms+8s timeline; that tangled with `sharp`'s native async I/O. The right fix isn't "make sharp testable under fake timers" — that's a bigger problem for a smaller win. The fix is to test withTimeout's deadline behaviour at the unit level (where the inner function IS controllable under fake timers) and test extract()'s catch-and-convert behaviour by throwing `TimeoutError` directly from the spy provider. Same code paths exercised, no flaky timer races.
