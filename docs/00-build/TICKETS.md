@@ -110,10 +110,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: lib/triage/classify.ts.
 - Refs: FR-13; systemsdesign Decision Logic.
 
-### P1-6 — Multi-face merge
+### P1-6 — Multi-face merge ✅ done 2026-06-15
 - Depends: P1-2, P1-3 · Branch: feat/multiface · Est: 1.5h
 - Goal: a field is satisfied if found on any face; warning checked across faces.
-- Acceptance: [ ] front-only upload does not false-flag the warning; [ ] per-field source face tracked.
+- Acceptance: [x] front-only upload does not false-flag the warning; [x] per-field source face tracked.
 - Files: lib/matching/merge.ts.
 - Refs: D12.
 
