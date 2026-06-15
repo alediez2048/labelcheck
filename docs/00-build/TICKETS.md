@@ -18,10 +18,10 @@ Phase prefix: Phases 0 to 3 are the take-home prototype; Phases 4 to 6 are the p
 
 Description: stand up a runnable skeleton with the seams (provider adapter, config, access gate, CI) in place, so every later phase is additive rather than a rewrite. No verification logic yet.
 
-### P0-1 — Repo scaffold
+### P0-1 — Repo scaffold ✅ done 2026-06-15
 - Depends: none · Branch: feat/scaffold · Est: 2h
 - Goal: TypeScript + Next.js (App Router) + Tailwind project that builds and lints.
-- Acceptance: [ ] app boots; [ ] strict TS, ESLint, Prettier configured; [ ] pnpm scripts (dev, build, lint, test).
+- Acceptance: [x] app boots; [x] strict TS, ESLint, Prettier configured; [x] pnpm scripts (dev, build, lint, test).
 - Files: create the Next.js app, tsconfig (strict), .eslintrc, tailwind config, package.json.
 - Refs: techstack.md.
 
