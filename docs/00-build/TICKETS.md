@@ -166,10 +166,10 @@ Description: build the product around the core, the agent worklist, the supervis
 - Acceptance: [x] only the agent's claimed exceptions shown (match-lane filtered, other agents' claims filtered); [x] Get-next pulls the next pool item (mismatch > review > receivedAt ASC) and respects availability; [x] auto-advance through the queue (1.5s timer → next item OR caught-up); [x] color + icon + text on every lane pill.
 - Refs: D11, D15; mockup.md.
 
-### P2-2 — Operations view (admin)
+### P2-2 — Operations view (admin) ✅ done 2026-06-15
 - Depends: P1-7 · Branch: feat/operations · Est: 4h
 - Goal: intake funnel, match-lane bulk-confirm surface (aggregate review surface for the supervisor), review-distribution board over the exception work pool.
-- Acceptance: [ ] funnel (received/verified/match/exceptions); [ ] Approve-all on the match lane preceded by aggregate review surface (count, bottom-quartile-confidence matches surfaced inline, deltas vs. baseline); [ ] distribution board with the waiting exception pool.
+- Acceptance: [x] funnel (received/auto-verified+avg latency/ready-to-approve/needs-review); [x] Approve-all preceded by aggregate review surface (count, bottom-quartile inline + tap-expandable, flagged-field-in-match list, delta-vs-baseline pill); [x] distribution board with shared-pool by beverage + per-agent load + Distribute action (P2-3 router stub); [x] live intake feed with destination strings.
 - Refs: D11, D15; mockup.md.
 
 ### P2-3 — Work router

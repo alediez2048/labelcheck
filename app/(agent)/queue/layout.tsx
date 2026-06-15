@@ -1,21 +1,16 @@
 /**
- * Agent shell layout — wraps the queue routes with the in-memory
- * `QueueProvider` so the list page and the per-application review
- * detail share state (P2-1).
- *
- * The (agent) route group exists so Phase 2's role split (P2-5) can
- * land the role switcher here without disturbing the URLs — `/queue`
- * stays `/queue`.
+ * Agent shell layout — the QueueProvider is mounted in the root layout
+ * (`app/layout.tsx`) so the Admin shell at `/operations` and the
+ * Agent shell at `/queue` share session state. This layout exists as
+ * the seam where P2-5's role-gate redirect will land.
  */
 
 import React from "react";
-
-import { QueueProvider } from "@/lib/queue/QueueProvider";
 
 export default function AgentQueueLayout({
   children,
 }: {
   children: React.ReactNode;
 }): React.ReactElement {
-  return <QueueProvider>{children}</QueueProvider>;
+  return <>{children}</>;
 }
