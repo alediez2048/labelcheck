@@ -184,10 +184,10 @@ Description: build the product around the core, the agent worklist, the supervis
 - Acceptance: [x] exceptions route to matching specialists (`selectBySpecialization` strategy is now the default in `claim.ts`); [x] overflow when no specialist free (generalists + when no specialty match); [x] admin can edit specialization (`setSpecialization` action + inline `SpecializationEditor` on the per-agent rows in the distribution board). Distribute summary now reports `specialistMatches` + `overflowMatches`.
 - Refs: FR-28; D15; schema specialization.
 
-### P2-5 — Role-based shells
+### P2-5 — Role-based shells ✅ done 2026-06-15
 - Depends: P2-1, P2-2 · Branch: feat/roles · Est: 3h
 - Goal: Admin and Agent shells with a role switcher simulating identity, row-scoped data, and admin-only action gating.
-- Acceptance: [ ] Admin sees Operations/All Apps/Analytics/Team/Knowledge Base; [ ] Agent sees My Queue/My Stats/Profile; [ ] admin-only actions gated; [ ] agent data scoped to self.
+- Acceptance: [x] Admin sees Operations/All Applications/Analytics/Team/Knowledge Base (last four are placeholders for P2-6 / P4-1); [x] Agent sees My Queue/My Stats/Profile (Stats placeholder, Profile has the availability toggle); [x] admin-only actions gated at BOTH UI (hidden in agent shell) and lib (`requireAdmin` in `lib/auth/scope.ts` throws); [x] cross-shell route visits redirect (admin route + agent actor → `/queue`; agent route + admin actor → `/operations`); [x] agent data scoped to self via `state.currentAgentId` + the existing `selectMyQueue` selector; [x] PIV/CAC/SSO production note rendered under the role switcher (NFR-8).
 - Refs: FR-29; D16.
 
 ### P2-6 — All Applications, Analytics, Team

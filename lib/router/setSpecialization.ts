@@ -20,6 +20,7 @@
 
 import type { BeverageType } from "@/types";
 
+import { requireAdmin } from "@/lib/auth/scope";
 import type {
   AuditEvent,
   QueueAgent,
@@ -39,12 +40,7 @@ export function setSpecialization(
   actor: AssignActor,
   options: Options = {},
 ): QueueStoreState {
-  if (actor.role !== "admin") {
-    throw new RouterError(
-      "not_admin",
-      `Only admins can edit specializations; got role "${actor.role}"`,
-    );
-  }
+  requireAdmin(actor);
 
   const now = options.now ?? (() => new Date().toISOString());
 

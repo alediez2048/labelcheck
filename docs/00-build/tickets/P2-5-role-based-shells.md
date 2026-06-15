@@ -185,3 +185,42 @@ The app now has two distinct shells with a working role switcher. The supervisor
 ```
 (none — all UI + tiny in-memory auth shim; reuse Next.js, Tailwind, and the P0/P1 toolchain)
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/roles`
+**Status:** Done — 239 tests pass + 1 skipped (+6 new); lint + build clean. 16 routes total.
+**Workflow:** Third parallel-agent build. Agent A: `lib/auth/scope.ts` + `requireAdmin` refactor + provider action shape change. Agent B: shells + layouts + placeholder pages + Operations rewire.
+
+**What landed:**
+- `lib/auth/{scope.ts,__tests__/scope.test.ts}` — `requireAdmin(actor)`, `actorFromAgent(agent)`.
+- `lib/router/{handAssign,reassign,setSpecialization}.ts` — refactored to `requireAdmin`.
+- `lib/router/distribute.ts` — now takes a required `actor: AssignActor`.
+- `lib/queue/QueueProvider.tsx` — every admin action derives actor from `state.currentAgentId`. RouterError → `{ ok: false, error }`. New `setAvailability` allows admin OR self-edit.
+- `components/shell/{AdminShell,AgentShell,RoleSwitcher}.tsx` — sidebars + identity switcher with the PIV/CAC banner.
+- `app/(admin)/layout.tsx` + `app/(agent)/layout.tsx` — client-component route gates that `router.replace` on cross-shell visits.
+- Six placeholder pages: `/applications`, `/analytics`, `/team`, `/knowledge-base`, `/stats`, `/profile` (Profile has the Availability toggle wired now).
+- `app/(admin)/operations/page.tsx` — adapted to the new `{ ok, error }` action shape.
+
+**Deviations:**
+- Skipped the `lib/auth/activeAgent.ts` standalone store the ticket called for. `state.currentAgentId` already IS the active-agent store; a second source of truth would invite sync bugs.
+- `setAvailability` allows agents to set their own availability (CONTEXT.md Availability — Profile is the prototype's path).
+- Default actor on a fresh tab is still `agent-marcus` — switching to admin-Sasha-as-default would churn the existing queue tests, deferred.
+
+### Why
+
+P2-5 is the seam that makes the rest of Phase 2 + 3 + 4 cleanly extendable. Before this ticket every page assumed a single hardcoded supervisor; after, every page reads the active actor and the lib layer refuses admin-only operations on a non-admin actor at every entry point. Defense-in-depth: UI hides + lib throws.
+
+The **`lib/auth/scope.ts` consolidation** moves five inline `actor.role !== "admin"` checks into one place. Behaviour unchanged; the surface area shrunk. Audit logging or "remember the deny reason" can land in one file later.
+
+The **`{ ok, error }` ContextAction shape** lets the UI surface failures without try/catch on every call site. The lib still throws (defense in depth); the provider converts the throw exactly once.
+
+The **client-layout route gate via `useEffect` + `router.replace`** is the right Next.js 15 pattern when the active actor is in client state. Rendering `null` while the redirect is pending prevents the wrong shell from flashing. Production SSO will swap the client redirect for a server-side resolution — one-for-one swap, no UI change.
+
+The **role switcher as a sidebar pin** keeps the prototype identity simulation always-reachable. The PIV/CAC banner under it is the structural reminder that this is a prototype seam, not a real auth control. NFR-8 is the production answer.
+
+The **two-shell URL split via Next.js route groups** doesn't change URLs — `/operations` stays `/operations` — but lets P2-6's new pages drop into the right group and inherit the shell + the route gate automatically.
+
+The **agent self-edit on availability** fits the workflow. Routing through the supervisor for every "I'm taking lunch" flip would be wrong; `setAvailability` allows admin OR self. Production RBAC will have the same rule by attribute (`subject == target` for the self path).

@@ -20,38 +20,52 @@
 
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 
 import { IntakeFunnel } from "@/components/operations/IntakeFunnel";
 import { LiveIntakeFeed } from "@/components/operations/LiveIntakeFeed";
 import { MatchLaneApprovalPanel } from "@/components/operations/MatchLaneApprovalPanel";
 import {
   ReviewDistributionBoard,
+  type DistributeSummary,
   type DistributionPoolItem,
 } from "@/components/operations/ReviewDistributionBoard";
 import { selectAggregateReview } from "@/lib/operations/aggregateReview";
 import { selectDistribution } from "@/lib/operations/distribution";
 import { selectFunnel } from "@/lib/operations/funnel";
 import { selectLiveIntake } from "@/lib/operations/liveIntake";
-import { DEFAULT_SUPERVISOR_ID } from "@/lib/queue/fixtures";
 import { useQueue } from "@/lib/queue/QueueProvider";
+
+/**
+ * Empty summary shape returned to the board when `applyDistribute`
+ * fails (e.g. the lib-layer `requireAdmin` refuses). Keeps the
+ * `ReviewDistributionBoard` prop type stable across the ok/error
+ * wrapper that the provider now uses.
+ */
+const EMPTY_DISTRIBUTE_SUMMARY: DistributeSummary = {
+  assignedCount: 0,
+  byAgentId: {},
+  specialistMatches: 0,
+  overflowMatches: 0,
+  applied: true,
+};
 
 export default function OperationsPage(): React.ReactElement {
   const {
     state,
+    currentAgent,
     bulkApproveMatchLane,
     applyDistribute,
     handAssign,
     reassign,
     setSpecialization,
   } = useQueue();
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const funnel = selectFunnel(state);
   const aggregate = selectAggregateReview(state);
   const distribution = selectDistribution(state);
   const liveIntake = selectLiveIntake(state, 8);
-
-  const supervisor = state.agents.find((a) => a.id === DEFAULT_SUPERVISOR_ID);
 
   // Pool items = exception apps with no assignee. Match-lane never
   // enters the pool (D15; CONTEXT.md Work pool).
@@ -86,7 +100,27 @@ export default function OperationsPage(): React.ReactElement {
   }
 
   function handleApproveAll(): void {
-    bulkApproveMatchLane(DEFAULT_SUPERVISOR_ID);
+    setActionError(null);
+    const result = bulkApproveMatchLane();
+    if (!result.ok) {
+      setActionError(`Bulk-approve failed: ${result.error}`);
+    }
+  }
+
+  /**
+   * Adapter so the board's `onDistribute` keeps its `() => DistributeSummary`
+   * shape. The provider now returns `{ ok, summary | error }`; on failure we
+   * surface the error inline and hand the board a zeroed summary so the
+   * existing notice copy ("Routed N exception(s)…") still renders sensibly.
+   */
+  function handleDistribute(): DistributeSummary {
+    setActionError(null);
+    const result = applyDistribute();
+    if (result.ok) {
+      return result.summary;
+    }
+    setActionError(`Distribute failed: ${result.error}`);
+    return EMPTY_DISTRIBUTE_SUMMARY;
   }
 
   return (
@@ -97,11 +131,23 @@ export default function OperationsPage(): React.ReactElement {
         </p>
         <h1 className="mt-1 text-3xl font-bold text-slate-900">Operations</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {supervisor
-            ? `Signed in as ${supervisor.name} · division supervisor`
+          {currentAgent
+            ? `Signed in as ${currentAgent.name} · division supervisor`
             : "No supervisor selected"}
         </p>
       </header>
+
+      {actionError !== null && (
+        <p
+          role="alert"
+          className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-900"
+        >
+          <span aria-hidden="true" className="mr-1 font-bold">
+            ✕
+          </span>
+          {actionError}
+        </p>
+      )}
 
       <IntakeFunnel snapshot={funnel} />
 
@@ -112,7 +158,7 @@ export default function OperationsPage(): React.ReactElement {
         />
         <ReviewDistributionBoard
           snapshot={distribution}
-          onDistribute={applyDistribute}
+          onDistribute={handleDistribute}
           onHandAssign={handAssign}
           onReassign={reassign}
           onSetSpecialization={setSpecialization}
