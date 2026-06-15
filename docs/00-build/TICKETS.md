@@ -103,10 +103,10 @@ Description: the headline take-home flow. A label and an application go in; a fa
 - Files: lib/matching/confidence.ts.
 - Refs: FR-5; D5.
 
-### P1-5 — Triage classifier
+### P1-5 — Triage classifier ✅ done 2026-06-15
 - Depends: P1-3, P1-4 · Branch: feat/triage · Est: 2h
 - Goal: roll per-field verdicts and confidence into one lane with the priority order (warning failures always surface as mismatch).
-- Acceptance: [ ] match / mismatch / review assigned correctly; [ ] confident mismatch or warning fail → mismatch; [ ] uncertain → review.
+- Acceptance: [x] match / mismatch / review assigned correctly; [x] confident mismatch or warning fail → mismatch; [x] uncertain → review.
 - Files: lib/triage/classify.ts.
 - Refs: FR-13; systemsdesign Decision Logic.
 
