@@ -4,6 +4,44 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P1-3 Matching engine
+
+**Branch:** `feat/matching`
+**Status:** Done
+
+**What landed:**
+- `lib/matching/types.ts` — internal `MatchResult` type carrying `margin` rather than `confidence` (confidence is derived by P1-4).
+- `lib/matching/normalize.ts` — shared normalisers: `normalizeForFuzzy`, `parseAbvPercent`, `parseNetContents` (rewritten twice), `normalizeWarningText`.
+- `lib/matching/fuzzy.ts` — generic fuzzy matcher for brand / class-type / producer using `fastest-levenshtein` with a similarity threshold from `tolerances.json`.
+- `lib/matching/abv.ts` — stated-equals-stated per FR-9, A19. Documents the TTB tolerance-table simplification in code.
+- `lib/matching/netContents.ts` — unit-normalised exact match per FR-10. Does NOT cross-convert (750 mL vs 0.75 L is a mismatch even though equal volumes — the agent should see the unit discrepancy).
+- `lib/matching/origin.ts` — exact match for country of origin, conditional on being in the beverage-type's required list.
+- `lib/matching/warning.ts` — presence (across faces, D12) + verbatim (FR-11) + ALL CAPS strict + bold best-effort (D6, `"uncertain"` → `low_confidence`).
+- `lib/matching/match.ts` — orchestrator. Walks `getRequiredFields(beverageType)`, dispatches each field to its matcher, pulls the threshold from `getTolerances()`. Tolerances and warning config are dependency-injected so tests can supply fixed values; production reads from `lib/config`.
+- `lib/config/index.ts` — re-export `FieldRule` so external modules can type the matcher dispatch signature.
+- `pnpm add fastest-levenshtein` (1.0.16).
+- `lib/matching/__tests__/match.test.ts` — 20 tests covering AC-2 (ABV mismatch), AC-3 (title-case warning), AC-4 (missing warning), AC-5 (STONE'S THROW case variant), bold-uncertain → low_confidence, verbatim drift, multi-face presence, unit normalisation, cross-unit refusal, and a happy-path orchestrator integration.
+
+**Verification:**
+- `pnpm test` clean — 8 files, **56 tests** (36 prior + 20 new), all pass in 492ms.
+- `pnpm build` clean (`✓ Compiled successfully in 1893ms`). No new routes; the matching engine is consumed by the still-unbuilt result API (P1-7), so bundle weights are unchanged.
+- `pnpm lint` clean.
+
+**Bugs caught during the run (and the design moves that resulted):**
+- **`\b` failed on "750ML"** — `\bml\b` requires a word/non-word transition, but "0m" is digit-letter (both word chars), so the boundary is absent. Rewrote with negative lookbehind/lookahead.
+- **Period-stripping ate decimals** — first cut of `parseNetContents` did `s.replace(/\./g, "")` to handle "fl. oz.", but the same regex hit "0.75 L" and produced 075. Rewrote to leave periods alone and let the unit regexes tolerate them explicitly.
+- **`FieldRule` not re-exported from `@/lib/config`** — the matcher needed the type to declare `rule: FieldRule` on the dispatch input; added to the barrel re-export.
+
+**Deviations from ticket:**
+- The fuzzy matcher is one shared file (`fuzzy.ts`) rather than separate `brand.ts` / `producer.ts` — same rule, different thresholds supplied by the orchestrator. Simpler than two files with identical bodies.
+
+**Why:**
+P1-3 is the correctness core. Every decision in this engine is code — D4 and D5 say the model only reads and the code only decides, and this is where that promise is operationalised. The biggest design choice was separating the per-field matchers (one file each) from the orchestrator, with `MatchResult` as the shared output type. The alternative — one big switch statement — would have looked tidier but conflated two responsibilities: dispatching the right rule and applying the rule. When P5-2 starts calibrating thresholds against the golden set, the calibration work touches a single file per field; the orchestrator stays inert. `MatchResult` carries `margin` instead of `confidence` for a specific reason: P1-4 derives confidence in code from `margin` plus the model's per-region legibility flag (D5). If we'd put `confidence` here, P1-4 would have to either accept the matcher's number or override it, and override-mode is the kind of seam that silently breaks when someone forgets why it exists. By making `margin` the contract, P1-4's role is unambiguous — it's the only place confidence is ever assigned. The camelCase ↔ snake_case translation is back for the third time (P0-2 type contract, P1-2 extraction, here). The form-side uses camelCase because that's the TypeScript convention; the wire-side (`FieldName`, the `field_result` audit identifiers, the matching engine's lookup keys) uses snake_case because that's the schema vocabulary. The map lives in `match.ts` rather than in a shared utility because the boundary IS the matcher. `parseNetContents` was rewritten twice — `\b` boundaries failed between digit and letter, and blanket period-stripping ate decimals. Both bugs surfaced only when tests ran them through; the rewritten version uses lookbehind/lookahead and tolerates optional trailing periods explicitly. This is exactly the kind of subtle parsing bug an LLM-as-judge would let through — Levenshtein-on-strings would have called `"750ml"` and `"0.75 L"` similar; the structural parser catches the unit mismatch. The warning matcher's evaluation order is deliberate: presence first, then text, then ALL CAPS strict (FR-11), then verbatim, then bold last (because bold is best-effort per D6). `boldConfident: "uncertain"` downgrades the overall verdict to `low_confidence` rather than fail or pass — the failure mode that matters is an auto-fail on a flaky styling read, and routing to human review is the safe default. The legibility flag is consumed at this layer but doesn't change the verdict; P1-5 (triage) is where low legibility would push a marginal match into the review lane. Keeping the two concerns separate means P5-2's calibration can tune the thresholds independently. Test fixtures pass the warning config as a parameter rather than relying on `config/warning.json` (which still has the A18 placeholder) — dependency-injection-over-hidden-globals.
+
+**Next:** P1-4 — Confidence derivation (turn `margin` + the model legibility flag into a 0..1 confidence number per D5).
+
+---
+
 ## 2026-06-15 — P1-2 Extraction service (+ live Anthropic provider)
 
 **Branch:** `feat/extraction`
