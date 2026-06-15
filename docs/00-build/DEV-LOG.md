@@ -4,6 +4,41 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P1-2 Extraction service (+ live Anthropic provider)
+
+**Branch:** `feat/extraction`
+**Status:** Done
+
+**What landed:**
+- `lib/extraction/service.ts` — `extract(application)` function and the server-side `ExtractableApplication` type. One `provider.extract()` round trip per Application carrying ALL faces (D14); preprocessing is concurrent across faces but does not touch the model. `CONFIG_KEY_TO_FIELD_NAME` map translates camelCase config keys to snake_case `FieldName` values at the form-side/wire-side seam.
+- `lib/extraction/prompt.ts` — versioned prompt template (`EXTRACTION_PROMPT_VERSION = "v1.0.0"`). Asks the model for text + four warning flags only; explicitly forbids any "matches" judgement (D4, D5).
+- `lib/provider/anthropic.ts` — `AnthropicVisionProvider` implements `VisionProvider`. Uses base64 multimodal images, parses JSON tolerant of code-fence wrappers, validates response with Zod against the public `ExtractionResponse` shape. Default model `claude-sonnet-4-6`; `ANTHROPIC_MODEL` env override for P5-4 bake-off.
+- `lib/provider/index.ts` — `getProvider()` now returns `AnthropicVisionProvider` when `PROVIDER=anthropic`; the "not yet implemented" branch for `anthropic` is gone.
+- `lib/provider/types.ts` — `ExtractionRequest.faces` and `fieldSchema` widened to `ReadonlyArray<...>` so provider implementations can't accidentally mutate the request.
+- `README.md` + `.env.example` — `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` documented.
+- `pnpm add @anthropic-ai/sdk` (0.104.2).
+- `lib/extraction/__tests__/service.test.ts` — 4 new tests asserting (a) exactly one provider call per Application, (b) every face attached, (c) text + warning flags only (no `verdict` / `confidence` at runtime), (d) field schema includes `country_of_origin` for wine + always-on `government_warning`.
+
+**Verification:**
+- `pnpm test` clean — 7 files, **36 tests** (32 prior + 4 new), all pass in 353ms.
+- `pnpm build` clean (`✓ Compiled successfully in 1334ms`). No new routes; bundle weight unchanged on `/verify` because the extraction service is server-only.
+- `pnpm lint` clean.
+
+**Bugs caught during test (and the resulting design moves):**
+- **Infinite recursion** in the first test attempt: the spy on `getProvider()` called `getProvider()` from within — which returned the spy itself. Fixed by instantiating `MockVisionProvider` directly inside the spy implementation.
+- **Field-schema translation gap** ("wine schema includes country_of_origin"): the original code filtered config keys against the snake_case `FieldName` set, silently dropping every camelCase key. Replaced with the explicit `CONFIG_KEY_TO_FIELD_NAME` map. This was exactly the kind of silent-narrowing bug that would have shown up only in the matching engine in P1-3.
+- **TypeScript readonly mismatch**: `fieldSchemaFor()` returns `ReadonlyArray<FieldName>` but `ExtractionRequest.fieldSchema` was `FieldName[]`. Resolved at the **type level** (made the request type ReadonlyArray) rather than with a cast, because providers shouldn't be mutating the request anyway.
+
+**Deviations from ticket:**
+- None on behaviour. The provider supports `claude-sonnet-4-6` as the default; the actual model ID can be overridden via `ANTHROPIC_MODEL` for P5-4 bake-off without code edits.
+
+**Why:**
+P1-2 is two related deliverables — the extraction service that converts a validated Application into a model call, and the live Anthropic Claude provider behind the same `VisionProvider` interface the mock has been satisfying since P0-3. We kept them in one ticket because either alone is a half-build. The biggest call was one call per Application, all faces attached (D14). The temptation a future agent will face is to "improve parallelism" by calling the model per face and merging the responses — that would silently break the 5-second p95 latency budget (NFR-1) once you add three round trips of overhead, and the per-application cost model (NFR-3). The implementation enforces this structurally — one `provider.extract()` invocation; the only loop is the concurrent `Promise.all` over preprocessing, which doesn't touch the model. The camelCase form-key → snake_case `FieldName` translation is the kind of seam that, left implicit, eats a day six tickets later. The config uses camelCase because the form-side `FormFields` shape does; the wire vocabulary is snake_case. The `CONFIG_KEY_TO_FIELD_NAME` map lives in the extraction service rather than in the config schema because the translation is where the form-side meets the wire-side — putting it in `lib/config` would push form-side knowledge into the config loader. The first test failure (`country_of_origin` not in the schema) was the right failure mode: the matching engine in P1-3 reads the schema by snake_case names, and a silently-empty schema would mean the model is never asked for half the fields. The `ReadonlyArray` change on `ExtractionRequest.faces` and `fieldSchema` is a small but principled correctness move — provider implementations have no business mutating the request, and making the type read-only enforces the contract at compile time. The Anthropic adapter uses base64-in-multimodal-content rather than the Files API because the Files API adds a separate upload round trip per face (breaking D14), the per-application payload at the 1568px cap is well under the 5MB Anthropic message limit, and Files API requires retention reasoning that doesn't fit NFR-4's no-persistence rule. The JSON parsing tolerance (`parseJsonStrict` accepting code-fence-wrapped output) is the one defensive bit; the prompt explicitly says "no markdown" but Sonnet sometimes ignores it, and failing-strict on a transient model behavior we can't control would be worse than parsing the actual content. P5-1 will track fenced-vs-clean responses as a rolling signal. `ANTHROPIC_MODEL` is env-overridable specifically so P5-4's bake-off can swap models without code edits. We resisted adding tool use / structured outputs here — the JSON-prompt path works against the current model and adds zero new SDK surface to test against; a future ticket swaps if the JSON failure rate is non-trivial in P5-2 evals.
+
+**Next:** P1-3 — Matching engine (per-field rules: fuzzy brand/class, normalized-exact ABV/net contents, verbatim+styling warning per FR-7 through FR-12 and D6).
+
+---
+
 ## 2026-06-15 — P1-1 Application input and sample loader
 
 **Branch:** `feat/app-input`

@@ -8,6 +8,7 @@
  * fallback — see techstack.md Model Selection).
  */
 
+import { AnthropicVisionProvider } from "./anthropic";
 import { MockVisionProvider } from "./mock";
 import type { VisionProvider } from "./types";
 
@@ -17,9 +18,10 @@ const KNOWN_LIVE_PROVIDERS = new Set(["anthropic", "openai", "olmocr", "azure-op
  * Return the configured vision provider.
  *
  * - `PROVIDER` unset or `"mock"` → MockVisionProvider (the default).
- * - `PROVIDER` is a known live provider name → throws with a pointer to
- *   the ticket that lands the impl (P1-2 for `anthropic`; P6-1 for the
- *   in-boundary options). The seam is here, the impl arrives later.
+ * - `PROVIDER=anthropic` → AnthropicVisionProvider (Claude Sonnet 4.6).
+ *   Requires `ANTHROPIC_API_KEY`.
+ * - `PROVIDER` is `azure-openai` or `olmocr` → throws with a pointer to
+ *   P6-1 (the in-boundary implementations).
  * - `PROVIDER` is anything else → throws with the list of known values.
  */
 export function getProvider(): VisionProvider {
@@ -29,10 +31,14 @@ export function getProvider(): VisionProvider {
     return new MockVisionProvider();
   }
 
+  if (name === "anthropic") {
+    return new AnthropicVisionProvider();
+  }
+
   if (KNOWN_LIVE_PROVIDERS.has(name)) {
     throw new Error(
       `Live provider "${name}" is not yet implemented. ` +
-        `See P1-2 (anthropic) and P6-1 (azure-openai / olmocr) tickets.`,
+        `See P6-1 (azure-openai / olmocr) ticket.`,
     );
   }
 
