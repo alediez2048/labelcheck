@@ -4,6 +4,39 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P1-1 Application input and sample loader
+
+**Branch:** `feat/app-input`
+**Status:** Done
+
+**What landed:**
+- `app/verify/page.tsx` — server component; loads `getRequiredFields(...)` for all three beverage types and passes them to the client form alongside the bundled samples.
+- `app/verify/InputForm.tsx` — client component; holds beverage-type / form-values / faces / errors / submission-preview state; validates required fields against the config-driven list; renders one primary "Verify" action (FR-21).
+- `app/verify/FaceUploader.tsx` — multi-face uploader with kind labels (front / back / neck), thumbnail previews, JPEG/PNG accept, up to three faces (D12). Object URLs are revoked on unmount and on face removal so the browser doesn't leak.
+- `app/verify/SamplePicker.tsx` — list of preloaded fixtures with their notes; one click hydrates form + faces.
+- `fixtures/samples.ts` — three preloaded samples (`sample-green-001`, `sample-abv-mismatch-001`, `sample-case-variant-001`) — IDs match the mock provider's fixture keys so a chosen sample produces a canned extraction in P1-2 without re-keying.
+- `public/fixtures/images/` — three AI-synthesised label PNGs (committed; <1MB each; NFR-4 allows synthetic).
+- `lib/validation/application.ts` — Zod schemas (`FormFieldsSchema`, `RawLabelFaceSchema`, `ApplicationSubmissionSchema`) + `validateApplication()` returning a discriminated `{ ok: true } | { ok: false, fieldErrors, formErrors }` union. Per-beverage-type required fields read from `lib/config` (FR-25); raw zod issue paths never leak through.
+- `lib/validation/__tests__/application.test.ts` — 7 new tests covering the validator: valid distilled-spirits, valid wine, wine missing countryOfOrigin, spirits doesn't require countryOfOrigin, zero faces, too many faces, UI-friendly error messages.
+- `app/page.tsx` — home page now has a primary CTA linking to `/verify`.
+
+**Verification:**
+- `pnpm test` clean — 6 files, **32 tests** (25 from Phase 0 + 7 new), all pass in 588ms.
+- `pnpm build` clean (`✓ Compiled successfully in 1954ms`). New route in the build output: `ƒ /verify   3.25 kB   106 kB`.
+- `pnpm lint` clean.
+- **UI walkthrough confirmed:** loading the Old Cedar (ABV mismatch) sample hydrates form + face preview + submission preview JSON; clearing brand name + Verify shows the inline `⚠ Brand name is required for distilled spirits` error (color + icon + text, AC-9); loading the Harbor Mist wine sample switches beverage type and `countryOfOrigin: "USA"` appears (config-driven field rendering).
+
+**Deviations from ticket:**
+- The Verify button shows a "Submission preview" panel with the validated `Application` JSON rather than POSTing to `/api/verify`. The endpoint lands in P1-7; a fake POST that just sets state today would be more code than the preview without extra demonstration. Documented inline and in the Why.
+- Samples are single-face. Multi-face fixtures wait for P1-6 (the merge code) where the multi-face story is actually exercised.
+
+**Why:**
+P1-1 is the first agent-facing screen, and the design constraints all pull in the same direction: one obvious primary action (FR-21), color + icon + text validation (NFR-2, AC-9), beverage-type-driven required fields (FR-3, FR-25), and a strict client/server contract that maps cleanly onto the `Application` type from P0-2. We resolved the client/server seam by making `app/verify/page.tsx` a server component that loads the field config once via `getRequiredFields(beverageType)` and passes the result as a prop; `InputForm.tsx` is the client component that owns the form state. That means the per-beverage-type required-field list is sourced from `config/fields-by-type.json` (FR-25) without smuggling `fs` reads into the client bundle. Trade-off accepted: the field config is captured at render time, so editing the JSON without a dev-server restart doesn't update an open browser tab — fine for a prototype where edits go through a restart anyway. We deliberately stopped before building the API route — the Verify button validates and shows a "Submission preview" panel rather than POSTing to `/api/verify` (which lands in P1-7), for two reasons: (1) no extraction service to call yet (P1-2); (2) the preview makes the contract visible to a stakeholder before the API exists, which is a good intermediate milestone. The fixtures are committed under `public/fixtures/images/` so the bundled demo and the offline acceptance tests (P1-10) read the same data; the sample IDs deliberately match the mock provider's fixture keys in `lib/provider/mock.ts` so a chosen sample produces a canned extraction in P1-2 without re-keying — the demo flow and the matching engine speak the same vocabulary by accident-prevention. The same `fixtures/samples.ts` module is imported by both the picker and the P1-10 acceptance tests, so the demo path and the test path **cannot** drift. `RawLabelFaceSchema` uses `z.instanceof(Buffer)` because the verify API will receive raw bytes through FormData (P1-7), and zod's Buffer check is the cheapest shape assertion without invoking sharp inside validation. `validateApplication` returns a discriminated union rather than throwing because every consumer wants invalid input as data, not exceptions. The `fieldErrors` map is keyed by camelCase form-field name (not zod's `form.brandName` path) so the UI binds errors to specific inputs without parsing zod strings — that's the explicit "no raw zod paths leak through" test in the suite. Multi-face handling is wired but the prototype samples are single-face; the merge story (P1-6 — "a field is satisfied if found on any face, warning checked across faces") is the meaningful test of multi-face, and putting it through a contrived demo before the merge code exists adds noise without information.
+
+**Next:** P1-2 — Extraction service (single model call per application carrying all faces, transcribed text only per D4, D14).
+
+---
+
 ## 2026-06-15 — Phase 0 exit ✅
 
 All seven Phase 0 tickets are done and merged. Per the PRD §5 Phase 0 exit criteria:
