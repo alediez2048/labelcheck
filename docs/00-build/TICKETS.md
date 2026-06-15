@@ -39,10 +39,10 @@ Description: stand up a runnable skeleton with the seams (provider adapter, conf
 - Files: create lib/provider/types.ts, lib/provider/mock.ts.
 - Constraints/refs: model reads only, no verdicts (D4); swappable by config (D8).
 
-### P0-4 — Configuration store
+### P0-4 — Configuration store ✅ done 2026-06-15
 - Depends: P0-2 · Branch: feat/config · Est: 2h
 - Goal: data-file config for the canonical government warning text, per-field tolerances, and per-beverage-type field requirements.
-- Acceptance: [ ] config loaded at runtime; [ ] editable without code changes; [ ] warning text slot present (insert verbatim text once confirmed, A18).
+- Acceptance: [x] config loaded at runtime; [x] editable without code changes; [x] warning text slot present (insert verbatim text once confirmed, A18).
 - Files: create config/warning.json, config/tolerances.json, config/fields-by-type.json.
 - Refs: FR-25; A18, A10.
 

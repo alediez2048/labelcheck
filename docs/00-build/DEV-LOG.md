@@ -4,6 +4,38 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P0-4 Configuration store
+
+**Branch:** `feat/config`
+**Status:** Done
+
+**What landed:**
+- `config/warning.json` — canonical text slot (with the `__TODO_VERBATIM_TEXT_A18__` placeholder), heading text, CAPS strict, bold best-effort
+- `config/tolerances.json` — per-field rules: brand/class fuzzy @ 0.92; producer-name fuzzy @ 0.90; producer-address fuzzy @ 0.85; ABV stated-equals-stated (A19); country-of-origin exact
+- `config/fields-by-type.json` — required-field lists keyed by `BeverageType` (wine adds `countryOfOrigin`; spirits is the demo path per A10; malt mirrors spirits)
+- `config/README.md` — what these files are, who edits them, the A18 placeholder note, the ABV-simplification note, the production-migration path (FR-25 → `rule_config` table at P6-2)
+- `lib/config/schema.ts` — Zod schemas, all `.strict()`, with a discriminated union on `rule` for clear typo errors
+- `lib/config/index.ts` — typed memoised accessors (`getWarningConfig`, `getTolerances`, `getRequiredFields`); throws a single file-named error on missing file, bad JSON, or schema violation
+- `lib/config/__tests__/load.test.ts` — inverted A18 placeholder test (passes while A18 is open; fails the day someone replaces the placeholder so the test gets removed at the same time)
+
+**Verification:**
+- `pnpm build` clean (`✓ Compiled successfully in 1302ms`)
+- `pnpm lint` clean (`✔ No ESLint warnings or errors`)
+- `__TODO_VERBATIM_TEXT_A18__` appears in 6 files, all legitimate (real placeholder, test assertion, two READMEs, schema JSDoc, this ticket file) — no silent paraphrase anywhere
+
+**Deviations from ticket:**
+- None. `lib/provider/index.ts` was not extended to consume `getRequiredFields()` — the ticket explicitly left that for P1-2.
+
+**Open assumptions still open:**
+- **A18** — the verbatim 27 CFR § 16.21 warning text is still a placeholder. The system runs and the matching engine will compile against the placeholder; production deployment requires a separate small ticket to land the real text once a TTB stakeholder confirms the wording.
+
+**Why:**
+P0-4 puts the regulatory rules in JSON so a compliance reviewer can change a threshold without a developer (FR-25). This is small in code but load-bearing in process: the matching engine (P1-3) imports from `lib/config` rather than hardcoding strings or thresholds, which means a TTB stakeholder eventually has a one-file edit path to adjust similarity bars or the warning rules — a code change for what should be a rule change is the kind of friction that erodes adoption. We chose JSON over YAML because Zod parses it natively, the validation errors point at concrete fields, and a compliance reviewer can read it without a YAML syntax lesson. The biggest decision was leaving the verbatim warning text as a loud sentinel (`__TODO_VERBATIM_TEXT_A18__`) rather than paraphrasing 27 CFR § 16.21. Paraphrasing is a regulatory hazard — a near-correct warning string would still be the **wrong** string, and the verifier would silently disagree with TTB's published rule for as long as nobody noticed. The placeholder forces a deliberate ticket to land the real text once A18 is resolved, and the (inverted) test in `load.test.ts` fails loudly when someone replaces it, ensuring the test gets removed at the same time — no lingering "placeholder coverage" after the real text is in. ABV defaults to stated-equals-stated (FR-9, A19) for the same reason: TTB's real tolerance rules vary by beverage type and aren't trivially in scope; encoding them slightly wrong would be silently wrong, which is worse than visibly simplified. The `note` field in `tolerances.json` documents the simplification so a reviewer reading the file sees it. Similarity thresholds (0.92 brand/class-type, 0.90 producer-name, 0.85 producer-address) are seed values the matching engine in P1-3 will calibrate against the golden set in P5-2 — we set them now so the engine has something defensible to compile against, and P5-2 tunes them with evidence rather than vibes. Every schema is `.strict()` for one reason: the whole point of FR-25 is human-editable rules, and a typo'd key silently ignored would be a regulatory failure mode — the warning check would silently weaken. Strict rejection at startup forces the reviewer to fix the typo before the system runs, which is the right ergonomic. The discriminated union on `rule` gives clear error messages when a future reviewer mistypes `"fuzy"` instead of `"fuzzy"`, where a simple union would produce the unhelpful "did not match any union member" error. The loader memoises with `module-init read once` because the config is small (<10KB total) and stable for the process lifetime — there's no async story to be told, and a synchronous `fs.readFileSync` at first access is simpler than passing config around as state. The `_resetConfigCacheForTesting` export is the one exception accepted; it's underscore-prefixed and explicitly named "for testing" so a future agent can't innocently use it in production code. Trade-off accepted on Next.js: `process.cwd()` works in both dev and production but it's a Node-runtime assumption — the loader won't run on the Edge runtime if someone later moves a route there. Left explicit because no current ticket needs an edge route.
+
+**Next:** P0-5 — Image preprocessing (orientation normalize, cap at provider max resolution per D7).
+
+---
+
 ## 2026-06-15 — P0-3 Vision provider adapter + mock
 
 **Branch:** `feat/provider-adapter`
