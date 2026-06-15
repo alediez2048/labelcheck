@@ -31,6 +31,18 @@ CI runs `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm build`, and `pnpm t
 
 **`pnpm test:eval`** is a hook reserved for the offline eval harness implemented by P5-2 (`docs/00-build/tickets/P5-2-offline-eval-harness.md`). It runs the verification path against the golden set (real green pairs + synthesized defects) and reports per-field precision/recall, lane accuracy, false-negative rate, warning-check accuracy, and confidence calibration per observability.md. Today it prints a placeholder and exits 0; P5-2 fills it in.
 
+## Latency bench (P1-11)
+
+```bash
+pnpm tsx scripts/bench-latency.ts                  # mock adapter (default)
+ITERATIONS=100 pnpm tsx scripts/bench-latency.ts   # bigger sample
+PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm tsx scripts/bench-latency.ts
+```
+
+Prints `p50 / p95 / max` for the extraction call and for the end-to-end pipeline, split by single-face vs multi-face. The p95 number is the headline (NFR-1 / AC-7 budget: 5s). The multi-face split is the measured answer to **assumption A12** (real-world latency of full-resolution multi-face calls). If the live-adapter multi-face p95 exceeds the budget, the bench prints `A12_FLAGGED` and the follow-up belongs in P3-4 (performance hardening).
+
+CI runs a reduced version of the bench (20 iterations against the mock) via `tests/latency.test.ts` so AC-7 is part of the build gate. The live-adapter measurement is opt-in — CI never asserts against the live model because the latency would be flaky.
+
 ## Repo layout
 
 ```

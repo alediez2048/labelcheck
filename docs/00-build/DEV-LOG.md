@@ -4,6 +4,62 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P1-11 Latency measurement — Phase 1 complete
+
+**Branch:** `feat/latency`
+**Status:** Done — Phase 1 closes here
+
+**What landed:**
+- `scripts/bench-latency.ts` — pre-builds face JPEGs once via `sharp`, iterates each golden-set fixture through `extract → match → triage`, captures two durations per run (provider call vs end-to-end pipeline), computes nearest-rank p50/p95/max, and prints a small table with single-face/multi-face splits. The multi-face split is the structural answer to A12. `BUDGET_OK` / `BUDGET_EXCEEDED` line at the bottom prints the headline pass/fail; an `A12_FLAGGED` line prints only when `PROVIDER=anthropic` and the live-adapter multi-face p95 exceeds the 5s budget. Exports `runBench(iterations)` so the CI smoke can reuse the same code path.
+- `tests/latency.test.ts` — CI smoke (20 iterations against the mock) asserting end-to-end p95 < 5000ms (AC-7 build gate) and asserting both single-face and multi-face counts > 0 (the A12 split is structurally present even when the live-adapter numbers aren't).
+- `lib/extraction/service.ts` (modified) — `try/finally` around the provider call emits a structured `extraction.call` log per request with `{ applicationId, provider, faceCount, modelMs, outcome }`. No PII in the log values (NFR-4 / observability.md Privacy). Same event vocabulary the P5-1 OTel span will adopt.
+- `app/api/verify/route.ts` (modified) — wrapped the handler body in a `try/finally` with a `logRequestSpan` helper that emits a `verify.request` log per request with `{ applicationId, outcome, lane, status, e2eMs }`. The outcome enum (`ok | validation | degraded | unreadable | error`) plus the lane gives observability a per-request signal feeding the p95 headline.
+- `README.md` (modified) — new "Latency bench (P1-11)" section with the mock + live commands and the A12 framing.
+- `docs/00-build/TICKETS.md` (modified) — P1-11 ticked done; the measured mock p95 cited inline so the build's headline number is visible at a glance.
+
+**Measured numbers (mock adapter, 50 iterations):**
+- Extraction (provider call): p50 1ms, p95 2ms, max 13ms.
+- End-to-end pipeline: p50 1ms, p95 2ms, max 18ms.
+- Single-face: 5 runs (the unreadable fixture only). Multi-face: 45 runs.
+- BUDGET_OK: 2ms ≪ 5000ms. The mock adapter is in-process; this number is dominated by `sharp` preprocessing, which means any accidental regression that introduced a sleep or a real network call would fail the AC-7 smoke loudly.
+
+**Measured numbers (live adapter):**
+- _Pending._ The live-adapter measurement requires an `ANTHROPIC_API_KEY` and is opt-in; the manual run command is documented in README. The CI does NOT assert against the live model because network jitter and model load would make the assertion flaky.
+- **A12 status:** structurally answered (single-face vs multi-face split is in the bench output and in the CI smoke). Numerically pending; route the first live-adapter run + the recorded numbers + any A12_FLAGGED follow-up to P3-4 if multi-face p95 exceeds budget.
+
+**Verification:**
+- `pnpm test` — 17 files, **145 tests pass + 1 skipped** (143 prior + 2 new latency tests; the AC-8 skip is unchanged).
+- `pnpm build` — clean.
+- `pnpm lint` — clean.
+- `pnpm tsx scripts/bench-latency.ts` — runs cleanly, prints the table above, prints `BUDGET_OK`.
+
+**Deviations from ticket:**
+- The ticket's example bench used `performance.now()` directly in the route. The implementation uses `performance.now()` AND emits the timing as a structured log line (`verify.request` event) per request so the same number is available in real traffic, not just under the bench. This is the seed the P5-1 OTel span will consume.
+- The original bench tried to monkey-patch `configModule.getWarningConfig` to inject the TEST_WARNING_CONFIG (mirroring the acceptance-test approach). ESM exports are read-only and that fails at runtime. Removed the injection — the bench measures DURATION, not correctness, so the lane outcome doesn't matter. The acceptance tests do the warning injection via `vi.spyOn` because they assert lanes; the bench is silent on lanes.
+
+**Why:**
+P1-11 closes Phase 1 with the budget answer the rest of the project hangs on. NFR-1's 5s p95 is the contract — every later phase (P2-2's bulk-confirm UI, P3-1's batch intake, P3-4's perf hardening, P5-1's OTel spans) was designed assuming the budget holds. If the budget didn't hold, none of those tickets would land as described. The bench is what turns the assumption into a measurement.
+
+The **p95 metric, not p50, is the right headline for an agency workflow.** An agent who sees a snappy median is fine; an agent who hits a 12-second wait once a session loses trust in the tool. The long tail is what fails the experience, and that's what p95 captures. p50 is reported too (it answers "is the tool snappy on average?") but the build gate is on p95.
+
+The **end-to-end vs extraction-call separation** lets us isolate the dominant cost. If end-to-end p95 grows but extraction p95 stays flat, the regression is in preprocessing or matching — code we own. If extraction p95 grows, the regression is in the provider — code we don't own, and the right escalation is a provider-side ticket or a model swap (P6-1's Azure OpenAI / olmOCR alternatives). Observability gets cleaner when the breakdown is per-stage, not per-request.
+
+The **multi-face / single-face split is A12 made measurable.** Assumption A12 was "real-world latency of full-resolution multi-face calls is unverified". Splitting the bench output by face count converts the assumption into a metric. The CI smoke verifies the SPLIT EXISTS even when running against the mock; the live-adapter run is what fills the numerical answer. A future agent who sees `A12_FLAGGED` in a live run knows immediately to route the follow-up to P3-4. The split is the bridge.
+
+The **`try/finally` instrumentation** in both `lib/extraction/service.ts` and `app/api/verify/route.ts` matters more than the bench itself. The bench measures latency under bench conditions; the structured logs measure latency under REAL conditions, on every request, forever. The bench is a snapshot; the logs are continuous. When P5-1 lands an OTel span, the span's `extraction.call.duration` and `verify.request.duration` attributes will read from these same `performance.now()` deltas — the bench and production share the measurement.
+
+The **PII-redacted log format** matters because NFR-4 says no applicant PII to disk, and structured logs DO go to disk in production. The log values are restricted to `applicationId` (the application's internal id — already opaque), `provider` (the adapter name), `faceCount` (a count), `modelMs` / `e2eMs` (durations), `outcome` (an enum), and `lane` (an enum). No form values, no transcribed text, no bytes, no addresses. A future maintainer who adds an `extractedBrandName` to the log line is burning NFR-4; the comment in the service file calls this out explicitly so the rule travels with the code.
+
+The **CI smoke (`tests/latency.test.ts`) uses the mock adapter intentionally.** Asserting `p95 < 5000ms` against the live model would mean the build fails any time Anthropic has a slow day. That's a CI that no one trusts — the right place for the live-adapter measurement is the manual bench, run periodically and recorded in DEV-LOG. The mock is in-process and fast enough that the 5s budget is a generous ceiling; the assertion catches the regressions we can catch deterministically (a sleep accidentally added to extraction, an O(n²) loop in matching) and leaves the rest to the manual measurement.
+
+The **bench script's `import.meta.url === \`file://${process.argv[1]}\`` guard** is what lets the CI smoke (`tests/latency.test.ts`) import `runBench` without triggering the `main()` execution. Same module, two entry points — one for the table-printing CLI, one for the assertion. Without the guard, the test import would run `main()` and write 50 iterations' worth of logs into the test output.
+
+**Phase 1 status:** **COMPLETE.** P1-1 through P1-11 are all merged to main. The verification flow runs end-to-end against the mock and (with an API key) against the live Anthropic adapter; AC-1 through AC-10 are met (with AC-8 deferred to P3-1 and AC-7's live-adapter measurement deferred to the manual bench). The demo path — load a sample on `/verify`, hit Verify, land on `/verify/result` with the lane banner + per-field table + as-submitted view, hit Approve or Return-for-correction — is wired and the build gate (lint + build + 145 tests) is green.
+
+**Next:** Phase 2 begins — P2-1 (My Queue / agent worklist) opens the loop into the queue-based workflow. P3-4 (performance hardening) holds for the live-adapter measurement to confirm or flag A12.
+
+---
+
 ## 2026-06-15 — P1-10 Test set and acceptance tests
 
 **Branch:** `feat/acceptance`
