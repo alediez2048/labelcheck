@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Access gate is a spend shield only (NFR-8 / P0-6); CI runs the
+          # build with the gate disabled so the route-collection step does
+          # not require a configured passcode.
+          ACCESS_PASSCODE: ""
+          ACCESS_COOKIE_SECRET: ""
+
+      - name: Test
+        run: pnpm test

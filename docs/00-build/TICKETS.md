@@ -60,10 +60,10 @@ Description: stand up a runnable skeleton with the seams (provider adapter, conf
 - Files: create middleware.ts; env docs.
 - Refs: NFR-8.
 
-### P0-7 — CI and test harness
+### P0-7 — CI and test harness ✅ done 2026-06-15
 - Depends: P0-1 · Branch: feat/ci · Est: 1.5h
 - Goal: Vitest set up, CI runs lint/build/test, and a hook for the eval harness (P5).
-- Acceptance: [ ] CI green on a trivial test; [ ] eval-harness placeholder wired.
+- Acceptance: [x] CI green on a trivial test; [x] eval-harness placeholder wired.
 - Files: create vitest config, CI workflow.
 - Refs: NFR-6.
 

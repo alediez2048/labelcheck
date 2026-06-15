@@ -6,19 +6,13 @@
  * cases are smoke-tested too.
  */
 
+import { describe, expect, it } from "vitest";
+
 import {
   signCookie,
   verifyCookie,
   timingSafeEqualString,
 } from "../cookie";
-
-declare function describe(name: string, fn: () => void): void;
-declare function it(name: string, fn: () => void | Promise<void>): void;
-declare function expect<T>(value: T): {
-  toBe(expected: T): void;
-  toBeDefined(): void;
-  toMatch(expected: RegExp): void;
-};
 
 describe("signCookie / verifyCookie", () => {
   it("round-trips with the same secret", async () => {
