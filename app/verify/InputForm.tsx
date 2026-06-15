@@ -16,6 +16,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -293,11 +294,34 @@ export function InputForm({ fieldsByType, samples }: Props): React.ReactElement 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">LabelCheck</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Submit an application and one or more label face images. Verification lands in P1-7;
-          today the Verify button validates the submission and shows what would be sent.
+        <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
+          Single-application demo
         </p>
+        <h1 className="mt-1 text-3xl font-bold text-slate-900">LabelCheck</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Submit an application and one or more label face images. The result page shows
+          the lane, the per-field breakdown, and the two disposition actions.
+        </p>
+        <nav className="mt-4 flex flex-wrap gap-2 text-sm">
+          <Link
+            href="/queue"
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50"
+          >
+            ↪ Agent shell (My Queue)
+          </Link>
+          <Link
+            href="/operations"
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50"
+          >
+            ↪ Admin shell (Operations)
+          </Link>
+          <Link
+            href="/"
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50"
+          >
+            ← Home
+          </Link>
+        </nav>
       </header>
 
       <section className="mb-8 rounded-md border border-slate-200 bg-white p-4">
