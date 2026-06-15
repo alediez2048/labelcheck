@@ -158,3 +158,30 @@ The full backend pipeline is now reachable over HTTP. The P1-1 input UI can POST
 ```
 (none — composes existing libs)
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/result-api`
+**Status:** Done — 103 tests pass (94 prior + 9 new), lint + build clean.
+
+**What landed:**
+- `app/api/verify/route.ts` — POST glue handler composing the pipeline (validation → decode → extract → unreadable short-circuit → match → triage → typed `VerificationResult`).
+- `app/api/verify/__tests__/route.test.ts` — 9 integration tests covering AC-1 / AC-2 / AC-6, the warning-only-back-face guard, four validation/malformed-input cases, and the D14 one-call smoke test.
+
+**Deviation:** the route + tests were authored in an earlier session and left UNTRACKED in the working tree. The implementation already matched the ticket spec line-for-line, so this commit promotes them under their intended owner (P1-7) rather than rewriting equivalent code.
+
+### Why
+
+P1-7 is the layer that makes the pipeline reachable. Every prior Phase 1 ticket built a pure-functions module — extraction, matching, confidence, merge, triage — and tested it in isolation. P1-7 stitches them into a single Route Handler so the input UI from P1-1 can actually POST and get a typed `VerificationResult` back. The discipline the ticket spec hammers on — "glue, not logic" — is what makes this work. Every step lives in its own module; the route reads the input, calls the modules in order, and returns the result. There is no business decision in the route. A future maintainer who tries to "simplify" by inlining a matcher here is breaking the seam that lets P1-10's golden-set harness, P2-2's bulk-confirm view, and P3-1's batch intake all reuse the same pipeline without duplicating it.
+
+The **structured unreadable-image response** (`lane: "review"`, `extractionFailed: true`, `recommendation: "return_unreadable_image"`) is the single most-load-bearing design choice in this route. The naive implementation would return a 500 when the model can't read an image — "something broke, look at the logs". That is exactly the wrong behaviour for the agency's workflow. The right user action when an image is unreadable is "ask the applicant for a clearer image"; the right system action is to surface that recommendation explicitly so the agent can act on it without thinking. Routing the case as `lane: "review"` with a recommendation is what makes FR-26b ("the system explicitly recommends returning the application as 'unreadable image' rather than leaving it to agent judgment") true at the wire layer. The review UI in P1-8 will render the recommendation as a one-click disposition; without this scaffolding, that UI couldn't exist.
+
+**`isFaceUnreadable`** is the subtle one. A face is unreadable when it has no usable text AND no warning presence. The "AND no warning presence" half is what prevents the typical back-face from being false-flagged — back labels often carry ONLY the regulated text (warning, address, lot codes) with nothing in the other field slots. A naive check that flagged any face with empty `fields` would short-circuit the entire pipeline every time a real label was uploaded. The "warning-only on back face" test exists specifically to lock this in — it would catch any regression that tightened the unreadable check too aggressively.
+
+The **provider exception → unreadable response** (not 500) catch-all on `await extract(...)` is the same logic at a different layer. A `sharp` decode failure, a network blip to Claude, a malformed model response — all have the same right answer: "we couldn't read this, please re-upload". Bubbling a 500 pushes the operator into a debug workflow when the user-side action is trivially right. The cost is that a genuine 500-class bug also gets papered over as "unreadable image" — but that cost is bought back by the P5-1 observability layer, which will trace the underlying exception even when the wire response is the structured unreadable result. The user-facing default is "actionable response"; the operator-facing default is "trace tells you what really happened".
+
+The **JSON-base64 wire format** (not multipart) keeps the parsing path single-track — same shape in browser and in tests, no third-party multipart builder. At the 1568px preprocess cap, base64 inflation is irrelevant in absolute terms. The cost is ~33% body bytes; the savings is "one parsing path, one validation rule, one test fixture".
+
+The **`pickWarningFlags` strategy** — read the warning flags from the face the warning matcher pinned the verdict to, fall back to the first face — points the review UI's "Government Warning" panel at the same artwork the system was looking at (FR-15). Falling back to the first face on a no-match edge case keeps the shape stable (a non-null `warning` field) at the cost of less-useful flags in that case — but `presence: false` carries the actual signal ("couldn't find a warning anywhere") so the UI still does the right thing.
