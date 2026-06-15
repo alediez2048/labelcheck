@@ -21,7 +21,12 @@ import {
   type DispositionInput,
   type DispositionResult,
 } from "./disposition";
-import { DEFAULT_CURRENT_AGENT_ID, SEED_AGENTS, SEED_APPLICATIONS } from "./fixtures";
+import {
+  BASELINE_MATCH_RATE,
+  DEFAULT_CURRENT_AGENT_ID,
+  SEED_AGENTS,
+  SEED_APPLICATIONS,
+} from "./fixtures";
 import { selectMyQueue, selectPoolCount } from "./myQueue";
 import type { QueueItem, QueueStoreState } from "./types";
 
@@ -32,6 +37,16 @@ type QueueContextValue = {
   currentAgent: QueueStoreState["agents"][number] | undefined;
   claimNext: () => ClaimResult["outcome"];
   recordDisposition: (input: DispositionInput) => DispositionResult["record"] | null;
+  /**
+   * Bulk-confirm every match-lane application currently in the store
+   * (FR-20, FR-23). Used by the Operations view's "Approve all N"
+   * action — one disposition per application is recorded.
+   */
+  bulkApproveMatchLane: (decidedBy: string) => DispositionResult["record"][];
+  /**
+   * Set the current agent id — P2-5's role switcher will use this.
+   */
+  setCurrentAgentId: (id: string) => void;
 };
 
 const QueueContext = createContext<QueueContextValue | null>(null);
@@ -40,6 +55,7 @@ const INITIAL_STATE: QueueStoreState = {
   agents: SEED_AGENTS,
   applications: SEED_APPLICATIONS,
   currentAgentId: DEFAULT_CURRENT_AGENT_ID,
+  baselineMatchRate: BASELINE_MATCH_RATE,
 };
 
 export function QueueProvider({
@@ -65,6 +81,34 @@ export function QueueProvider({
     [state],
   );
 
+  const bulkApproveMatchLane = useCallback(
+    (decidedBy: string): DispositionResult["record"][] => {
+      const matchIds = state.applications
+        .filter((a) => a.verification.lane === "match")
+        .map((a) => a.applicationId);
+      let next = state;
+      const records: DispositionResult["record"][] = [];
+      for (const id of matchIds) {
+        const result = recordDispositionPure(next, {
+          applicationId: id,
+          disposition: "approve",
+          agentId: decidedBy,
+        });
+        if (result) {
+          next = result.state;
+          records.push(result.record);
+        }
+      }
+      setState(next);
+      return records;
+    },
+    [state],
+  );
+
+  const setCurrentAgentId = useCallback((id: string) => {
+    setState((prev) => ({ ...prev, currentAgentId: id }));
+  }, []);
+
   const value = useMemo<QueueContextValue>(() => {
     return {
       state,
@@ -73,8 +117,10 @@ export function QueueProvider({
       currentAgent: state.agents.find((a) => a.id === state.currentAgentId),
       claimNext,
       recordDisposition,
+      bulkApproveMatchLane,
+      setCurrentAgentId,
     };
-  }, [state, claimNext, recordDisposition]);
+  }, [state, claimNext, recordDisposition, bulkApproveMatchLane, setCurrentAgentId]);
 
   return (
     <QueueContext.Provider value={value}>{children}</QueueContext.Provider>

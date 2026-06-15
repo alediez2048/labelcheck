@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+
+import { QueueProvider } from "@/lib/queue/QueueProvider";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +17,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
-        {children}
+        {/*
+         * The queue store lives at the root so the Agent shell
+         * (/queue, /queue/[id]) and the Admin shell (/operations)
+         * read and mutate the same session-bound state. NFR-4 still
+         * holds — the provider is in-memory React state, reseeded
+         * on every fresh tab.
+         */}
+        <QueueProvider>{children}</QueueProvider>
       </body>
     </html>
   );

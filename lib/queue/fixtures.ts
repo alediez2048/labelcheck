@@ -23,24 +23,43 @@ export const SEED_AGENTS: ReadonlyArray<QueueAgent> = [
   {
     id: "agent-marcus",
     name: "Marcus Lee",
+    role: "agent",
     specializations: ["distilled_spirits"],
     availability: "available",
   },
   {
     id: "agent-priya",
     name: "Priya Shah",
+    role: "agent",
     specializations: ["wine"],
     availability: "available",
   },
   {
     id: "agent-river",
     name: "River Patel",
+    role: "agent",
     specializations: ["malt_beverage"],
     availability: "out_of_office",
+  },
+  {
+    id: "admin-sasha",
+    name: "Sasha Okafor",
+    role: "admin",
+    specializations: ["wine", "distilled_spirits", "malt_beverage"],
+    availability: "available",
   },
 ];
 
 export const DEFAULT_CURRENT_AGENT_ID = "agent-marcus";
+export const DEFAULT_SUPERVISOR_ID = "admin-sasha";
+/**
+ * Rolling baseline match rate — placeholder for the `metric_rollup`
+ * read in P6-2. The Operations view's delta pill is computed against
+ * this. 0.70 means "historically 70% of intake clears as match"; the
+ * day's match rate vs this number is the supervisor's "are we
+ * keeping up" pulse signal.
+ */
+export const BASELINE_MATCH_RATE = 0.7;
 
 // Build a placeholder VerificationResult with the lane outcomes the
 // mockup names. The pipeline tests already prove the matcher / triage
@@ -83,6 +102,9 @@ const PLACEHOLDER_FACES = [PLACEHOLDER_FACE];
 export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
   // ---------------------------------------------------------------------
   // Match lane — NEVER shown in My Queue (filtered by selector).
+  // The Operations view's match-lane panel groups all four below.
+  // Confidence is varied so the bottom-quartile cut is meaningful
+  // (FR-23: the supervisor's spot-check signal).
   // ---------------------------------------------------------------------
   {
     applicationId: "old-tom-001",
@@ -108,6 +130,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     assignedAgentId: null,
     claimedAt: null,
     receivedAt: "2026-06-15T07:55:00Z",
+    verifiedDurationMs: 3100,
   },
   {
     applicationId: "silver-branch-001",
@@ -117,12 +140,94 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     verification: verification({
       applicationId: "silver-branch-001",
       lane: "match",
-      overallConfidence: 0.96,
-      fields: [],
+      overallConfidence: 0.95,
+      fields: [
+        {
+          field: "brand_name",
+          formValue: "SILVER BRANCH",
+          extractedValue: "SILVER BRANCH",
+          verdict: "match",
+          confidence: 0.95,
+          reason: "Brand name matches",
+          sourceFace: "front",
+        },
+      ],
     }),
     assignedAgentId: null,
     claimedAt: null,
     receivedAt: "2026-06-15T08:02:00Z",
+    verifiedDurationMs: 3600,
+  },
+  {
+    applicationId: "maple-hollow-cream-001",
+    brand: "Maple Hollow Cream",
+    beverageType: "distilled_spirits",
+    faces: PLACEHOLDER_FACES,
+    verification: verification({
+      applicationId: "maple-hollow-cream-001",
+      // Cleared as match but the brand confidence is the lowest of
+      // any match in the day — the bottom-quartile candidate the
+      // supervisor will spot-check (FR-23). Lane stayed match
+      // because nothing failed; confidence just dragged.
+      lane: "match",
+      overallConfidence: 0.72,
+      fields: [
+        {
+          field: "brand_name",
+          formValue: "MAPLE HOLLOW",
+          extractedValue: "MAPLE HOLLOW",
+          verdict: "match",
+          confidence: 0.72,
+          reason: "Brand name matches (lower legibility)",
+          sourceFace: "front",
+        },
+      ],
+    }),
+    assignedAgentId: null,
+    claimedAt: null,
+    receivedAt: "2026-06-15T08:08:00Z",
+    verifiedDurationMs: 4100,
+  },
+  {
+    applicationId: "juniper-coast-001",
+    brand: "Juniper Coast Gin",
+    beverageType: "distilled_spirits",
+    faces: PLACEHOLDER_FACES,
+    verification: verification({
+      applicationId: "juniper-coast-001",
+      // Lane is `match` overall, but one field carries a `not_found`
+      // verdict — the "soft flag in an otherwise-match application"
+      // case the supervisor should glance at before bulk-confirm
+      // (FR-23). Triage cleared it because the missing field is
+      // optional for this beverage type; the row still surfaces in
+      // the aggregate review surface as a courtesy.
+      lane: "match",
+      overallConfidence: 0.88,
+      fields: [
+        {
+          field: "brand_name",
+          formValue: "JUNIPER COAST",
+          extractedValue: "JUNIPER COAST",
+          verdict: "match",
+          confidence: 0.95,
+          reason: "Brand name matches",
+          sourceFace: "front",
+        },
+        {
+          field: "country_of_origin",
+          formValue: "USA",
+          extractedValue: null,
+          verdict: "not_found",
+          confidence: 0.5,
+          reason: "Country of origin not found on the label (optional for domestic spirits)",
+          sourceFace: null,
+        },
+      ],
+    }),
+    assignedAgentId: null,
+    claimedAt: null,
+    receivedAt: "2026-06-15T08:11:00Z",
+    verifiedDurationMs: 2900,
   },
 
   // ---------------------------------------------------------------------
@@ -162,6 +267,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     assignedAgentId: DEFAULT_CURRENT_AGENT_ID, // already claimed by Marcus
     claimedAt: "2026-06-15T09:10:00Z",
     receivedAt: "2026-06-15T08:15:00Z",
+    verifiedDurationMs: 3400,
   },
   {
     applicationId: "cedar-ridge-reserve-001",
@@ -189,6 +295,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     assignedAgentId: null, // in the shared pool
     claimedAt: null,
     receivedAt: "2026-06-15T08:25:00Z",
+    verifiedDurationMs: 3700,
   },
   {
     applicationId: "coastal-pale-ale-001",
@@ -215,6 +322,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     assignedAgentId: null, // in the shared pool
     claimedAt: null,
     receivedAt: "2026-06-15T08:30:00Z",
+    verifiedDurationMs: 3200,
   },
 
   // ---------------------------------------------------------------------
@@ -237,6 +345,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     assignedAgentId: DEFAULT_CURRENT_AGENT_ID, // claimed by Marcus
     claimedAt: "2026-06-15T09:18:00Z",
     receivedAt: "2026-06-15T08:40:00Z",
+    verifiedDurationMs: 4500,
   },
   {
     applicationId: "dunmore-single-malt-001",
@@ -263,6 +372,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     assignedAgentId: null, // in the shared pool
     claimedAt: null,
     receivedAt: "2026-06-15T08:50:00Z",
+    verifiedDurationMs: 3800,
   },
 
   // ---------------------------------------------------------------------
@@ -293,5 +403,6 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
     assignedAgentId: "agent-priya",
     claimedAt: "2026-06-15T09:05:00Z",
     receivedAt: "2026-06-15T08:35:00Z",
+    verifiedDurationMs: 3300,
   },
 ];

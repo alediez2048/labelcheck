@@ -171,3 +171,43 @@ The Admin shell has a working Operations home: the supervisor sees the day's fun
 ```
 (none — all UI work; reuse Next.js, Tailwind, and the P0/P1 toolchain)
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/operations`
+**Status:** Done — 174 tests pass + 1 skipped; lint + build clean. New route `/operations` (4.54 kB).
+
+**What landed:**
+- `app/(admin)/operations/page.tsx` — Operations route composing four panels.
+- `lib/operations/` — `funnel.ts`, `aggregateReview.ts`, `distribution.ts`, `liveIntake.ts` (pure selectors) + `__tests__/operations.test.ts` (14 tests).
+- `lib/router/distribute.ts` — P2-3 stub with the real function shape.
+- `components/operations/` — `IntakeFunnel`, `MatchLaneApprovalPanel`, `ReviewDistributionBoard`, `LiveIntakeFeed`.
+- `lib/queue/QueueProvider.tsx` — added `bulkApproveMatchLane(decidedBy)` and `setCurrentAgentId(id)`. Seeds `baselineMatchRate`.
+- `lib/queue/types.ts` — `role` on agent, `verifiedDurationMs` on application, `baselineMatchRate` on store.
+- `lib/queue/fixtures.ts` — added Maple Hollow (lowest match confidence), Juniper Coast (flagged-in-match case), admin-sasha, baseline = 0.7, latency per application.
+- `app/layout.tsx` — QueueProvider lifted to the root so both shells share state.
+- `app/(agent)/queue/layout.tsx` — now a passthrough; P2-5 role gate will land here.
+
+**Deviation:** `bulkApproveMatchLane` lives on the QueueProvider (not its own file) because the action mutates shared state and reuses `recordDisposition`; the ticket's `lib/operations/bulkConfirmMatchLane.ts` would have been a single-line wrapper. Same observable behaviour, one fewer file.
+
+### Why
+
+P2-2 is the other half of the queue/match split P2-1 enforced. Both halves are required to round-trip the workflow: agents handle exceptions individually, supervisors clear the matches in aggregate, the live intake feed shows where each application lands in real time.
+
+The **aggregate review surface above the bulk-confirm** is the most-load-bearing design choice. A single "Approve all 420" button at the top would be auto-clear, not bulk-confirm — and CONTEXT.md draws the line: auto-clear is off-by-default agency policy, bulk-confirm is human-in-the-loop with a glanceable review surface in between. The aggregate provides three signals before the click — total count, bottom-quartile-confidence inline + tap-expandable, and delta vs the rolling baseline match rate. Without all three, the page reduces to auto-clear and the agency's risk posture is broken structurally.
+
+The **flagged-field-in-match list** is the qualitative complement to the bottom-quartile list. Bottom quartile catches "this match cleared but confidence is low overall"; flagged-in-match catches "this match cleared but one specific field is weak". Different signals, different supervisor response. Separate visual treatment (amber soft-warn) preserves the distinction.
+
+The **delta-vs-baseline pill** is the "is today normal?" signal. The sign + magnitude + arrow + text mean AC-9 holds even if color drops out. The baseline is a constant today; production reads `metric_rollup` in P6-2.
+
+The **`<details>` tap-expand into the existing P1-8 `FieldTable`** is the no-duplication rule. A future styling change on the agent side automatically flows to the supervisor side. Native `<details>` is keyboard-accessible for free.
+
+The **shared-pool row split by beverage** is the supervisor's "where's the load" signal. Distinct visual treatment from the per-agent rows below — the pool is the input, not another agent.
+
+**Per-agent rows** show load bar + specialization + availability so the supervisor can spot uneven distribution. P2-4's specialization-aware router reads the same fields.
+
+The **Distribute action wired to the P2-3 stub** is seam-first discipline. Button exists, calls a function with the right signature, surfaces a notice — "X queued for the P2-3 router". P2-3 flips `applied: true`. The UI stays the same.
+
+The **lifted QueueProvider at root** fixes cross-shell state sharing. Both `/queue` and `/operations` see the same session-bound store; a bulk-confirm here clears match fixtures for both views. NFR-4 holds — in-memory React state, reseeded on every fresh tab.

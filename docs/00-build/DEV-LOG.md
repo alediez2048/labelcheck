@@ -4,6 +4,66 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P2-2 Operations view (admin shell)
+
+**Branch:** `feat/operations`
+**Status:** Done
+
+**What landed:**
+- `app/(admin)/operations/page.tsx` — `/operations` route. Reads the shared queue state (the QueueProvider now lives at the root layout so `/queue` and `/operations` share session state) and composes four panels: intake funnel, match-lane approval panel, review distribution board, live intake feed.
+- `lib/operations/funnel.ts` — `selectFunnel` pure selector. Counts received, auto-verified, ready-to-approve (match-lane), needs-review (exception). Averages `verifiedDurationMs` across all applications into seconds rounded to one decimal.
+- `lib/operations/aggregateReview.ts` — `selectAggregateReview`. Computes today's match rate, baseline, signed delta, bottom-quartile-confidence list (Math.ceil(N/4), ascending by overallConfidence), and the "flagged-field-in-match" list (lane=match + any field with verdict ≠ match).
+- `lib/operations/distribution.ts` — `selectPoolSnapshot`, `selectAgentLoad`, `selectDistribution`. Pool excludes match-lane and already-claimed exceptions; per-agent counts exclude admins and exclude match-lane work.
+- `lib/operations/liveIntake.ts` — `selectLiveIntake`. Maps each application to a `{ applicationId, brand, lane, destination, receivedAt }` row. Destination is derived: `lane=match` → "Auto-cleared → approval pool", unclaimed → "→ review pool", claimed → "→ <agent name>". Sorted newest first.
+- `lib/router/distribute.ts` — P2-3 stub. Returns `{ pendingCount, applied: false }` so the Operations UI can surface the count even before the real router lands.
+- `lib/operations/__tests__/operations.test.ts` — 14 tests covering funnel counts + latency, aggregate review (bottom-quartile cut, flagged-in-match detection, delta sign), distribution (pool exclusions, per-agent counts, admin filter), bulk-approve (one disposition per match-lane app, no exception touched), live intake (destination strings, sort order), distribute stub (pendingCount + applied=false).
+- `components/operations/IntakeFunnel.tsx` — four-step strip with arrow separators.
+- `components/operations/MatchLaneApprovalPanel.tsx` — supervisor aggregate review surface above the bulk-confirm. Three sections in order: count + delta pill, bottom-quartile inline list with `<details>` tap-expansion into the P1-8 `FieldTable`, flagged-field-in-match list with amber treatment. Single "Approve all N" button at the bottom.
+- `components/operations/ReviewDistributionBoard.tsx` — highlighted shared-pool row with per-beverage-type counters, per-agent rows with load bar + claimed count + availability pill, Distribute action calling the P2-3 stub.
+- `components/operations/LiveIntakeFeed.tsx` — newest-first list with lane pill + destination.
+- `lib/queue/QueueProvider.tsx` — added `bulkApproveMatchLane(decidedBy)` action (records one disposition per match-lane app via the pure `recordDisposition` helper) and `setCurrentAgentId(id)` for the P2-5 role switcher. Seeds `baselineMatchRate` from the constant.
+- `lib/queue/types.ts` — added `role: "agent" | "admin"` to `QueueAgent`, added `verifiedDurationMs` to `QueueApplication`, added `baselineMatchRate` to `QueueStoreState`.
+- `lib/queue/fixtures.ts` — added Maple Hollow (lane=match, confidence=0.72 — the bottom-quartile candidate) and Juniper Coast (lane=match with one not_found field — the flagged-in-match canonical case). Added `admin-sasha` (role=admin), `BASELINE_MATCH_RATE = 0.7`, `verifiedDurationMs` on every application (2900–4500ms range).
+- `app/layout.tsx` — QueueProvider lifted from the agent-shell layout to the root so both shells share state.
+- `app/(agent)/queue/layout.tsx` — now a passthrough; the role-gate redirect lands here in P2-5.
+
+**Verification:**
+- `pnpm test` — 19 files, **174 tests pass + 1 skipped** (160 prior + 14 new).
+- `pnpm build` — clean. New route `○ /operations` (4.54 kB).
+- `pnpm lint` — clean.
+- Manual smoke against `pnpm dev`: `/operations` returns 200, HTML contains "Operations", "Approve all", "Sasha Okafor", "Maple Hollow", "Auto-cleared", "waiting to be pulled". `/queue` continues to render correctly with the lifted provider.
+
+**Deviations from ticket:**
+- The ticket lists `lib/operations/bulkConfirmMatchLane.ts` as a separate file. I put `bulkApproveMatchLane` on the QueueProvider directly because the action mutates the shared store and lives next to the other dispose-and-remove logic (the pure `recordDisposition` helper does the heavy lifting; the provider action just iterates). Same observable behaviour; one fewer file.
+- "Live intake feed" added as `lib/operations/liveIntake.ts` + `components/operations/LiveIntakeFeed.tsx`, both numbered as their own files. Ticket implicitly covered them under "build LiveIntakeFeed.tsx" but didn't list the lib file; the selector pattern matched the other three so I added it for consistency.
+- The Distribute action calls the P2-3 stub (`lib/router/distribute.ts`) which returns `{ pendingCount, applied: false }`. The UI surfaces a "queued for the P2-3 router" notice. When P2-3 lands, the same function shape will flip `applied: true` and actually mutate the store.
+- The QueueProvider was lifted to the root layout. The original P2-1 layout mounted it under `(agent)/queue`; that scoping meant `/operations` would have no provider. The simpler fix is the right one — the provider is the session-bound store, both shells consume it. The P2-5 role gate will use the same provider's `setCurrentAgentId` to swap shells.
+
+**Why:**
+P2-2 is the other half of the queue/match split P2-1 enforced. P2-1 built My Queue with the structural rule "agents never see the match lane"; P2-2 builds the surface that holds the match lane and gives the supervisor the one-click bulk-confirm action that closes that lane. Both halves are required for the workflow to round-trip: agents handle exceptions individually, supervisors clear the matches in aggregate, and the live intake feed shows the supervisor in real time where each incoming application landed.
+
+The **aggregate review surface above the bulk-confirm** is the most-load-bearing design choice on this page. The temptation when reading "Approve all 420" is to put a single button at the top of the screen — fast, decisive, done. That would be **auto-clear**, not bulk-confirm, and CONTEXT.md draws the line between the two explicitly: auto-clear is off-by-default agency policy, bulk-confirm is human-in-the-loop with a glanceable review surface in between. The aggregate surface provides three signals before the click — total count, bottom-quartile-confidence matches the supervisor can spot-check inline (tap-expand → P1-8 per-field breakdown), and the delta vs the rolling baseline match rate that says "is today normal?". Without all three, the page reduces to auto-clear, and the agency's risk posture is broken structurally. The selector returns all three in one snapshot; the panel renders them in the right order; the bulk-confirm button is at the bottom, after the review surface, not at the top, before it. This is the same posture as P1-5's triage classifier: a real signal is never hidden behind an otherwise-clean aggregate.
+
+The **flagged-field-in-match list** is the qualitative complement to the bottom-quartile list. The bottom quartile catches "this match cleared but the confidence is low overall"; the flagged-in-match catches "this match cleared but one specific field is weak". They're different signals and the supervisor responds to each differently — a low-confidence match might just be a fuzzy image; a flagged field is a specific datum the supervisor may want to verify before the bulk-confirm. Surfacing them as separate lists, with separate visual treatments (the flagged list gets the amber soft-warn color), keeps the two signals legible. Collapsing them into a single "watch this" list would obscure the difference.
+
+The **delta-vs-baseline pill** is the third signal and the one the supervisor uses to decide whether the day is normal. A match rate that's 5% above baseline is interesting but probably fine — the day's submissions happened to be cleaner than average. A match rate that's 15% below baseline is a problem signal: either intake is unusually defective today (a real-world spike in label issues) or the model is mis-calibrated (a regression worth investigating). The pill encodes the sign and magnitude with a color cue + an arrow + the text; AC-9 holds because the text carries the signal even if the color drops out. The baseline lives on the store as a constant today; production reads it from `metric_rollup` in P6-2.
+
+The **`<details>` tap-expand into the existing P1-8 `FieldTable`** is the no-duplication rule. The per-field comparison the supervisor sees inline is the EXACT same table the agent sees on the review detail. Re-implementing it for the Operations view would mean two surfaces with the same shape that could drift; reusing it means a future styling change on the agent side automatically flows to the supervisor side. The native `<details>` element gets keyboard accessibility for free (Enter to expand, Esc to collapse) — no custom focus management needed.
+
+The **shared-pool row split by beverage type** is the supervisor's "where's the load" signal. The mockup describes a numbered shared pool ("24 waiting to be pulled") with per-type counters underneath (wine 9, spirits 11, malt 4). The selector returns the totals; the component renders them as a highlighted indigo row with badges. The visual treatment is intentionally distinct from the per-agent rows below — the shared pool is the "input" to the agents, not another agent, and treating it visually like another row would flatten that distinction.
+
+The **per-agent rows show load bar + specialization + availability pill** because those are the three things the supervisor needs to spot uneven distribution. Load bar (claimed / capacity) is visual; the claimed count is numeric; the specialization pill explains why a particular agent has the load they have (a wine specialist will have only wine exceptions); availability shows who's actually pulling. An out-of-office agent shows as a dimmed pill and a zero load — no work routes to them. P2-4's specialization-aware router will read these same fields when it lands.
+
+The **Distribute action wired to the P2-3 stub** is the seam-first discipline. The button exists today, calls a function with the right signature, and surfaces a notice the operator can see — "X queued for the P2-3 router". When P2-3 ships, the function body changes and the notice flips to "Routed X exception(s) to specialists". The UI stays the same. The alternative — leaving the button disabled with "not yet implemented" — would mean either re-wiring this page when P2-3 ships, or shipping a broken button. The stub-with-real-shape pattern is what makes the route changes additive in P2-3.
+
+The **lifted QueueProvider at the root layout** is the cleanest fix to the cross-shell state-sharing problem. The original P2-1 layout mounted the provider under `(agent)/queue`, which was correct for P2-1 (My Queue + review detail) but would have isolated `/operations` from the same state. Lifting it to `app/layout.tsx` means every route under the app reads the same session-bound store. The Agent shell route group now contains a passthrough layout — the place P2-5's role-gate redirect will land. The cost is "providers run for every route, even ones that don't use them"; the saving is "one store, two shells, no synchronisation".
+
+The **NFR-4 posture holds.** The provider is in-memory React state, reseeded from fixtures on every fresh tab. Bulk-confirm here removes match-lane fixtures from the store; navigating to `/queue` afterwards confirms the state is shared (and the funnel updates). A page reload restarts the demo. No localStorage, no sessionStorage, no server cache.
+
+**Next:** P2-3 — Work router. Specialization-aware pull routing that the Distribute action will call into; `lib/router/distribute.ts` already has the stub shape.
+
+---
+
 ## 2026-06-15 — P2-1 My Queue (agent shell) — Phase 2 begins
 
 **Branch:** `feat/my-queue`
