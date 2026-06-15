@@ -167,3 +167,42 @@ The work router is the single coordination point for exceptions. Distribute on O
 ```
 (none — all logic + UI; reuse Next.js, Tailwind, and the P0/P1 toolchain)
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/router`
+**Status:** Done — 215 tests pass + 1 skipped (+41 new); lint + build clean.
+**Workflow:** First ticket executed by parallel subagents under the agent-dispatch preference. Agent A built `lib/router/` + the QueueProvider wiring; Agent B built the UI pickers + Operations page integration. Both ran simultaneously against a fixed contract dictated upfront; integration was clean on the first combined build.
+
+**What landed:**
+- `lib/router/{types,selectFifo,admit,claim,handAssign,reassign,distribute}.ts` — pure router module with strategy seam for P2-4.
+- `lib/router/__tests__/` — 6 suites, 41 tests covering admit (match-lane reject, idempotent), claim (priority, availability, mutually exclusive between agents), selectFifo (ordering), handAssign (admin gate, claimedAt preservation), reassign (from validation, return-to-pool, audit event), distribute (full-pool clear, partial when short, no match-lane).
+- `lib/queue/types.ts` — `AuditEvent` type; `auditEvents` field on `QueueStoreState`.
+- `lib/queue/QueueProvider.tsx` — `applyDistribute`, `handAssign`, `reassign` actions. RouterError surfaced as `{ ok: false, error }`.
+- `lib/queue/claimNext.ts` — delegates to `lib/router/claim.ts`, preserves queue-facing signature.
+- `components/operations/{HandAssignPicker,ReassignPicker}.tsx` — popovers with availability + load + specialization, keyboard-navigable.
+- `components/operations/ReviewDistributionBoard.tsx` — Hand-assign list inside the shared-pool row; Reassign list inside each per-agent row.
+- `app/(admin)/operations/page.tsx` — wired to the provider's new actions; derives `poolItems` and `claimedByAgent` from state.
+
+**Deviations:**
+- `distribute()` filters admins out of the auto-routing pass — supervisors pull via hand-assign, not auto-routing.
+- `claim.ts` returns `null` (not throw) on agent unavailability — out-of-office is a routing state, not an error.
+- The reassign picker shows OOO agents with a greyed pill so supervisors can move work OFF them without forcing a Profile change first.
+
+### Why
+
+P2-3 was the first ticket worked by parallel agents. The contract-first dispatch — dictating the function signatures the UI would consume upfront, then handing each agent disjoint files — meant both halves arrived at the same seam from opposite directions and integration was clean on the first attempt. The parallel saving is real, but only when the work splits along a stable contract.
+
+The **work router is the single coordination point for exceptions** (D15). Match-lane bypasses the router structurally — `admit` throws `RouterError("match_lane_rejected")` with a typed code so a refactor can't silently re-route match work. The bulk-confirm path on Operations is disjoint from the router, exactly the way CONTEXT.md draws the line between bulk-confirm and auto-clear.
+
+The **strategy parameter on `claimNext`** is the seam P2-4 plugs into. Hardcoding FIFO at the call site would force a rewrite when specialization-aware routing lands; strategy-as-parameter means the call site stays stable.
+
+The **availability-returns-null** rule is honest semantics. Out-of-office isn't an error; it's a routing state. `claim.ts` returns null so the caller decides (skip to the next agent, surface a notice). `handAssign` and `reassign` still throw because those are admin actions where a wrong actor is a real bug.
+
+The **preserve-claimedAt-on-hand-off** rule makes the queue's "oldest first" sort honest. A supervisor can't "freshen" old items by reassigning them. Return-to-pool clears `claimedAt` because the item is genuinely re-entering pre-claim state.
+
+The **audit-event log** mirrors the production `audit_event` table. Every router mutation emits an event with `actorId` + `eventType` + metadata. P6-2's persistence layer swaps the in-memory array for a database write; the producer side stays identical. Supervisor reassignments are defensible after the fact.
+
+The **OOO-in-reassign-picker** judgment call is right. Hiding OOO agents would force the supervisor to wait for the agent to come back online before moving work off them. The greyed pill keeps the workflow possible.
