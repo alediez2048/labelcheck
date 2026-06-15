@@ -12,15 +12,21 @@
  */
 
 import path from "node:path";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  plugins: [react()],
   test: {
+    // Default to node — most of the suite is pure functions and HTTP
+    // route handlers. Component tests live alongside their own files
+    // with /** @vitest-environment jsdom */ banners so jsdom only spins
+    // up where it's actually needed (cheaper, no global pollution).
     environment: "node",
     include: [
-      "lib/**/*.{test,spec}.ts",
-      "tests/**/*.{test,spec}.ts",
-      "app/**/*.{test,spec}.ts",
+      "lib/**/*.{test,spec}.{ts,tsx}",
+      "tests/**/*.{test,spec}.{ts,tsx}",
+      "app/**/*.{test,spec}.{ts,tsx}",
     ],
     passWithNoTests: false,
   },

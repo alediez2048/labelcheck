@@ -156,3 +156,39 @@ pnpm add -D jest-axe @testing-library/react @testing-library/jest-dom
 ```
 
 (@testing-library/jest-dom may already be present from P1-8; install if not.)
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/acceptance`
+**Status:** Done — 143 tests pass + 1 skipped (AC-8 deferred to P3-1); lint + build clean.
+
+**What landed:**
+- `tests/golden/index.ts` — 9 typed fixtures across 6 categories (greenPairs, warningDefects, fieldMismatches, fuzzyPasses, unreadableImages, falseNegativeProbes), each tagged with the AC it exercises.
+- `tests/acceptance.test.ts` — drives every fixture through `extract` → `matchApplication` → `classify`. Asserts AC-1 to AC-7 (latency smoke at <1s on the mock; formal p95 lands in P1-11). AC-8 is `describe.skip` with a P3-1 reference.
+- `tests/a11y.test.tsx` — jest-axe sweep against 9 component renders (3 lane states + table clean + table mismatch + as-submitted + unreadable banner + disposition panel + return form), plus a "Mismatch" text-survives assertion. `// @vitest-environment jsdom` banner so jsdom isn't paid for in non-component tests.
+- `tests/static/no-pii-to-disk.test.ts` — recursive grep over `app/`, `lib/`, `middleware.ts` for forbidden persistence APIs.
+- `tests/MANUAL-CHECKS.md` — procedure + log for the AC-9 screen-reader pass (pending) and AC-10 code review (passed 2026-06-15 with finding on session-only `sessionStorage` use).
+- `lib/provider/mock.ts` (modified) — 6 new deterministic fixtures matching the golden-set ids.
+- Tooling: `pnpm add -D jsdom @testing-library/react @testing-library/dom @testing-library/jest-dom jest-axe @types/jest-axe @vitejs/plugin-react`; `vitest.config.ts` wires the React plugin and broadens the include to `.tsx`.
+
+**Deviations:**
+- Golden set uses a single `index.ts` with `category` field instead of per-category directories — same logical grouping, less scaffolding.
+- Fixtures use the mock provider's canned responses rather than perturbed image files — same coverage; image-level perturbation belongs in P5-2's eval harness.
+
+### Why
+
+P1-10 is where the AC sentences in `requirements.md` become executable. Before this ticket they were documentation — "the system should do X for input Y"; after this ticket they're a build gate — "if X stops happening for input Y, CI fails". A future maintainer who tightens the warning threshold trips AC-4 immediately; a refactor that drops the brand fuzzy tolerance trips AC-5.
+
+The **golden set is small on purpose**. P1-10's job is to assert "the AC sentences are true", not "the system performs well on a broad distribution". The broad-distribution evaluation is P5-2's job. Keeping the set to nine fixtures means every assertion is hand-curated and every failure traces back to a specific AC sentence. The fixture's `acceptanceCriterion` field both names the AC the assertion is anchored in.
+
+The **false-negative probes are the most-load-bearing entries** in the set. observability.md names false-negative rate as the headline safety metric — a real defect cleared into the match lane is the worst outcome the system can produce. The three probes plant defects that look benign (title-case warning, half-percent ABV drift, one-character brand drift) and assert the pipeline never clears them. Structural assertion: `lane !== "match"`, full stop. A future agent who tightens a threshold "for usability" hits this guard immediately.
+
+The **direct lib-module pipeline call** (rather than HTTP through the route handler) is the right choice for AC-1 through AC-7. The route handler is wire-format glue; calling it for golden-set tests would couple the assertions to JSON shape and HTTP headers, neither of which AC-1 through AC-7 are about. The route's wire contract is asserted separately in P1-7's route tests — two test surfaces, two clean failure modes.
+
+The **TEST_WARNING_CONFIG injection** accommodates A18. `config/warning.json` still ships the placeholder; using it would silently fail every green pair. The tests spy on `getWarningConfig` and return a real canonical text. When A18 lands the tests still pass (the matcher compares mock-against-test-config, both with canonical wording). The accommodation stays correct under the resolution.
+
+The **AC-9 + AC-10 split — automated AND manual — is honest about what the tools can do.** jest-axe catches structural violations; only a human VoiceOver / NVDA pass verifies that "color + icon + text" survives the announcement. The static grep catches known persistence APIs; only a human code review re-verifies the rule against the codebase as it actually is. MANUAL-CHECKS.md is the seam: procedure documented, log table maintained.
+
+The **jsdom-per-file environment banner** keeps the 130+ pure-function and HTTP tests on the fast node environment while the component tests get jsdom only where it's actually used. The `@vitejs/plugin-react` install is the smallest possible delta to teach Vitest's parser about JSX.
