@@ -54,6 +54,29 @@ export function matchFuzzy(input: FuzzyInput): MatchResult {
     };
   }
 
+  // Substring containment — if every word from the form appears in the
+  // label's value, treat it as a match. Brand names get padded on
+  // labels with class/type / region / producer descriptors, so a form
+  // value of "OLD CEDAR" should still match a label that reads
+  // "OLD CEDAR DISTILLERY KENTUCKY STRAIGHT BOURBON".
+  const formWords = formNorm.split(/\s+/).filter((w) => w.length > 0);
+  const extWords = extNorm.split(/\s+/).filter((w) => w.length > 0);
+  const extWordSet = new Set(extWords);
+  if (
+    formWords.length > 0 &&
+    formWords.every((w) => extWordSet.has(w))
+  ) {
+    return {
+      field: input.field,
+      formValue: input.formValue,
+      extractedValue: input.extracted.value,
+      verdict: "match",
+      reason: `${input.fieldLabel} matches (form words found on label)`,
+      margin: 1,
+      sourceFace: input.extracted.face,
+    };
+  }
+
   const dist = distance(formNorm, extNorm);
   const maxLen = Math.max(formNorm.length, extNorm.length, 1);
   const similarity = 1 - dist / maxLen;
