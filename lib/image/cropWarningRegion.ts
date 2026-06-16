@@ -27,7 +27,15 @@
  * never logged).
  */
 
-import sharp from "sharp";
+// sharp is imported lazily so the module-load phase never touches
+// sharp's native bindings on Vercel.
+type SharpFactory = (typeof import("sharp"))["default"];
+let sharpModule: SharpFactory | null = null;
+async function getSharp(): Promise<SharpFactory> {
+  if (sharpModule) return sharpModule;
+  sharpModule = (await import("sharp")).default;
+  return sharpModule;
+}
 
 import type { ImageMime } from "./preprocess";
 
@@ -84,6 +92,7 @@ export async function cropWarningRegion(
   mime: ImageMime,
   hint?: WarningRegionHint,
 ): Promise<CropResult> {
+  const sharp = await getSharp();
   const meta = await sharp(bytes).metadata();
   const imageWidth = meta.width;
   const imageHeight = meta.height;
