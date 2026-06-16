@@ -4,6 +4,70 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P3-1 Batch intake — Phase 3 begins
+
+**Branch:** `feat/batch`
+**Status:** Done
+
+**Workflow note:** Fifth parallel-agent build. Agent A: backend (extract per-app pipeline into `lib/verify/runVerification.ts`, in-memory job store, p-limit orchestrator, two API routes, config, tests). Agent B: UI (batch results page `/batch/[id]` with poll loop, LaneGroup component, SubmitBatchButton on Operations). Contract-first dispatch — `BatchPollResponse` and `POST /api/batch` request shapes dictated upfront. Integration clean on the first combined build.
+
+**What landed:**
+
+### Backend (Agent A)
+- `lib/verify/result.ts` — shared helpers extracted from `app/api/verify/route.ts`: `EMPTY_WARNING`, `isFaceUnreadable`, `unreadableFaces`, `buildUnreadableResult`, `buildTimeoutResult`, `pickWarningFlags`, `buildSuccessResult`. Both the route handler AND the batch orchestrator import from here. No duplication.
+- `lib/verify/runVerification.ts` — the per-application pipeline as a reusable async function. Same logic the route handler runs inline; lifted into a single function so `runBatch()` can call it per item without code duplication.
+- `lib/batch/types.ts` — `BatchItem`, `BatchJob`, `BatchProgress`, `BatchPollResponse`. `BatchItem` carries `applicationId`, `brand`, `beverageType`, `form`, `faces`, `status`, optional `result` + `error`.
+- `lib/batch/store.ts` — module-level `Map<string, BatchJob>` plus `createJob`, `createJobWithFailures` (seeds already-failed items), `getJob`, `listAll`, `updateItem`, `summarizeProgress`, `__resetStoreForTests`. No persistence (D2, NFR-4); a server restart loses jobs by design.
+- `lib/batch/orchestrator.ts` — `runBatch(jobId, { concurrency, runner? })`. Uses `p-limit` for the bounded fan-out. Each item runs under a try/catch so a single failure marks just that item as `failed` and the other items continue. Optional `runner` parameter is the test seam (default uses `runVerification` from `lib/verify/`).
+- `app/api/batch/route.ts` — `POST /api/batch`. Accepts `{ count?: number; applications?: [...] }`. When `count` is supplied, generates `count` synthetic items cycling through the 9 mock-provider fixture ids (`sample-green-001` through `sample-fn-probe-brand-drift-001`). When `applications` is supplied, validates each via the existing zod schema; malformed items go into the job as `status: "failed"`, NOT a 400 on the whole submission. Returns `{ jobId }` immediately; kicks off `runBatch(...)` without awaiting so the POST returns fast.
+- `app/api/batch/[id]/route.ts` — `GET /api/batch/:id`. Returns `BatchPollResponse` with `finished = items.every(i => i.status === "done" || "failed")`. 404 on missing job.
+- `config/batch.json` — `{ "concurrency": 5, "maxItems": 500, "syntheticDefaultCount": 50 }`. Tunable without code change.
+- `app/api/verify/route.ts` — refactored to call `runVerification(input)` instead of running the pipeline inline. All 9 existing route tests pass unchanged.
+- `lib/batch/__tests__/{store,orchestrator}.test.ts` + `lib/verify/__tests__/runVerification.test.ts` — 14 new tests: cap is respected, all items complete, failed item is isolated, missing-job returns null, `summarizeProgress.byLane` includes only `done` items, etc.
+- Installed `p-limit ^7.3.0`.
+
+### UI (Agent B)
+- `components/batch/SubmitBatchButton.tsx` — two preset buttons ("Run sample batch (50)" + "Run peak-season batch (300)"). POSTs to `/api/batch` with `{ count }`, then `router.push("/batch/" + jobId)`. Inline rose alert on failure. Disabled while in flight.
+- `app/(admin)/operations/page.tsx` — new "Batch intake (P3-1)" panel inserted between the action-error alert and the `<IntakeFunnel>`. Header + one-line caption ("mock provider → zero cost") + `<SubmitBatchButton>`.
+- `app/batch/[id]/page.tsx` — client page. Polls `GET /api/batch/[id]` every 800ms until `finished === true`. Indigo progress bar over `done / total`. Status pills row (pending / running / done / failed) with color + icon + text. Failed-items panel at top (rose). Then three `<LaneGroup>` buckets in exception-first order: Mismatch → Review → Match. Handles loading, 404 (with restart-by-design copy), and generic error states.
+- `app/batch/[id]/LaneGroup.tsx` — reusable bucket. `<LaneBanner>` reused from `app/verify/result/` with the bucket's average overall-confidence. Items are `<details>` rows showing brand + lane pill on the summary, expanding to render `<FieldTable>` over `item.result?.fields`. Match-lane bucket gets a one-click "Approve all N" button at the top — recordss the dispositions in client state (no persistence) and collapses the bucket with an "Approved N applications from the batch (client-side, ephemeral)" notice.
+- `app/batch/[id]/types.ts` — local wire-format type aliases mirroring the orchestrator's contract so the UI doesn't import from `lib/batch/`.
+
+**Verification:**
+- `pnpm test` — 33 files, **288 tests pass + 1 skipped** (274 prior + 14 new: 7 store + 4 orchestrator + 3 runVerification).
+- `pnpm build` — clean. New routes: `/batch/[id]` (4.22 kB dynamic), `/api/batch`, `/api/batch/[id]`.
+- `pnpm lint` — clean.
+- Manual end-to-end smoke: `POST /api/batch {"count":20}` → got jobId → `GET /api/batch/<id>` after ~1s returned `progress: { total: 20, done: 20, byLane: { match: 0, mismatch: 18, review: 2 } }`, `finished: true`. The lane distribution (no matches) is the expected A18 placeholder gotcha — `config/warning.json` still ships `__TODO_VERBATIM_TEXT_A18__`, so every match-fixture's warning fails verbatim and the lane drops to mismatch. Same gotcha hit P1-7 manual smoke. Not a P3-1 bug.
+
+**Deviations from ticket:**
+- The aggregate review surface (count + bottom-quartile + delta-vs-baseline) is not rendered on the batch's match group. Agent B's reasoning: the existing `MatchLaneApprovalPanel` is anchored to the live queue's match lane via the QueueProvider, not to a batch's match group; adapting it would mean either a state model change on the provider or a duplicate component. Approve-all is still one click; the FR-23 aggregate surface for batches lands in a follow-up. Acceptable scope cut for this ticket.
+- The bulk-confirm action on the batch's match bucket is client-side only (records the dispositions in `useState` and collapses the bucket). The batch is its own world for the prototype — match items in a batch don't route into the QueueProvider's store. Production swap point: P6-2 persistence will write dispositions through to the same `disposition` table; the call site changes, the UX doesn't.
+- `BatchItem` carries `beverageType`, `form`, and `faces` on each item (the spec listed only `id`, `applicationId`, `brand`, `status`). The orchestrator needs them to call `runVerification` per item, so they live on the item. The UI ignores them. A future GET-handler tweak could strip them from the wire response to keep payloads small, but the current shape is functional.
+- The dev-mode JSON serialization of `faces[].bytes: Buffer` produces `{ "type": "Buffer", "data": [...] }` per face. Harmless for the UI but noisy on the wire. Flagged for a future cleanup.
+
+**Why:**
+P3-1 opens Phase 3 with the batch path the project has been pointing at since the start. The take-home reviewer's prompt asks for ~300 applications in one go; Phase 1 built the per-application pipeline; Phase 2 built the queue and the supervisor's review surface; P3-1 makes both work at peak-season volume without compromising the single-application latency budget. The architectural disciplines from earlier phases hold: the same pipeline runs per item, the same triage classifier picks lanes, the same result API contract is returned, and the same Operations bulk-confirm posture applies (just without the live-queue's aggregate review surface for now).
+
+The **extracted `runVerification` function** is the single most-load-bearing refactor in this ticket. The Phase 1 route handler held the pipeline inline because there was only one caller; P3-1 has two callers (the route + the orchestrator), and the only way to keep them in sync is to lift the pipeline into a function. The route handler now reads as glue (validate, decode, call runVerification, return); the orchestrator reads as glue too (claim, call runVerification, mark done). If the matching engine adds a new verdict tomorrow, both paths pick it up with no second edit. That's the no-duplication discipline the project has held since P1-7's `FieldTable` was reused on the Operations bottom-quartile expansion.
+
+The **in-memory job store via a module-level Map** is prototype-correct (D2, NFR-4). The reviewer's prompt explicitly says "no persistence beyond the verification request"; the batch job is the request-equivalent. A restart cancels in-flight batches by design — exactly the behaviour P3-3's error-handling pass treats as acceptable for the prototype. The Map's getter is the only mutating seam; a single line swap from `Map` to a SQLite write+read is the documented upgrade path if production wants restart resilience, and even then it lands in P6-2, not in P3-1.
+
+The **`p-limit` bounded concurrency** is the structural enforcement of NFR-1 + NFR-7. The default cap of 5 means the orchestrator never has more than 5 model calls in flight at once — which keeps the single-application route's p95 latency budget honest even under a batch. Tuning is via `config/batch.json`, not code. The manual smoke ran a 20-item batch in ~1s on the mock; a 300-item batch on a live provider with a real model would be paced by the cap, the provider's rate limit, AND the timeout/retry budget from P1-9. Three independent throttles, none of them coupled to the others.
+
+The **per-item try/catch in the orchestrator** is the structural enforcement of "a failed item does not abort the run". The naive shape — `await Promise.all(items.map(...))` — would reject the whole batch on a single throw. The right shape is `await Promise.all(items.map(item => limit(async () => { try { ... } catch (err) { updateItem(jobId, item.id, { status: "failed", error: ... }); } })))`. The store carries the failure; the rest of the batch continues. P3-3 expands the error-handling posture across more failure modes; P3-1 just establishes the seam.
+
+The **lane-grouped results UI with the failed-items panel at the top** is the "exception-first" posture from FR-19 materialised. The supervisor sees what went wrong (failed items), then sees what they need to actually decide on (mismatches + reviews), then sees the clean pile they can bulk-confirm in one click (matches). The visual order is the action order. A flat list of 300 items with a "filter by lane" affordance would be technically equivalent but ergonomically worse — the supervisor would have to choose what to look at first instead of having the page choose for them.
+
+The **client-side-only bulk-confirm on the batch's match bucket** is the right scope for the prototype. The batch is ephemeral; the dispositions it records are ephemeral; persisting them would require persisting the batch too, which D2 says we don't do. P6-2's persistence layer will make both real together. Until then, the "Approved N applications" notice and the collapsed bucket communicate that the action happened without lying about persistence.
+
+The **synthetic-batch path** (`{ count }`) is the demo seam. A real batch would arrive with 300 real applications; the prototype's reviewer doesn't have 300 real applications handy. The synthetic path cycles through the 9 mock fixtures so 50 items hit a mix of green / mismatch / review / unreadable / FN-probe cases — exactly the lane variety needed to populate the three buckets. The lane distribution shifts based on the warning placeholder (A18 still open), but the routing and counting code work identically.
+
+**Phase 3 status:** Opened. P3-2 (Imperfect images) and P3-3 (Error-handling pass) are next. The seams P3-3 plugs into are already in place — the orchestrator's try/catch + the `BatchItem.error` field.
+
+**Next:** P3-2 — Imperfect images. Targeted high-res re-read on warning legibility flag (D7), plus a tolerance for angle / glare / partial occlusion in the matching engine.
+
+---
+
 ## 2026-06-15 — P2-6 All Applications, Analytics, Team — Phase 2 complete
 
 **Branch:** `feat/admin-views`

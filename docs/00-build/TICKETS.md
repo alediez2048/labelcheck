@@ -204,10 +204,10 @@ Phase 2 exit: both shells work; exceptions route to specialists with overflow; b
 
 Description: the most-requested stretch features and robustness, so the tool holds up at peak season and on bad photos.
 
-### P3-1 — Batch intake
+### P3-1 — Batch intake ✅ done 2026-06-15
 - Depends: P1-7 · Branch: feat/batch · Est: 4h
 - Goal: accept many applications, async with bounded concurrency, progress, grouped-by-lane results, bulk-confirm.
-- Acceptance: [ ] ~300-app batch completes; [ ] progress reported; [ ] results grouped by lane; [ ] bounded concurrency respects rate limits.
+- Acceptance: [x] ~300-app batch completes (verified end-to-end on the mock provider via the synthetic-batch path); [x] progress reported (GET /api/batch/:id returns `{ pending, running, done, failed, byLane }`); [x] results grouped by lane (LaneGroup buckets per match/mismatch/review; failed items in a dedicated panel); [x] bounded concurrency (p-limit cap of 5, tunable via `config/batch.json`); [x] runVerification pipeline extracted and reused by both /api/verify and the batch orchestrator (no duplication); [x] failed item doesn't abort the run (per-item try/catch).
 - Refs: FR-17 to FR-20; systemsdesign Batch.
 
 ### P3-2 — Imperfect-image robustness

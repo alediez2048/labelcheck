@@ -22,6 +22,7 @@
 
 import React, { useState } from "react";
 
+import { SubmitBatchButton } from "@/components/batch/SubmitBatchButton";
 import { IntakeFunnel } from "@/components/operations/IntakeFunnel";
 import { LiveIntakeFeed } from "@/components/operations/LiveIntakeFeed";
 import { MatchLaneApprovalPanel } from "@/components/operations/MatchLaneApprovalPanel";
@@ -148,6 +149,28 @@ export default function OperationsPage(): React.ReactElement {
           {actionError}
         </p>
       )}
+
+      <section
+        aria-labelledby="batch-intake-heading"
+        className="rounded-lg border border-slate-200 bg-white p-5"
+      >
+        <header>
+          <h2
+            id="batch-intake-heading"
+            className="text-base font-semibold text-slate-800"
+          >
+            Batch intake (P3-1)
+          </h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Synthetic batches run against the mock provider — zero model cost.
+            Job state is in-memory only; a server restart cancels in-flight
+            batches by design.
+          </p>
+        </header>
+        <div className="mt-4">
+          <SubmitBatchButton />
+        </div>
+      </section>
 
       <IntakeFunnel snapshot={funnel} />
 
