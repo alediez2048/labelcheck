@@ -149,6 +149,7 @@ export default function ModelHealthPage(): React.ReactElement {
             <ol className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-5">
               {CYCLE_ORDER.map((key, idx) => {
                 const stage = data.cycle[key];
+                if (!stage) return null;
                 const live = stage.status === "live";
                 return (
                   <li
