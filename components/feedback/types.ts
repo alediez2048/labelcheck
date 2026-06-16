@@ -36,6 +36,8 @@ export type FeedbackDisagreementItem = {
   id: string;
   recordedAt: string;
   applicationIdHash: string;
+  /** Raw system application id — prototype convenience for deep-link. */
+  applicationId: string;
   brand: string | null;
   beverageType: FeedbackBeverageType;
   predictedLane: "match" | "mismatch" | "review";

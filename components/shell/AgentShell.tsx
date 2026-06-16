@@ -1,17 +1,6 @@
 /**
- * AgentShell — sidebar + main area for the Agent route group (P2-5,
- * D16; FR-29; mockup.md).
- *
- * The agent sees only their own work: My Queue, My Stats, Profile.
- * The shell deliberately omits the admin nav items so a non-admin
- * actor cannot reach `/operations` etc. by clicking. Defense in depth
- * lives on the route-group layout (redirect) and the lib layer
- * (`requireAdmin` throws); the missing nav items are the third line.
- *
- * Nav rows pair color + icon + text (NFR-2, AC-9) and meet the 46px
- * target rule. The role switcher pinned to the bottom is the
- * prototype's identity simulation — the banner under it spells out
- * that production uses PIV/CAC + SSO (NFR-8).
+ * AgentShell — sidebar + main area for the Agent route group.
+ * Same shell shape as AdminShell, scoped to agent-only sections.
  */
 
 "use client";
@@ -25,7 +14,6 @@ import { RoleSwitcher } from "./RoleSwitcher";
 type NavItem = {
   href: string;
   label: string;
-  /** Glyph that pairs with the active treatment — never color alone. */
   icon: string;
 };
 
@@ -46,21 +34,28 @@ export function AgentShell({
     <div className="flex min-h-screen flex-col lg:flex-row">
       <aside
         aria-label="Agent navigation"
-        className="flex shrink-0 flex-col gap-4 border-b border-slate-200 bg-white p-4 lg:sticky lg:top-0 lg:h-screen lg:w-60 lg:border-b-0 lg:border-r"
+        className="flex shrink-0 flex-col gap-4 border-b border-line bg-surface p-4 lg:sticky lg:top-0 lg:h-screen lg:w-[236px] lg:border-b-0 lg:border-r"
       >
-        <div className="flex items-baseline justify-between gap-2 lg:block">
-          <Link
-            href="/queue"
-            className="text-lg font-bold tracking-tight text-slate-900 hover:text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+        <Link
+          href="/queue"
+          className="flex items-center gap-2.5 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand/40"
+        >
+          <span
+            aria-hidden="true"
+            className="grid h-[38px] w-[38px] place-items-center rounded-[10px] bg-brand-gradient text-base font-extrabold text-white"
           >
-            LabelCheck
-          </Link>
-          <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 lg:mt-1">
-            Agent shell
-          </p>
-        </div>
+            L
+          </span>
+          <span className="flex flex-col leading-tight">
+            <span className="text-[17px] font-bold text-ink">LabelCheck</span>
+            <span className="text-[12px] text-muted">TTB Label Compliance</span>
+          </span>
+        </Link>
 
         <nav aria-label="Agent sections" className="lg:flex-1">
+          <p className="hidden px-3 pb-1 pt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 lg:block">
+            My Work
+          </p>
           <ul className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
             {NAV.map((item) => {
               const isActive =
@@ -71,18 +66,13 @@ export function AgentShell({
                   <Link
                     href={item.href}
                     aria-current={isActive ? "page" : undefined}
-                    className={`flex min-h-[46px] items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-300 ${
+                    className={`flex min-h-[44px] items-center gap-3 whitespace-nowrap rounded-[10px] px-3 py-2.5 text-[15px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand/40 ${
                       isActive
-                        ? "border-emerald-400 bg-emerald-50 text-emerald-900"
-                        : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50"
+                        ? "bg-brand-soft text-brand-ink"
+                        : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={
-                        isActive ? "text-emerald-700" : "text-slate-500"
-                      }
-                    >
+                    <span aria-hidden="true" className="w-[18px] text-center">
                       {item.icon}
                     </span>
                     <span>{item.label}</span>
@@ -93,9 +83,9 @@ export function AgentShell({
           </ul>
         </nav>
 
-        <div className="mt-auto flex flex-col gap-2">
+        <div className="mt-auto flex flex-col gap-2 border-t border-line pt-3">
           <RoleSwitcher />
-          <p className="text-xs leading-snug text-slate-500">
+          <p className="px-2 text-[11px] leading-snug text-muted">
             Prototype: role is simulated. Production uses PIV/CAC and SSO.
           </p>
         </div>

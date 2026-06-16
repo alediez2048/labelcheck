@@ -149,9 +149,18 @@ export function DisagreementRow({
               <span className="text-base font-semibold text-slate-900">
                 {item.brand ?? <span className="italic text-slate-500">(brand redacted)</span>}
               </span>
+              <a
+                href={`/queue/${encodeURIComponent(item.applicationId)}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded border border-brand/30 bg-brand-soft px-2 py-0.5 font-mono text-[11px] font-medium text-brand-ink hover:bg-brand-soft hover:underline focus:outline-none focus:ring-2 focus:ring-brand/40"
+                title={`Open ${item.applicationId} in the review queue`}
+              >
+                <span>{item.applicationId}</span>
+                <span aria-hidden="true">↗</span>
+              </a>
               <span
-                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px] text-slate-600"
-                title="Hashed application id"
+                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500"
+                title="Hashed application id (audit reference)"
               >
                 {item.applicationIdHash.slice(0, 10)}
               </span>

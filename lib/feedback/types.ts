@@ -99,6 +99,14 @@ export type CorpusRecord = {
   recordedAt: string;
   /** `sha256:<8 hex>` — the system applicant id, hashed. */
   applicationIdHash: string;
+  /**
+   * Raw system application id. Prototype-only convenience so the
+   * disagreement queue can deep-link to /queue/[applicationId]. In the
+   * prototype these are TTB IDs (public registry data) or upload
+   * filenames — not applicant PII. Production drops this field per
+   * NFR-4 and uses the hash + a back-end lookup instead.
+   */
+  applicationId: string;
   /** Transcribed from the label; system data per the deviation note. */
   brand: string | null;
   beverageType: BeverageType;

@@ -47,8 +47,6 @@ export type ClassifyInput = {
   confidentThreshold?: number;
 };
 
-const WARNING_FIELD = "government_warning";
-
 /**
  * Lane-blocking fields — only these fields' verdicts decide the lane.
  * All other extracted fields (producer name, address, country of

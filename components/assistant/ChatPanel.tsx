@@ -202,16 +202,15 @@ export function ChatPanel(): React.ReactElement {
     [sendTurn],
   );
 
-  // The floating launcher — always rendered when closed; when open,
-  // the panel sits in roughly the same corner and the launcher visually
-  // hides behind it (we just stop rendering it).
+  // Floating launcher — brand-styled to match the mockup. Hides when
+  // the panel is open; the panel sits in the same corner.
   if (!open) {
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open assistant"
-        className="fixed bottom-4 right-4 z-50 flex h-14 w-14 min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-slate-300 bg-white text-2xl shadow-lg transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        className="fixed bottom-6 right-6 z-50 grid h-[58px] w-[58px] place-items-center rounded-full bg-brand text-2xl text-white shadow-fab transition-colors hover:bg-brand-ink focus:outline-none focus:ring-2 focus:ring-brand/40"
       >
         <span aria-hidden="true">{"\u{1F4AC}"}</span>
       </button>
@@ -223,19 +222,17 @@ export function ChatPanel(): React.ReactElement {
       role="dialog"
       aria-labelledby="assistant-title"
       aria-modal="false"
-      className="fixed bottom-4 right-4 z-50 flex h-[520px] max-h-[calc(100vh-2rem)] w-[360px] max-w-[calc(100vw-2rem)] flex-col rounded-lg border border-slate-200 bg-white shadow-2xl"
+      className="fixed bottom-6 right-6 z-50 flex h-[520px] max-h-[calc(100vh-3rem)] w-[380px] max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-panel border border-line bg-surface shadow-panel"
     >
-      {/* Header — title, role caption, close. */}
-      <div className="flex items-start justify-between gap-2 border-b border-slate-200 px-3 py-2">
+      {/* Header — brand-colored strip per the mockup. */}
+      <div className="flex items-start justify-between gap-2 bg-brand px-4 py-3 text-white">
         <div className="flex flex-col">
-          <h2
-            id="assistant-title"
-            className="text-sm font-semibold text-slate-900"
-          >
+          <h2 id="assistant-title" className="text-sm font-semibold">
+            <span aria-hidden="true" className="mr-1.5">💬</span>
             Assistant
           </h2>
           {currentAgent !== undefined ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-white/80">
               As {currentAgent.name}
               <span aria-hidden="true"> · </span>
               <span className="capitalize">{currentAgent.role}</span>
@@ -246,7 +243,7 @@ export function ChatPanel(): React.ReactElement {
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Close assistant"
-          className="flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-slate-500 hover:border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-white/80 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/40"
         >
           <span aria-hidden="true">{"\u00D7"}</span>
         </button>
