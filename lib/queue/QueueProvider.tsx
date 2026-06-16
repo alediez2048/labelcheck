@@ -43,7 +43,7 @@ import {
 } from "./disposition";
 import {
   BASELINE_MATCH_RATE,
-  DEFAULT_CURRENT_AGENT_ID,
+  DEFAULT_SUPERVISOR_ID,
   SEED_AGENTS,
 } from "./fixtures";
 import { selectMyQueue, selectPoolCount } from "./myQueue";
@@ -150,7 +150,7 @@ const INITIAL_STATE: QueueStoreState = {
   agents: SEED_AGENTS,
   applications: [],
   dispositionedApplications: [],
-  currentAgentId: DEFAULT_CURRENT_AGENT_ID,
+  currentAgentId: DEFAULT_SUPERVISOR_ID,
   baselineMatchRate: BASELINE_MATCH_RATE,
   auditEvents: [],
 };
