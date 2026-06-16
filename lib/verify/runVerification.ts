@@ -20,6 +20,7 @@
  * per NFR-4: no extracted values, no form values, no bytes.
  */
 
+import type { WarningConfig } from "@/lib/config";
 import { timed } from "@/lib/observability/timing";
 import { toDegradedResult } from "@/lib/errors/toResult";
 import {
@@ -80,6 +81,15 @@ export type RunVerificationInput = {
   }>;
   /** Optional P5-1 hook — wires the verification span into the pipeline. */
   observability?: RunVerificationObservability;
+  /**
+   * Optional warning-config override. P5-2: the eval harness threads a
+   * canonical-text config through so the A18 placeholder in
+   * `config/warning.json` doesn't fail every green case. The matching
+   * engine's `MatchApplicationInput.warningConfig` already accepts an
+   * override; this just plumbs it through the pipeline entrypoint. The
+   * route handler doesn't pass it, so request-path behaviour is unchanged.
+   */
+  warningConfig?: WarningConfig;
 };
 
 /**
@@ -202,6 +212,7 @@ export async function runVerification(
         beverageType: input.beverageType,
         form: input.form,
         extraction,
+        ...(input.warningConfig ? { warningConfig: input.warningConfig } : {}),
       }),
   );
 

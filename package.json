@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:eval": "tsx scripts/eval-harness.ts",
-    "test:guardrails": "vitest run tests/eval/assistant-guardrails.test.ts"
+    "test:guardrails": "vitest run tests/eval/assistant-guardrails.test.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",

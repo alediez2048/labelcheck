@@ -46,3 +46,8 @@ memory/
 # material per NFR-4 — no applicant PII — but still gitignored so the
 # repo doesn't carry per-machine indexed corpora).
 .data/
+
+# Offline eval harness output (P5-2). Reports are per-run artifacts —
+# the runner writes timestamped JSON + Markdown under eval-reports/;
+# keep the directory out of the repo so the working tree stays clean.
+eval-reports/
