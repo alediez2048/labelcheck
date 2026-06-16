@@ -23,6 +23,7 @@
 import React, { useState } from "react";
 
 import { SubmitBatchButton } from "@/components/batch/SubmitBatchButton";
+import { UploadPdfButton } from "@/components/intake/UploadPdfButton";
 import { AgreementRateWidget } from "@/components/feedback/AgreementRateWidget";
 import { IntakeFunnel } from "@/components/operations/IntakeFunnel";
 import { LiveIntakeFeed } from "@/components/operations/LiveIntakeFeed";
@@ -152,6 +153,28 @@ export default function OperationsPage(): React.ReactElement {
       )}
 
       <section
+        aria-labelledby="upload-pdfs-heading"
+        className="rounded-lg border border-slate-200 bg-white p-5"
+      >
+        <header>
+          <h2
+            id="upload-pdfs-heading"
+            className="text-base font-semibold text-slate-800"
+          >
+            Upload TTB COLA PDFs
+          </h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Drop one or more TTB COLA PDFs. The browser extracts the form
+            fields and renders the label page, then submits the batch for
+            verification — match / mismatch / review per application.
+          </p>
+        </header>
+        <div className="mt-4">
+          <UploadPdfButton />
+        </div>
+      </section>
+
+      <section
         aria-labelledby="batch-intake-heading"
         className="rounded-lg border border-slate-200 bg-white p-5"
       >
@@ -160,12 +183,13 @@ export default function OperationsPage(): React.ReactElement {
             id="batch-intake-heading"
             className="text-base font-semibold text-slate-800"
           >
-            Batch intake (P3-1)
+            Synthetic demo batch (P3-1)
           </h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            Synthetic batches run against the mock provider — zero model cost.
-            Job state is in-memory only; a server restart cancels in-flight
-            batches by design.
+            Loads canned synthetic applications including the three known
+            defect cases (AC-2 ABV mismatch, AC-3 title-case warning,
+            AC-4 net-contents mismatch) so you can demo mismatches
+            deterministically without uploading PDFs.
           </p>
         </header>
         <div className="mt-4">

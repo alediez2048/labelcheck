@@ -58,7 +58,16 @@ const WarningFlagsSchema = z.object({
 
 const FaceExtractionSchema = z.object({
   kind: FaceKindSchema,
-  fields: z.record(FieldNameSchema, z.string()),
+  // Accept null/undefined and coerce to empty string. Claude returns
+  // null when a field isn't visible on the label, which is correct
+  // behaviour — we keep "" downstream so the matcher treats it as
+  // "not found" rather than rejecting the whole extraction.
+  fields: z.record(
+    FieldNameSchema,
+    z
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((v) => v ?? ""),
+  ),
   warning: WarningFlagsSchema,
 });
 
@@ -121,6 +130,11 @@ export class AnthropicVisionProvider implements VisionProvider {
     }
 
     const parsed = parseJsonStrict(textBlock.text);
+    // Claude correctly returns null for fields not visible on the label.
+    // Our schema requires strings, so coerce nulls to "" before validation.
+    // The matcher already treats "" as a missing value (no false-positive
+    // match risk), so this is a safe transformation.
+    coerceNullFieldsToEmptyStrings(parsed);
     const validated = ExtractionResponseSchema.safeParse(parsed);
     if (!validated.success) {
       throw new Error(
@@ -182,4 +196,27 @@ function parseJsonStrict(raw: string): unknown {
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   const body = fenced ? (fenced[1] ?? trimmed) : trimmed;
   return JSON.parse(body);
+}
+
+/**
+ * Claude returns `null` for fields it cannot read off the label, but
+ * our extraction schema requires strings. Walk `faces[].fields` and
+ * convert any null/undefined/non-string values to "". The matcher
+ * treats "" as a missing value, so this is safe — a missing field
+ * still triggers the right per-field result, not a false-positive
+ * match.
+ */
+function coerceNullFieldsToEmptyStrings(parsed: unknown): void {
+  if (!parsed || typeof parsed !== "object") return;
+  const root = parsed as { faces?: Array<{ fields?: Record<string, unknown> }> };
+  if (!Array.isArray(root.faces)) return;
+  for (const face of root.faces) {
+    if (!face || typeof face !== "object" || !face.fields) continue;
+    for (const k of Object.keys(face.fields)) {
+      const v = face.fields[k];
+      if (typeof v !== "string") {
+        face.fields[k] = "";
+      }
+    }
+  }
 }
