@@ -91,6 +91,18 @@ export type ExtractionResponse = {
    * `degraded` keep working; new callers prefer `degradedError`.
    */
   degradedError?: StructuredError;
+  /**
+   * P3-4: did the warning re-read path fire on this request?
+   *
+   * Set inside `lib/extraction/service.ts` next to the `extraction.reread`
+   * log emission. `runVerification` reads this for the `verify.timing`
+   * structured log so the operator can see at a glance how often the
+   * re-read rescues a low-legibility warning. Pure observability — does
+   * NOT affect routing or merge logic. Optional so producers that don't
+   * exercise the re-read path (the live Anthropic adapter today) keep
+   * working without a flag flip.
+   */
+  rereadAttempted?: boolean;
 };
 
 /**

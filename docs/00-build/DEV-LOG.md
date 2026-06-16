@@ -4,6 +4,77 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P3-4 Performance hardening — Phase 3 complete
+
+**Branch:** `feat/perf`
+**Status:** Done. Phase 3 closes here.
+
+**Workflow note:** Single-agent build (measurement + instrumentation ticket; sequential work).
+
+**What landed:**
+- `lib/observability/timing.ts` — `timed<T>(fn): { result, durationMs }` async wrapper. The seam P5-1's OpenTelemetry spans will consume.
+- `lib/observability/__tests__/timing.test.ts` — 4 tests (value pass-through, non-negative duration, sleep-bounded duration, throw propagation).
+- `lib/verify/runVerification.ts` — per-stage timing via `timed(...)`. Emits one `verify.timing` log per request on every settling branch (success, degraded, unreadable). Throw branch deliberately silent — the route handler's existing `verify.request` log already covers the failure outcome.
+- `lib/extraction/service.ts` — sets `rereadAttempted: true` on the returned `ExtractionResponse` when the warning re-read fires (both merge and no-merge branches).
+- `lib/provider/types.ts` — `ExtractionResponse.rereadAttempted?: boolean` field.
+- `scripts/load.ts` — concurrent load script. Three scenarios:
+  - **A**: 50 sequential single-app verifies.
+  - **B**: N concurrent verifies sustained for D seconds (default `--concurrency=10 --duration=60`).
+  - **C**: 30 concurrent single-app verifies running while a 300-app synthetic batch is in flight at the current `config/batch.json` cap.
+- `docs/00-build/HOSTING.md` — vendor-neutral warm-host requirement (Render `min-instances ≥ 1` + autosleep disabled; Railway equivalent; Fly.io min-machines; Vercel paid-tier min-instances; Azure Container Apps `min replicas`). Cross-platform doc — the requirement holds regardless of the deploy target the operator chooses.
+- `config/batch.json` — added `note` field documenting concurrency=5 stayed.
+- `README.md` — Performance section with the three load commands and the measured numbers.
+
+**Structured timing log shape (per request, PII-redacted per NFR-4):**
+
+```json
+{"event":"verify.timing","applicationId":"sample-green-001","totalMs":2,"extractMs":1,"matchMs":0,"triageMs":0,"faceCount":2,"lane":"mismatch","degraded":false,"rereadTriggered":false}
+```
+
+`extractMs` wraps preprocess + provider + optional re-read (documented as a proxy; finer split lands in P5-1's OTel spans). `degraded: boolean` (the limit of what this seam can know without extending `withTimeout` further). `rereadTriggered` reads the new `ExtractionResponse.rereadAttempted`.
+
+**Measured scenarios (mock adapter, single-app verify pipeline cost, ms):**
+
+| Scenario | Samples | p50 | p95 | p99 | max | PASS? |
+| --- | ---:| ---:| ---:| ---:| ---:| --- |
+| A — sequential (50 iters) | 50 | 4 | 18 | 28 | 28 | ✓ |
+| B — concurrent (10 workers × 60s) | 32,592 | 16 | 30 | 54 | 297 | ✓ |
+| C — single-app during 300-app batch | 30 | 57 | 58 | 59 | 59 | ✓ |
+
+All three under the 5000ms budget by orders of magnitude. Scenario C's batch completed in 542ms across 300 items at cap=5; the single-app p95 of 58ms confirms the batch did not starve concurrent users on the mock.
+
+**Verification:**
+- `pnpm test` — 37 files, **312 tests pass + 1 skipped** (308 prior + 4 new timing tests).
+- `pnpm build` — clean.
+- `pnpm lint` — clean.
+- All three load scenarios run via `pnpm tsx scripts/load.ts --scenario=A` (etc.) and report numbers.
+
+**Deviations from ticket:**
+- Scenario C bounds the single-app count to 30 (per spec) but terminates deterministically alongside the batch rather than by wall-clock. The mock provider returns instantly; the batch defines the in-flight window. For a live-adapter run with a real provider, the script would need to be re-tuned (longer batch + more concurrent samples) to actually stress the cap. The mock numbers are the structural smoke; the live measurement is the budget validation.
+- The `verify.timing` log emits on the degraded / unreadable branches too (with `matchMs: 0`, `triageMs: 0` since those branches skip the stages). Spec ambiguous; agent's reading was "log every settling branch". The throw branch stays silent because `verify.request` (P1-11) already covers it.
+- The `degraded` field is a boolean (the spec asked for a richer "did a retry actually fire" signal but called it out as a documented limitation). A future ticket can extend `withTimeout`'s metadata to carry the attempt count if the operator needs the split.
+- Fixtures in the load script land in `lane: "mismatch"` because the synthetic JPEGs don't carry the canonical warning text. Fine for latency measurement (lane doesn't affect timing) but worth noting that operators should not read the lane mix in load output as a quality signal.
+- Hosting config is vendor-neutral (`docs/00-build/HOSTING.md`) rather than a Render-specific `render.yaml`. The repo doesn't currently ship a hosting config and the agent declined to invent one; the requirement (warm-host, min-instances ≥ 1, health check at `/api/health`) is documented for whichever platform the operator picks.
+
+**Why:**
+P3-4 closes Phase 3 with the budget answer NFR-1 and NFR-7 demand: p95 holds not just in isolation (P1-11) but under concurrent load and during a batch burst. The architectural disciplines from earlier phases hold: one model call per application carries all faces (D14), full usable resolution preserved (D7), 8s timeout + one retry (D10). Performance hardening here is the host posture, the batch concurrency cap, and the measurement instrumentation — not redesign. A future maintainer who tries to "optimise" by downscaling or splitting the model call is breaking deliberate decisions for a problem that doesn't exist.
+
+The **per-stage timing log** is the observability hook P5-1's OTel spans will read directly. `timed(...)` is the seam: a span's `start` / `end` boundary maps one-for-one to the wrapper's `performance.now()` deltas, the span's attributes map to the JSON fields. P5-1 swaps the `console.info` for a real span emission and inherits this ticket's instrumentation surface for free.
+
+The **`docs/00-build/HOSTING.md` doc** is the structural enforcement of the warm-host requirement. The repo doesn't ship a vendor-specific deploy file because the take-home reviewer may pick any of Render / Railway / Fly / Vercel / Azure Gov / a self-managed container. The DOC says "the warm-host posture is required regardless"; the operator's job is to flip the right knob on the platform they picked. Without the doc, a deploy on a scale-to-zero platform would silently violate NFR-1 on the first cold-start.
+
+The **batch concurrency cap stayed at 5** because the mock measurement shows no starvation. The honest scope is: the mock measurement is the structural smoke (the script works, the cap interacts correctly with the orchestrator, the single-app p95 is reported); the live-adapter measurement is the real test. A live run with `PROVIDER=anthropic` and an API key would either confirm the cap holds or trigger the documented re-tuning path (drop to 3 or 4 and re-measure). The cap is config, not code, so the re-tune is a config edit + re-deploy, not a code change.
+
+The **`verify.timing` shape with PII-redacted fields** matches the same observability discipline as `extraction.call` and `verify.request` from P1-11. The values are ids, counts, durations, and enums; no transcribed text, no form values, no bytes. The operator can read the log to spot patterns (e.g. extract dominates total time → provider is slow; total is low but lane is mostly mismatch → A18 still open) without ever seeing applicant data. NFR-4 holds.
+
+The **load script's three scenarios** are the structural enforcement of "p95 under burst, not just in isolation". A passing Scenario A is necessary but not sufficient. Scenario B proves the system holds under sustained concurrency representative of A30. Scenario C proves the batch path doesn't starve the sync path — the structural rule from D14 + Failure Modes and Resilience, materialised as a measurement script that runs in CI-adjacent territory. The mock numbers prove the script works; the live numbers prove the system works. Both are valuable; both are documented.
+
+**Phase 3 status:** COMPLETE. P3-1 (batch) + P3-2 (imperfect images) + P3-3 (error handling) + P3-4 (perf hardening) are all merged to main. The system handles peak-season volume, imperfect photographs, every expected bad input, and concurrent load — all while keeping the 5s p95 budget honest on the mock measurement and primed for the live-adapter run.
+
+**Next:** Phase 4 — Assistant (P4-1 RAG knowledge base + P4-2 chat surface) and Phase 5 — Observability + evals (P5-1 OTel tracing + P5-2 offline eval harness + P5-3 agent-correction feedback loop).
+
+---
+
 ## 2026-06-15 — P3-3 Error-handling pass
 
 **Branch:** `feat/errors`

@@ -323,7 +323,11 @@ async function maybeRereadWarning(opts: {
     reread.legibility === "good" &&
     reread.warningText.length > 0;
   if (!shouldMerge) {
-    return firstPass;
+    // P3-4: surface the fact that a re-read was attempted so the
+    // `verify.timing` structured log can report `rereadTriggered: true`
+    // even on the no-merge branch (a "tried but couldn't rescue" is
+    // observability-worthy too).
+    return { ...firstPass, rereadAttempted: reread.attempted };
   }
 
   const mergedFaces: FaceExtraction[] = firstPass.faces.map((f) => {
@@ -342,5 +346,5 @@ async function maybeRereadWarning(opts: {
       },
     };
   });
-  return { ...firstPass, faces: mergedFaces };
+  return { ...firstPass, faces: mergedFaces, rereadAttempted: true };
 }

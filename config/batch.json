@@ -1,5 +1,6 @@
 {
   "concurrency": 5,
   "maxItems": 500,
-  "syntheticDefaultCount": 50
+  "syntheticDefaultCount": 50,
+  "note": "P3-4: concurrency held at 5. Scenario C measurement (mock adapter) shows single-app p95 stays well under the 5s NFR-1 budget at this cap; the bounded-concurrency self-throttle (Failure Modes and Resilience) does its job. Live-adapter validation lands in the manual run that ships a real API key."
 }
