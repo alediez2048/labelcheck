@@ -24,7 +24,27 @@ import { FieldTable } from "@/app/verify/result/FieldTable";
 import { LaneBanner } from "@/app/verify/result/LaneBanner";
 import type { Lane } from "@/types";
 
-import type { BatchItem } from "./types";
+import type { BatchItem, WireFace } from "./types";
+
+/**
+ * Convert a WireFace's bytes (Node Buffer JSON shape OR base64 string)
+ * into a data: URL suitable for an <img src>. This lets the reviewer see
+ * the exact label image we sent to the vision provider — useful for
+ * spotting OCR misreads (e.g. 35% being transcribed as 39%).
+ */
+function faceToDataUrl(face: WireFace): string {
+  let base64 = "";
+  if (typeof face.bytes === "string") {
+    base64 = face.bytes;
+  } else if (face.bytes && Array.isArray(face.bytes.data)) {
+    // JSON-encoded Node Buffer — decode bytes to base64.
+    const len = face.bytes.data.length;
+    let binary = "";
+    for (let i = 0; i < len; i++) binary += String.fromCharCode(face.bytes.data[i]!);
+    base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64");
+  }
+  return `data:${face.mime};base64,${base64}`;
+}
 
 type Props = {
   lane: Lane;
@@ -162,13 +182,47 @@ function LaneItemRow({ item }: { item: BatchItem }): React.ReactElement {
           </span>
         </summary>
         <div className="border-t border-slate-200 bg-white p-3">
-          {item.result ? (
-            <FieldTable fields={item.result.fields} />
-          ) : (
-            <p className="text-sm text-slate-600">
-              No verification result available for this item.
-            </p>
-          )}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Label image sent to the model
+              </p>
+              {item.faces && item.faces.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {item.faces.map((face, idx) => (
+                    <figure
+                      key={idx}
+                      className="overflow-hidden rounded-md border border-slate-200 bg-slate-50"
+                    >
+                      <img
+                        src={faceToDataUrl(face)}
+                        alt={`${face.kind} face of ${item.brand}`}
+                        className="block w-full"
+                        loading="lazy"
+                      />
+                      <figcaption className="border-t border-slate-200 bg-white px-2 py-1 text-[11px] uppercase tracking-wide text-slate-500">
+                        {face.kind}
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">No face image available.</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Form vs. label
+              </p>
+              {item.result ? (
+                <FieldTable fields={item.result.fields} />
+              ) : (
+                <p className="text-sm text-slate-600">
+                  No verification result available for this item.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </details>
     </li>

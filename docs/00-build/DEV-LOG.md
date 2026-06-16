@@ -4,6 +4,26 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-16 — P5-8 wip: TTB PDF drag-and-drop intake (live demo)
+
+**Branch:** `feat/dragdrop-intake`
+**Status:** Live demo working end-to-end against Anthropic with a real TTB PDF; full P5-8 ticket close-out still pending (empty INITIAL_STATE, curated prefill button, reset, tests, docs).
+
+**Pipeline:** drop PDF → browser `pdfjs-dist@4.7.76` extracts page-1 text + renders the label page to PNG → regex form parser → POST `/api/batch` → orchestrator runs the Anthropic vision provider → matcher + triage → verdict (`mismatch` / `match` / `review`) on the batch results page.
+
+**Six debug traps we hit getting this working — captured for posterity in `docs/00-build/UPLOAD-INTAKE-TRAPS.md`:**
+
+1. **Shell `ANTHROPIC_API_KEY` env var silently overrides `.env.local`** (Next.js does not override pre-set shell vars). Fix: `unset ANTHROPIC_API_KEY && pnpm dev`, or remove the export from `~/.zshrc`.
+2. **`pdfjs-dist@6.x` has a `for…of readableStream` browser regression.** Pin to `4.7.76`; copy `node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs` → `public/pdf.worker.min.mjs`.
+3. **`ArrayBuffer` is transferred to the pdfjs worker on first `getDocument` and detached.** Load the PDF once and do text + render against the same `PDFDocumentProxy` — see `lib/intake/clientPdf.ts:processPdf()`.
+4. **TTB Form 5100.31 puts the label on page 2, not page 3.** `pickLabelPageIndex` returns 1 for single-page PDFs and 2 for 2+ page PDFs.
+5. **Claude correctly returns `null` for unread fields; the Zod schema required strings.** Schema patched to `z.union([z.string(), z.null(), z.undefined()]).transform((v) => v ?? "")`; matcher treats `""` as "field missing" so this is safe.
+6. **Next.js dev-mode HMR wipes the in-memory batch `Map` between POST and the first GET.** `lib/batch/store.ts` now attaches the Map to `globalThis` so it survives module re-evaluation. Production builds bundle once and are unaffected.
+
+The full debugging runbook (symptoms, root causes, one-shot verification curl) lives at `docs/00-build/UPLOAD-INTAKE-TRAPS.md`.
+
+---
+
 ## 2026-06-16 — P5-5 CI eval gate (Phase 5 complete)
 
 **Branch:** `feat/eval-gate`

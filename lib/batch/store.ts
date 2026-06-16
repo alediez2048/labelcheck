@@ -13,7 +13,19 @@
 
 import type { BatchItem, BatchJob, BatchProgress } from "./types";
 
-const JOBS = new Map<string, BatchJob>();
+/**
+ * Attach the Map to globalThis so Next.js dev-mode HMR re-evaluating
+ * this module does NOT lose the in-flight jobs (the POST writer and
+ * the GET reader can compile at different times and would otherwise
+ * see different Map instances). In production builds the module is
+ * bundled once; this is a dev-only safety net.
+ */
+const globalForBatch = globalThis as unknown as {
+  __labelcheckBatchJobs?: Map<string, BatchJob>;
+};
+const JOBS: Map<string, BatchJob> =
+  globalForBatch.__labelcheckBatchJobs ?? new Map<string, BatchJob>();
+globalForBatch.__labelcheckBatchJobs = JOBS;
 
 /**
  * Build a fresh jobId. Timestamp + 6 hex chars of randomness — collision
