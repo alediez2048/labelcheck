@@ -79,6 +79,26 @@ single-app budget is never close to threatened. Live-adapter validation
 is a separate manual run with a real API key; the mock measurement is
 the structural smoke confirming the script + the cap interact correctly.
 
+## Tracing (P5-1)
+
+Every verification request and every assistant turn emits an
+OpenTelemetry trace. The exporter is config-swappable via
+`OTEL_EXPORTER`:
+
+- `console` (default) — spans and metrics go to stdout. Good for
+  `pnpm dev` and CI.
+- `file` — JSONL appended to `OTEL_FILE_PATH` (default
+  `.data/traces/otel.jsonl`; the `.data/` directory is gitignored).
+- `otlp` — production seam. Posts to `OTEL_OTLP_ENDPOINT` via OTLP
+  HTTP. P6-6 swaps the in-boundary Langfuse or Phoenix host in
+  without touching call sites.
+
+`PII_HASH_SALT` is **required in production**. The dev prototype
+falls back to a fixed string with a console warning so local work
+keeps moving. See `docs/PRIVACY-IN-TRACES.md` for the full redaction
+policy — what's hashed, what's verbatim, which keys are on the
+allow-list.
+
 ## Repo layout
 
 ```
@@ -104,6 +124,10 @@ Copy `.env.example` to `.env` and fill in the values you need. `.env` is gitigno
 | `ANTHROPIC_API_KEY` | unset | Required when `PROVIDER=anthropic` (P1-2). The Anthropic provider throws at startup if the value is missing. |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Override the Claude model used by the Anthropic provider (P1-2). Useful for evals against a specific model snapshot during P5-4 bake-off. |
 | `IMAGE_MAX_LONG_EDGE` | `1568` | Long-edge cap for image preprocessing (P0-5). Default is Claude's usable maximum (D7). **Do not set below 1568 without changing the provider** — the smallest text on the label (the government warning) becomes illegible and the warning check silently weakens. |
+| `OTEL_EXPORTER` | `console` | Trace + metric exporter (P5-1). Supported values: `console`, `file`, `otlp`. |
+| `OTEL_FILE_PATH` | `.data/traces/otel.jsonl` | Output path when `OTEL_EXPORTER=file`. |
+| `OTEL_OTLP_ENDPOINT` | unset | OTLP HTTP endpoint when `OTEL_EXPORTER=otlp` (P6-6). |
+| `PII_HASH_SALT` | dev fallback | Salt for hashing PII in trace attributes (P5-1). **Required in production.** See `docs/PRIVACY-IN-TRACES.md`. |
 
 ## Documentation
 

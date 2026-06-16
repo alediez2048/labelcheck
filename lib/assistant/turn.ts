@@ -52,11 +52,27 @@ import {
   type RefusalKind,
 } from "@/lib/assistant/refusals";
 
+/**
+ * Optional P5-1 observability hook. The route handler wraps `runTurn`
+ * in `withAssistantSpan` and threads the resulting context here; the
+ * orchestrator fills attributes (intent tags, retrieval count, used
+ * tool, refusal template, postcheck action, total ms) as the turn
+ * unfolds. Kept optional so unit tests can drive `runTurn` directly
+ * without setting up a span.
+ */
+export type RunTurnObservability = {
+  setAttributes(
+    attrs: Record<string, string | number | boolean | string[] | undefined>,
+  ): void;
+};
+
 export type RunTurnInput = {
   request: AssistantTurnRequest;
   /** Resolved server-side; NEVER from the request body. */
   callerAgentId: string;
   callerRole: AssistantRole;
+  /** Optional P5-1 hook — wires the assistant.turn span attributes. */
+  observability?: RunTurnObservability;
 };
 
 /**
@@ -150,14 +166,29 @@ export async function runTurn(
   // is cheap (5-template lookup) and keeps the trace consistent
   // whether the refusal came from the prompt path or the postcheck.
   const generatorRefusal = matchRefusalTemplate(answerText);
+  const retrievedSources = chunks.map((c) => c.sourceFilename);
   emitTurnTrace({
     role: input.callerRole,
-    retrievedSources: chunks.map((c) => c.sourceFilename),
+    retrievedSources,
     ...(usedTool && !postResult.appliedRefusal ? { usedTool } : {}),
     totalMs,
     intentTags,
     refusalTemplate: generatorRefusal ?? "none",
     postcheckAction: postResult.appliedRefusal ?? "none",
+  });
+
+  // P5-1: feed the same facts to the assistant.turn span so the
+  // observability backend gets a single structured record per turn
+  // (same shape the legacy console trace above carries). The
+  // attribute keys all live in `SAFE_ATTRIBUTE_KEYS` — no PII.
+  input.observability?.setAttributes({
+    "assistant.intent_tags": [...intentTags],
+    "assistant.retrieved_count": chunks.length,
+    "assistant.retrieved_sources": [...retrievedSources],
+    "assistant.used_tool": usedTool,
+    "assistant.refusal_template": generatorRefusal ?? "none",
+    "assistant.postcheck_action": postResult.appliedRefusal ?? "none",
+    "assistant.total_ms": totalMs,
   });
 
   // The metadata.totalMs gets overwritten with the final measurement.

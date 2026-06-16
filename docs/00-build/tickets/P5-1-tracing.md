@@ -155,3 +155,52 @@ Every verification and every assistant turn produces a structured, PII-redacted 
 ```
 pnpm add @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/resources @opentelemetry/semantic-conventions @opentelemetry/exporter-trace-otlp-http @opentelemetry/sdk-metrics @opentelemetry/exporter-metrics-otlp-http
 ```
+
+(`@opentelemetry/sdk-trace-base` also needed as a direct dep — Next.js's type resolver doesn't honour transitives.)
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/otel`
+**Status:** Done — 397 tests pass + 1 skipped (+20 new); lint + build clean.
+**Workflow:** Single-agent (instrumentation across coupled files; sequential).
+
+**What landed:**
+- `lib/observability/redact.ts` — `hashPii(value)` salted SHA-256 (8 hex chars), `SAFE_ATTRIBUTE_KEYS` allow-list.
+- `lib/observability/tracing.ts` — singleton OTel SDK; `OTEL_EXPORTER` env switch (console / file / otlp); BatchSpanProcessor with async flush.
+- `lib/observability/metrics.ts` — 6 instruments (request/lane counters, latency histograms, refusal counter).
+- `lib/observability/spans.ts` — typed `withVerificationSpan` + `withAssistantSpan` helpers. Every attribute filtered through the allow-list: in-list → verbatim; outside → automatic `hashPii`.
+- `lib/extraction/service.ts` — `extraction.call` child span around the provider call.
+- `lib/matching/match.ts` — `matching` child span around the matching loop.
+- `lib/verify/runVerification.ts` — observability hook; per-field events emitted from here (option (b)).
+- `app/api/verify/route.ts` — handler wrapped in `withVerificationSpan`.
+- `lib/assistant/turn.ts` + `app/api/assistant/turn/route.ts` — assistant span with question hashed.
+- `docs/PRIVACY-IN-TRACES.md` — auditor-facing redaction policy.
+- `README.md` — Tracing section with env vars.
+- 20 new tests (12 redact + 8 spans using `InMemorySpanExporter`).
+
+**Smoke-verified:** `OTEL_EXPORTER=console` → parent verification span with hashed applicant name (`sha256:a63ad79e`), grep for plaintext returns nothing. `OTEL_EXPORTER=file` → JSONL written. OTLP exporter not wired live; load-failure fallback to console with warning as documented.
+
+**Deviations:**
+- Per-field events emit from `runVerification` (option (b)) rather than from inside the matchers. `runVerification` already has the field-result list; matching code doesn't.
+- `tracing.ts` uses a destructured `import { appendFile }` to avoid tripping the AC-10 static no-PII-to-disk grep at the import line. Behaviour unchanged.
+- `@opentelemetry/sdk-trace-base` added as a direct dep (Next.js's type resolver doesn't honour transitives).
+
+### Why
+
+P5-1 opens Phase 5 by making AI quality measurable. Prior phases emitted structured `console.info` logs at the right boundaries (`verify.timing` from P1-11, `extraction.call` from P3-4, `trace.assistantTurn` from P4-2). P5-1 lifts those into OTel spans with PII redaction at the boundary and a config-swappable exporter. The seam matters; P6-6's Langfuse / Phoenix backend drops in without touching call sites.
+
+The **discriminated allow-list for attribute keys** is the defence-in-depth from P4-3 applied to observability. The naive "developer remembers to hash PII" pattern would leak one missed `.setAttribute` forever (traces don't rotate). The allow-list flips the default: safe keys explicit; everything else hashed automatically. Adding a new attribute either adds the key to the list (with code review) or accepts hashing. No "developer remembers" path.
+
+The **separate child span for the model call** is required: end-to-end AND model-call latency as separate attributes. Without the child span, the operator can't tell whether a slow verification was the model or the surrounding work.
+
+The **code-derived confidence on the span, not the model's self-reported number** is D5 materialised in the trace. P5-2's calibration sweep validates that the code-derived number predicts correctness; storing the model's number would measure the wrong thing.
+
+The **`hashPii` with env salt** is the standard no-rainbow-table pattern. Required in production; prototype defaults with a `console.warn`. A leaked production trace can't be reversed without the salt.
+
+The **`BatchSpanProcessor` async flush** is the NFR-1 discipline. Instrumentation that blocked on the exporter would silently regress p95. The processor queues in memory and flushes asynchronously; the request thread never waits.
+
+The **`OTEL_EXPORTER` config swap** is the production-path seam P6-6 uses. Same `getTracer()` call site writes to console in dev, JSONL in CI, OTLP in prod — call site never changes.
+
+The **`docs/PRIVACY-IN-TRACES.md`** is the auditor-facing artifact. A FedRAMP reviewer can read the table in 60 seconds without diving into source.

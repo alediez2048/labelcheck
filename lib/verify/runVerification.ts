@@ -47,6 +47,28 @@ const FACE_LABELS: Readonly<Record<FaceKind, string>> = {
   neck: "Neck",
 };
 
+/**
+ * Optional observability hook for P5-1. The route handler wraps the
+ * call in `withVerificationSpan` and passes the resulting context
+ * here; the pipeline forwards face-count, per-field events, and the
+ * final lane / overall_confidence to it as the stages complete.
+ *
+ * Kept optional so the batch orchestrator (which spans differently)
+ * and the latency bench (which has no span context at all) can call
+ * `runVerification` without setting up an OTel parent.
+ */
+export type RunVerificationObservability = {
+  setAttributes(
+    attrs: Record<string, string | number | boolean | undefined>,
+  ): void;
+  addFieldEvent(
+    fieldName: string,
+    verdict: string,
+    confidence: number,
+    sourceFace: string | null,
+  ): void;
+};
+
 export type RunVerificationInput = {
   applicationId: string;
   beverageType: BeverageType;
@@ -56,6 +78,8 @@ export type RunVerificationInput = {
     bytes: Buffer;
     mime: "image/jpeg" | "image/png";
   }>;
+  /** Optional P5-1 hook — wires the verification span into the pipeline. */
+  observability?: RunVerificationObservability;
 };
 
 /**
@@ -68,6 +92,7 @@ export async function runVerification(
   input: RunVerificationInput,
 ): Promise<VerificationResult> {
   const pipelineStart = performance.now();
+  const obs = input.observability;
 
   // 1. Build the extraction request. Bytes never leave this function.
   const extractable: ExtractableApplication = {
@@ -79,6 +104,7 @@ export async function runVerification(
       mime: f.mime,
     })),
   };
+  obs?.setAttributes({ "verification.face_count": input.faces.length });
 
   // 2. Run extraction. An extraction-pipeline failure (decode error,
   //    provider exception that isn't transient) is treated as an
@@ -116,6 +142,10 @@ export async function runVerification(
           applicationId: input.applicationId,
           degraded: extraction.degraded,
         });
+    obs?.setAttributes({
+      "verification.lane": result.lane,
+      "verification.overall_confidence": result.overallConfidence,
+    });
     emitTiming({
       applicationId: input.applicationId,
       totalMs: Math.round(performance.now() - pipelineStart),
@@ -143,6 +173,10 @@ export async function runVerification(
       )
       .join(" ");
     const result = toDegradedResult(input.applicationId, unreadableImage(reason));
+    obs?.setAttributes({
+      "verification.lane": result.lane,
+      "verification.overall_confidence": result.overallConfidence,
+    });
     emitTiming({
       applicationId: input.applicationId,
       totalMs: Math.round(performance.now() - pipelineStart),
@@ -171,6 +205,17 @@ export async function runVerification(
       }),
   );
 
+  // P5-1: emit per-field events on the active verification span. The
+  // matching engine itself stays pure (it doesn't import the span
+  // helper); the observability hook is a thin pass-through the route
+  // handler wires up. The trade-off vs. emitting events inside
+  // `matchApplication` is documented in `lib/observability/spans.ts`.
+  if (obs) {
+    for (const f of fieldResults) {
+      obs.addFieldEvent(f.field, f.verdict, f.confidence, f.sourceFace);
+    }
+  }
+
   const { result: verificationResult, durationMs: triageMs } = await timed(
     async () =>
       buildSuccessResult({
@@ -179,6 +224,11 @@ export async function runVerification(
         extraction,
       }),
   );
+
+  obs?.setAttributes({
+    "verification.lane": verificationResult.lane,
+    "verification.overall_confidence": verificationResult.overallConfidence,
+  });
 
   emitTiming({
     applicationId: input.applicationId,

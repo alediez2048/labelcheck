@@ -25,6 +25,8 @@ import {
   withRetry,
   withTimeout,
 } from "@/lib/provider/withTimeout";
+import { SpanStatusCode } from "@opentelemetry/api";
+import { getTracer } from "@/lib/observability/tracing";
 import { rereadWarning } from "./rereadWarning";
 import { getRequiredFields } from "@/lib/config";
 import type { BeverageType, FaceKind, FieldName } from "@/types";
@@ -165,10 +167,25 @@ export async function extract(
   //    headline (observability.md: What We Instrument). PII (the
   //    applicationId IS the application's internal id, not an
   //    applicant identifier) stays out of the log values per NFR-4.
+  //
+  //    P5-1: wrap the provider round-trip in an `extraction.call`
+  //    child span so model-call latency is captured separately from
+  //    the end-to-end pipeline cost (the observability.md "model-call
+  //    latency captured separately" requirement). The active-span
+  //    context comes from the parent `verification` span set in the
+  //    route handler — OTel's context propagation makes this child
+  //    inherit it without manual threading.
   const provider = getProvider();
+  const tracer = getTracer();
   const modelStart = performance.now();
   let outcome: "ok" | "timeout" | "transient" | "error" = "ok";
   let firstPass: ExtractionResponse | null = null;
+  const childSpan = tracer.startSpan("extraction.call", {
+    attributes: {
+      "extraction.provider": provider.name,
+      "extraction.face_count": application.faces.length,
+    },
+  });
   try {
     firstPass = await withRetry(
       () =>
@@ -205,10 +222,16 @@ export async function extract(
       };
     } else {
       outcome = "error";
+      const exc = err instanceof Error ? err : new Error(String(err));
+      childSpan.recordException(exc);
+      childSpan.setStatus({ code: SpanStatusCode.ERROR, message: exc.message });
       throw err;
     }
   } finally {
     const modelMs = Math.round(performance.now() - modelStart);
+    childSpan.setAttribute("extraction.outcome", outcome);
+    childSpan.setAttribute("extraction.duration_ms", modelMs);
+    childSpan.end();
     // Structured log line — id, face count, duration, outcome only.
     // No bytes, no transcribed text, no form values (observability.md
     // Privacy + NFR-4).
