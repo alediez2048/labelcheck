@@ -43,6 +43,42 @@ Prints `p50 / p95 / max` for the extraction call and for the end-to-end pipeline
 
 CI runs a reduced version of the bench (20 iterations against the mock) via `tests/latency.test.ts` so AC-7 is part of the build gate. The live-adapter measurement is opt-in — CI never asserts against the live model because the latency would be flaky.
 
+## Performance (P3-4)
+
+The 5-second p95 budget for single-application verification (NFR-1, AC-7)
+assumes a **warm host** — no scale-to-zero, minimum instance count ≥ 1.
+A per-request cold start silently blows the budget. See
+`docs/00-build/HOSTING.md` for the vendor-neutral hosting requirement and
+per-platform pointers.
+
+`GET /api/health` is the keep-warm probe. It returns `{ ok: true }`
+immediately and never calls the provider; the hosting platform's
+health check should point at it.
+
+The load script at `scripts/load.ts` drives the per-application pipeline
+under three scenarios — sequential baseline, sustained concurrent load,
+and concurrent verifies during a 300-app batch burst:
+
+```bash
+pnpm tsx scripts/load.ts --scenario=A
+pnpm tsx scripts/load.ts --scenario=B --concurrency=10 --duration=60
+pnpm tsx scripts/load.ts --scenario=C --batchSize=300
+```
+
+Mock-adapter measurements (single-app p50 / p95 / p99 / max, in ms):
+
+| Scenario | p50 | p95 | p99 | max | Budget |
+|---|---:|---:|---:|---:|---|
+| A — sequential (50 iters) | 4 | 18 | 28 | 28 | PASS |
+| B — concurrent (10 workers × 60s) | 16 | 30 | 54 | 297 | PASS |
+| C — single-app during 300-app batch | 57 | 58 | 59 | 59 | PASS |
+
+`config/batch.json#concurrency` is held at **5** — Scenario C shows the
+bounded-concurrency self-throttle does its job under the mock and the
+single-app budget is never close to threatened. Live-adapter validation
+is a separate manual run with a real API key; the mock measurement is
+the structural smoke confirming the script + the cap interact correctly.
+
 ## Repo layout
 
 ```

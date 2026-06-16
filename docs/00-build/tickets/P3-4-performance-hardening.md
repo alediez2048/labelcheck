@@ -153,3 +153,52 @@ The single-application 5-second p95 budget is provably met not just in isolation
 ### Dependencies to install
 
 No new dependencies. `tsx` (already typical in a TypeScript repo for ad-hoc scripts) covers the load script; if it is not already present, `pnpm add -D tsx`. No runtime deps.
+
+---
+
+## Outcome — done 2026-06-15 — Phase 3 complete
+
+**Branch:** `feat/perf`
+**Status:** Done — 312 tests pass + 1 skipped (+4); lint + build clean. Phase 3 closes here.
+**Workflow:** Single-agent build (measurement + instrumentation; sequential work).
+
+**What landed:**
+- `lib/observability/timing.ts` — `timed<T>(fn): { result, durationMs }`. The seam P5-1's OTel spans will consume.
+- `lib/verify/runVerification.ts` — per-stage timing via `timed(...)`. Emits one `verify.timing` log per request on every settling branch (success / degraded / unreadable). PII-redacted.
+- `lib/extraction/service.ts` + `lib/provider/types.ts` — `ExtractionResponse.rereadAttempted?: boolean` for the timing log's `rereadTriggered` field.
+- `scripts/load.ts` — three scenarios (sequential, concurrent, single-app during 300-app batch). Hand-rolled CLI; reuses `runVerification` and `runBatch` directly (no HTTP — pure pipeline cost measurement).
+- `docs/00-build/HOSTING.md` — vendor-neutral warm-host requirement (Render / Railway / Fly / Vercel / Azure Container Apps).
+- `config/batch.json` — `note` field documenting the chosen cap.
+- `README.md` — Performance section.
+
+**Measured (mock adapter):**
+
+| Scenario | Samples | p50 | p95 | p99 | max | PASS |
+| --- | ---:| ---:| ---:| ---:| ---:| --- |
+| A — sequential (50 iters) | 50 | 4 | 18 | 28 | 28 | ✓ |
+| B — concurrent (10 × 60s) | 32,592 | 16 | 30 | 54 | 297 | ✓ |
+| C — single-app during 300-app batch | 30 | 57 | 58 | 59 | 59 | ✓ |
+
+All three under 5000ms budget by orders of magnitude. Scenario C's batch ran in 542ms across 300 items at cap=5; no starvation on the mock.
+
+**Live-adapter measurement is the real test** — pending an API-key run. The mock numbers are the structural smoke; the cap stays at 5 unless the live run shows starvation, in which case `config/batch.json` drops to 3 or 4.
+
+**Deviations:**
+- Scenario C bounds the single-app count to 30 and terminates alongside the batch deterministically (the mock runs too fast for a wall-clock window).
+- `verify.timing` log emits on degraded / unreadable branches with `matchMs: 0` / `triageMs: 0`. Throw branch stays silent — `verify.request` already covers it.
+- `degraded` is a boolean (richer "retry actually fired" needs extending `withTimeout`; documented limitation).
+- Hosting config is vendor-neutral `HOSTING.md` rather than a Render-specific `render.yaml` — the repo doesn't ship a deploy file and the requirement holds regardless of platform.
+
+### Why
+
+P3-4 closes Phase 3 with the budget answer NFR-1 + NFR-7 demand: p95 holds under concurrent load AND during a batch burst, not just in isolation (P1-11). The architectural disciplines hold: one model call per app (D14), full resolution (D7), 8s timeout + one retry (D10). Hardening is host + cap + measurement — not redesign.
+
+The **per-stage timing log** is the observability hook P5-1's OTel spans will read directly. `timed(...)` is the seam: span boundaries map one-for-one to the wrapper's `performance.now()` deltas; span attributes map to the JSON fields. P5-1 swaps `console.info` for span emission and inherits this ticket's instrumentation for free.
+
+The **vendor-neutral `HOSTING.md`** is the structural enforcement of the warm-host requirement regardless of platform. Without it, a scale-to-zero deploy would silently violate NFR-1 on the first cold-start.
+
+The **batch concurrency cap stayed at 5** because the mock measurement shows no starvation. The cap is config, not code, so re-tuning after a live-adapter run is a config edit + re-deploy.
+
+The **NFR-4 PII-redacted log shape** matches `extraction.call` and `verify.request` from P1-11. Ids, counts, durations, enums — no transcribed text, no form values, no bytes. The operator can spot patterns without ever seeing applicant data.
+
+The **three load scenarios** materialise "p95 under burst, not just in isolation" as a script. A passing Scenario A is necessary but not sufficient; Scenario B proves sustained concurrency holds; Scenario C proves the batch path doesn't starve the sync path. Mock numbers prove the script works; live numbers prove the system works.

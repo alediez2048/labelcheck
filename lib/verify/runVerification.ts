@@ -10,8 +10,17 @@
  *
  * D14: one provider call per Application carrying all faces.
  * D4 / D5: model reads, code decides; never let model verdicts leak.
+ *
+ * P3-4: per-stage timing instrumentation. Every successful trip through
+ * the pipeline emits one `verify.timing` structured log line carrying
+ * the totals + per-stage breakdown. The route handler's existing
+ * `verify.request` end-to-end log line (P1-11) stays — that's the wire
+ * boundary; this one is the in-pipeline view that lets us attribute
+ * latency to extract / match / triage when the p95 walks. PII-redacted
+ * per NFR-4: no extracted values, no form values, no bytes.
  */
 
+import { timed } from "@/lib/observability/timing";
 import { toDegradedResult } from "@/lib/errors/toResult";
 import {
   internalError,
@@ -58,6 +67,8 @@ export type RunVerificationInput = {
 export async function runVerification(
   input: RunVerificationInput,
 ): Promise<VerificationResult> {
+  const pipelineStart = performance.now();
+
   // 1. Build the extraction request. Bytes never leave this function.
   const extractable: ExtractableApplication = {
     id: input.applicationId,
@@ -73,10 +84,23 @@ export async function runVerification(
   //    provider exception that isn't transient) is treated as an
   //    INTERNAL structured error rather than a thrown error — the agent
   //    sees a defensive review-lane result, not a stack trace (P3-3).
+  //
+  //    P3-4: `extractMs` here wraps preprocessing + the provider round
+  //    trip + the (optional) warning re-read. Finer-grained split (sharp
+  //    preprocess vs. provider wall-clock) lands in P5-1's OpenTelemetry
+  //    spans; the `extraction.call` log emitted INSIDE `extract()` already
+  //    carries the inner `modelMs` for callers that need it today.
   let extraction;
+  let extractMs = 0;
   try {
-    extraction = await extract(extractable);
+    const t = await timed(() => extract(extractable));
+    extraction = t.result;
+    extractMs = t.durationMs;
   } catch {
+    // Don't emit `verify.timing` on the thrown branch — the route
+    // handler's `verify.request` line already records the end-to-end
+    // cost and the failure outcome. A partial-stage timing line here
+    // would be more noise than signal.
     return toDegradedResult(input.applicationId, internalError());
   }
 
@@ -86,13 +110,24 @@ export async function runVerification(
   //     `buildTimeoutResult` is the defensive fallback for older
   //     extraction outputs.
   if (extraction.degraded) {
-    if (extraction.degradedError) {
-      return toDegradedResult(input.applicationId, extraction.degradedError);
-    }
-    return buildTimeoutResult({
+    const result = extraction.degradedError
+      ? toDegradedResult(input.applicationId, extraction.degradedError)
+      : buildTimeoutResult({
+          applicationId: input.applicationId,
+          degraded: extraction.degraded,
+        });
+    emitTiming({
       applicationId: input.applicationId,
-      degraded: extraction.degraded,
+      totalMs: Math.round(performance.now() - pipelineStart),
+      extractMs,
+      matchMs: 0,
+      triageMs: 0,
+      faceCount: input.faces.length,
+      lane: result.lane,
+      degraded: true,
+      rereadTriggered: extraction.rereadAttempted ?? false,
     });
+    return result;
   }
 
   // 3b. Short-circuit if any face is unreadable (FR-26b). The structured
@@ -107,19 +142,95 @@ export async function runVerification(
           `${FACE_LABELS[f]} face is unreadable — please re-upload a clearer image.`,
       )
       .join(" ");
-    return toDegradedResult(input.applicationId, unreadableImage(reason));
+    const result = toDegradedResult(input.applicationId, unreadableImage(reason));
+    emitTiming({
+      applicationId: input.applicationId,
+      totalMs: Math.round(performance.now() - pipelineStart),
+      extractMs,
+      matchMs: 0,
+      triageMs: 0,
+      faceCount: input.faces.length,
+      lane: result.lane,
+      degraded: false,
+      rereadTriggered: extraction.rereadAttempted ?? false,
+    });
+    return result;
   }
 
-  // 4. Match → triage.
-  const fieldResults = matchApplication({
-    beverageType: input.beverageType,
-    form: input.form,
-    extraction,
+  // 4. Match → triage. Each stage is wrapped in `timed(...)` so the
+  //    per-stage contribution to the request total is visible per
+  //    request. `buildSuccessResult` internally calls `classify(...)` —
+  //    we time it as one composite "triage" stage because the synchronous
+  //    classify is cheap and splitting it would invite double-counting.
+  const { result: fieldResults, durationMs: matchMs } = await timed(
+    async () =>
+      matchApplication({
+        beverageType: input.beverageType,
+        form: input.form,
+        extraction,
+      }),
+  );
+
+  const { result: verificationResult, durationMs: triageMs } = await timed(
+    async () =>
+      buildSuccessResult({
+        applicationId: input.applicationId,
+        fields: fieldResults,
+        extraction,
+      }),
+  );
+
+  emitTiming({
+    applicationId: input.applicationId,
+    totalMs: Math.round(performance.now() - pipelineStart),
+    extractMs,
+    matchMs,
+    triageMs,
+    faceCount: input.faces.length,
+    lane: verificationResult.lane,
+    degraded: extraction.degraded !== undefined,
+    rereadTriggered: extraction.rereadAttempted ?? false,
   });
 
-  return buildSuccessResult({
-    applicationId: input.applicationId,
-    fields: fieldResults,
-    extraction,
-  });
+  return verificationResult;
+}
+
+/**
+ * Structured per-request timing log line (P3-4).
+ *
+ * One line per request, on every successful trip through the pipeline.
+ * PII-redacted per NFR-4: no extracted values, no form values, no bytes.
+ * The `applicationId` is an internal id (not an applicant identifier);
+ * the lane is the AI's verdict, not a personal field. The `degraded`
+ * boolean only reports whether the provider path degraded — the limit
+ * of what we can know from this seam today; a richer
+ * "retry actually fired" signal would need extra plumbing in
+ * `withTimeout.ts` and lands later.
+ */
+function emitTiming(line: {
+  applicationId: string;
+  totalMs: number;
+  extractMs: number;
+  matchMs: number;
+  triageMs: number;
+  faceCount: number;
+  lane: VerificationResult["lane"];
+  degraded: boolean;
+  rereadTriggered: boolean;
+}): void {
+  // eslint-disable-next-line no-console
+  console.info(
+    JSON.stringify({
+      event: "verify.timing",
+      applicationId: line.applicationId,
+      totalMs: line.totalMs,
+      extractMs: line.extractMs,
+      matchMs: line.matchMs,
+      triageMs: line.triageMs,
+      faceCount: line.faceCount,
+      lane: line.lane,
+      degraded: line.degraded,
+      rereadTriggered: line.rereadTriggered,
+    }),
+  );
 }
