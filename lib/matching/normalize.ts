@@ -15,6 +15,13 @@
  */
 export function normalizeForFuzzy(s: string): string {
   return s
+    .normalize("NFD")
+    // Strip combining diacritical marks: é -> e, ã -> a, ç -> c,
+    // È -> E, ü -> u, ñ -> n. TTB labels routinely use the original
+    // accented spelling ("CACHAÇA SÃO PAULO", "SORTILÈGE") while the
+    // form is typed without accents. We treat letters identical
+    // modulo their accent as the same letter.
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
