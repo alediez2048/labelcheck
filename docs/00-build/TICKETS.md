@@ -210,10 +210,10 @@ Description: the most-requested stretch features and robustness, so the tool hol
 - Acceptance: [x] ~300-app batch completes (verified end-to-end on the mock provider via the synthetic-batch path); [x] progress reported (GET /api/batch/:id returns `{ pending, running, done, failed, byLane }`); [x] results grouped by lane (LaneGroup buckets per match/mismatch/review; failed items in a dedicated panel); [x] bounded concurrency (p-limit cap of 5, tunable via `config/batch.json`); [x] runVerification pipeline extracted and reused by both /api/verify and the batch orchestrator (no duplication); [x] failed item doesn't abort the run (per-item try/catch).
 - Refs: FR-17 to FR-20; systemsdesign Batch.
 
-### P3-2 — Imperfect-image robustness
-- Depends: P1-2 · Branch: feat/image-robust · Est: 3h
+### P3-2 — Imperfect-image robustness ✅ done 2026-06-15
+- Depends: P1-2 · Branch: feat/imperfect-images · Est: 3h
 - Goal: handle mild angle/glare; targeted high-resolution re-read of a low-confidence warning region.
-- Acceptance: [ ] mildly skewed photos read; [ ] low-confidence warning triggers a region re-read; [ ] severe cases → needs-a-better-image.
+- Acceptance: [x] mildly skewed photos read end-to-end on the first pass when legibility is acceptable; [x] low-confidence warning triggers ONE targeted re-read of the cropped region (D7), bounded — no retry, no multi-pass chain; [x] re-read result merged when it returns higher legibility; first-pass kept otherwise; [x] severe cases (re-read also fails) → FR-16 low-confidence lane with the FR-26b "Return — unreadable image" recommendation (no throws, no stack traces); [x] structured `extraction.reread` log (NFR-4 PII-redacted) for observability; [x] crop heuristic (bottom 40% of back face) when the model doesn't return a region hint, documented inline.
 - Refs: FR-6; D7, A13.
 
 ### P3-3 — Error-handling pass

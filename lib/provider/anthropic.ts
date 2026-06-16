@@ -24,6 +24,8 @@ import type {
   ExtractionResponse,
   FaceExtraction,
   VisionProvider,
+  WarningRereadInput,
+  WarningRereadResponse,
 } from "./types";
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
@@ -145,6 +147,29 @@ export class AnthropicVisionProvider implements VisionProvider {
     // Rough per-application cost on Sonnet 4.6 with full-res multi-face
     // call: ~$0.025/app. Used by P5-4's bake-off cost estimate.
     return 0.025;
+  }
+
+  /**
+   * Targeted high-resolution warning re-read (P3-2).
+   *
+   * The live Anthropic adapter intentionally throws today: a real Claude
+   * prompt for the cropped region lands when the live provider is
+   * exercised against a real cost budget (out of scope for P3-2). The
+   * extraction service tolerates the throw via `withTimeout` and the
+   * `rereadWarning` wrapper — the first-pass result is kept and the
+   * triage classifier routes the application via FR-16 + FR-26b.
+   *
+   * The signature matches the `VisionProvider.rereadWarning` contract so
+   * the live adapter compiles against the extended interface even though
+   * the second pass is implemented mock-only for now.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  rereadWarning(_input: WarningRereadInput): Promise<WarningRereadResponse> {
+    return Promise.reject(
+      new Error(
+        "Not implemented in Phase 3 prototype — mock provider only",
+      ),
+    );
   }
 }
 

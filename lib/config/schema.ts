@@ -113,10 +113,35 @@ const ConfidenceConfigSchema = z
 export type ConfidenceConfig = z.infer<typeof ConfidenceConfigSchema>;
 
 /**
+ * Re-read trigger configuration (P3-2 / D7).
+ *
+ * `triggerOnLegibility` is the value of `WarningFlags.legibility` that
+ * causes the extraction service to fire a targeted high-res second
+ * read of the warning crop. The prototype model's legibility flag is a
+ * two-value enum (`"good" | "low"`), so the "threshold" is structural —
+ * the config simply names which value triggers the re-read. When a
+ * future provider returns a richer per-region score, this turns into a
+ * real numeric threshold (and the schema grows here, not in code).
+ *
+ * Documented in `config/tolerances.json` alongside the value.
+ */
+const WarningLegibilityRereadSchema = z
+  .object({
+    triggerOnLegibility: z.enum(["good", "low"]),
+    note: z.string().optional(),
+  })
+  .strict();
+
+export type WarningLegibilityRereadConfig = z.infer<
+  typeof WarningLegibilityRereadSchema
+>;
+
+/**
  * Per-field tolerance table. Keys are the camelCase form field names
  * (matching `FormFields` in `types/domain.ts`); the values are the
  * matching rules the engine (P1-3) applies. `confidence` carries the
  * derivation parameters used by P1-4 / consumed by P1-5 triage.
+ * `warningLegibilityReread` carries the P3-2 trigger config.
  */
 export const TolerancesConfigSchema = z
   .object({
@@ -128,6 +153,7 @@ export const TolerancesConfigSchema = z
     producerAddress: FieldRuleSchema,
     countryOfOrigin: FieldRuleSchema,
     confidence: ConfidenceConfigSchema,
+    warningLegibilityReread: WarningLegibilityRereadSchema,
   })
   .strict();
 

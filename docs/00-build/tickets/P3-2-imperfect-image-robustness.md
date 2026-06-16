@@ -155,3 +155,41 @@ Mild photographic imperfections no longer cost the warning check: a borderline-l
 ### Dependencies to install
 
 No new dependencies. `sharp` (already in P0-5) covers the crop. The provider adapter from P0-3 is reused for the targeted re-read call.
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/imperfect-images`
+**Status:** Done — 300 tests pass + 1 skipped (+12 new); lint + build clean.
+**Workflow:** Single-agent (sequential work; parallel would have added coordination overhead).
+
+**What landed:**
+- `lib/provider/types.ts` — `WarningRereadInput`, `WarningRereadResponse`, optional `rereadWarning?` on `VisionProvider`.
+- `lib/image/cropWarningRegion.ts` — sharp `.extract` with hint or back-face bottom-40% heuristic. Out-of-bounds coords are clamped.
+- `lib/extraction/rereadWarning.ts` — bounded wrapper. 4000ms `withTimeout`, no retry. Returns `{ attempted: false }` when provider lacks the method; `{ attempted: true, legibility: "low", warningText: "" }` on timeout/throw/decline.
+- `lib/extraction/service.ts` — post-first-pass scan for `warning.presence === true && warning.legibility === "low"`. First qualifying face triggers ONE re-read. Successful merge replaces the face's `warning.legibility`, `warning.allCaps`, `warning.boldConfident`, and `fields.government_warning`. Structured `extraction.reread` log (NFR-4 PII-redacted).
+- `lib/provider/mock.ts` — `sample-reread-rescue-001` and `sample-reread-fails-001` fixtures + `rereadWarning` method.
+- `lib/provider/anthropic.ts` — stub that rejects with "Not implemented in Phase 3 prototype — mock provider only".
+- `config/tolerances.json` + `lib/config/schema.ts` — `warningLegibilityReread: { triggerOnLegibility: "low", note: "..." }`.
+- 12 new tests (5 crop + 7 re-read).
+
+**Deviations:**
+- Config key landed as `warningLegibilityReread` per the JSON snippet (the spec had two slightly different name suggestions). The service's runtime check is hardcoded `"low"` because the legibility signal is two-valued; a future ticket can wire the config through when the model returns richer scores.
+- The first-pass `FaceExtraction` doesn't carry a region hint yet. The crop API accepts one but the service always passes `undefined`; the bottom-40% heuristic is what runs. When the live Anthropic prompt is extended to ship a bounding box, plumb it through `FaceExtraction.warning.regionHint`.
+
+### Why
+
+P3-2 is the rule that says "imperfect photos shouldn't cost the warning check". One bounded re-read of the cropped warning region on a low-legibility flag, full resolution preserved, merged into the existing extraction result. The matching engine and triage classifier are unchanged.
+
+The **bounded one-call-per-application discipline** is D7 + D14 made compatible with FR-6. A multi-pass re-read of every low-confidence field would turn the latency budget into a coin flip. Re-reading the warning region only — the highest-stakes check (FR-11) — is the smallest expansion for the right resilience.
+
+The **back-face-bottom-40% heuristic** is the right shape when the model doesn't ship a region hint. The warning lives in the lower half of the back face for ~all real labels (D12). Hard-coding 40% in code rather than config means changes get a code review and a Why comment.
+
+The **graceful-degradation rule** on re-read failure is the same Error Handling discipline as P1-7's unreadable short-circuit and P1-9's timeout. A throw, a stub rejection, a timeout, or a re-read that's still low — all collapse to "keep the first-pass; downstream handles low confidence via FR-16 + FR-26b". No throws to the API; no stack traces to the agent.
+
+The **NFR-4-clean log line** is the observability hook P5-2 will read for "how often does the re-read fire and how often does it rescue".
+
+The **crop from preprocessed bytes** (not raw input) keeps resolution honest. The bottom 40% is of the 1568px-capped image the provider intends — no surprise downscaling.
+
+The **mock fixtures** (`sample-reread-rescue-001`, `sample-reread-fails-001`) seed the test surface so the path is covered in CI and the demo can show the rescue case as a visible feature.

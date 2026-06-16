@@ -116,4 +116,5 @@ export type {
   FieldsByTypeConfig,
   TolerancesConfig,
   WarningConfig,
+  WarningLegibilityRereadConfig,
 } from "./schema";

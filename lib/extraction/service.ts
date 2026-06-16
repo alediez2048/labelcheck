@@ -14,7 +14,9 @@ import { getProvider } from "@/lib/provider";
 import type {
   ExtractionRequest,
   ExtractionResponse,
+  FaceExtraction,
   ProviderFaceInput,
+  VisionProvider,
 } from "@/lib/provider";
 import {
   isTransientError,
@@ -22,6 +24,7 @@ import {
   withRetry,
   withTimeout,
 } from "@/lib/provider/withTimeout";
+import { rereadWarning } from "./rereadWarning";
 import { getRequiredFields } from "@/lib/config";
 import type { BeverageType, FaceKind, FieldName } from "@/types";
 
@@ -103,6 +106,17 @@ function fieldSchemaFor(beverageType: BeverageType): ReadonlyArray<FieldName> {
  * preprocessing is independent per face and sharp releases the GIL
  * effectively. The provider call itself is exactly ONE round trip
  * carrying all faces (D14).
+ *
+ * After the first-pass response returns, the service inspects each face's
+ * `warning.legibility`. When a face has `warning.presence === true` AND
+ * `warning.legibility === "low"`, the service kicks off at most ONE
+ * targeted re-read of the warning region (P3-2 / D7). The re-read uses
+ * the SAME preprocessed bytes the first pass saw — we hold the buffer
+ * map next to the response rather than bleeding bytes through the
+ * `ExtractionResponse` shape (the response is what the route handler
+ * logs / hashes; carrying buffers through it risks accidental
+ * logging per NFR-4). One re-read per application, no retry, shorter
+ * timeout — see `rereadWarning.ts`.
  */
 export async function extract(
   application: ExtractableApplication,
@@ -119,6 +133,15 @@ export async function extract(
       };
     }),
   );
+
+  // Side-table of preprocessed bytes keyed by FaceKind so the re-read
+  // step can crop from the exact bytes the model saw on the first pass.
+  // Stays scoped to this function so the bytes never escape the request
+  // lifecycle (NFR-4).
+  const preprocessedByKind = new Map<FaceKind, ProviderFaceInput>();
+  for (const f of preprocessedFaces) {
+    preprocessedByKind.set(f.kind, f);
+  }
 
   // 2. Build one request carrying all faces.
   const fieldSchema = fieldSchemaFor(application.beverageType);
@@ -144,8 +167,9 @@ export async function extract(
   const provider = getProvider();
   const modelStart = performance.now();
   let outcome: "ok" | "timeout" | "transient" | "error" = "ok";
+  let firstPass: ExtractionResponse | null = null;
   try {
-    const response = await withRetry(
+    firstPass = await withRetry(
       () =>
         withTimeout(
           (_signal) => provider.extract(request),
@@ -157,21 +181,20 @@ export async function extract(
         retryOn: isTransientError,
       },
     );
-    return response;
   } catch (err) {
     if (err instanceof TimeoutError) {
       outcome = "timeout";
-      return { faces: [], degraded: "timeout" };
-    }
-    if (isTransientError(err)) {
+      firstPass = { faces: [], degraded: "timeout" };
+    } else if (isTransientError(err)) {
       // Exhausted-retry transient error (e.g. provider 503 on both
       // attempts). The right behaviour is the same as a timeout — the
       // agent sees an actionable review-lane result, not a stack trace.
       outcome = "transient";
-      return { faces: [], degraded: "transient" };
+      firstPass = { faces: [], degraded: "transient" };
+    } else {
+      outcome = "error";
+      throw err;
     }
-    outcome = "error";
-    throw err;
   } finally {
     const modelMs = Math.round(performance.now() - modelStart);
     // Structured log line — id, face count, duration, outcome only.
@@ -189,4 +212,117 @@ export async function extract(
       }),
     );
   }
+
+  // 4. Post-first-pass targeted re-read (P3-2 / D7). Degraded responses
+  //    skip this entirely — there are no faces to inspect. Otherwise
+  //    pick the first face whose warning is present AND reported low
+  //    legibility; that's the slice worth a second look. The decision
+  //    lives in code (D4 + D5); the legibility flag is the model's
+  //    signal but the rule is ours.
+  if (firstPass && !firstPass.degraded && firstPass.faces.length > 0) {
+    return maybeRereadWarning({
+      provider,
+      applicationId: application.id,
+      firstPass,
+      preprocessedByKind,
+    });
+  }
+
+  return firstPass ?? { faces: [], degraded: "transient" };
+}
+
+/**
+ * Inspect the first-pass response for a low-legibility warning face and,
+ * if found, kick off the bounded targeted re-read (P3-2). One re-read
+ * per application — picks the first qualifying face. The warning is one
+ * field (D12), so one rescue attempt is enough.
+ */
+async function maybeRereadWarning(opts: {
+  provider: VisionProvider;
+  applicationId: string;
+  firstPass: ExtractionResponse;
+  preprocessedByKind: Map<FaceKind, ProviderFaceInput>;
+}): Promise<ExtractionResponse> {
+  const { provider, applicationId, firstPass, preprocessedByKind } = opts;
+
+  // Find the first face that (a) reports a warning present and (b) came
+  // back low-legibility. Iterating in face order is deterministic and
+  // gives us a clear "which slice did we try?" log entry.
+  const target = firstPass.faces.find(
+    (f) => f.warning.presence && f.warning.legibility === "low",
+  );
+  if (!target) {
+    return firstPass;
+  }
+
+  const sourceBytes = preprocessedByKind.get(target.kind);
+  if (!sourceBytes) {
+    // The face appeared in the response but not in our preprocessed
+    // map — shouldn't happen, but if it does we have nothing to crop.
+    // Keep the first-pass result; the triage classifier handles the
+    // low-legibility warning per FR-16.
+    return firstPass;
+  }
+
+  const rereadStart = performance.now();
+  const reread = await rereadWarning({
+    provider,
+    applicationId,
+    faceBytes: sourceBytes.bytes,
+    faceMime: sourceBytes.mime,
+    sourceFace: target.kind,
+    // Region hint is not surfaced through the current response shape
+    // (D4 keeps the wire payload minimal). When a future ticket adds a
+    // per-warning bounding box to the FaceExtraction, plumb it through
+    // here. Today the crop falls back to the back-face bottom 40%.
+    regionHint: undefined,
+  });
+  const rereadMs = Math.round(performance.now() - rereadStart);
+
+  // Structured log — PII-redacted per NFR-4. No transcribed text in
+  // the log values; the legibility-before / legibility-after pair is
+  // what observability needs to measure how often the re-read rescues.
+  // eslint-disable-next-line no-console
+  console.info(
+    JSON.stringify({
+      event: "extraction.reread",
+      applicationId,
+      sourceFace: target.kind,
+      attempted: reread.attempted,
+      legibilityBefore: target.warning.legibility,
+      legibilityAfter: reread.legibility,
+      durationMs: rereadMs,
+    }),
+  );
+
+  // Merge rule: replace the first-pass warning on the source face IFF
+  // the re-read succeeded AND came back with good legibility AND non-
+  // empty text. Anything else keeps the first-pass result — the triage
+  // classifier already routes a low-legibility warning to FR-16's
+  // "needs a better image" lane.
+  const shouldMerge =
+    reread.attempted &&
+    reread.legibility === "good" &&
+    reread.warningText.length > 0;
+  if (!shouldMerge) {
+    return firstPass;
+  }
+
+  const mergedFaces: FaceExtraction[] = firstPass.faces.map((f) => {
+    if (f.kind !== target.kind) return f;
+    return {
+      kind: f.kind,
+      fields: {
+        ...f.fields,
+        government_warning: reread.warningText,
+      },
+      warning: {
+        presence: f.warning.presence,
+        allCaps: reread.allCaps,
+        boldConfident: reread.boldConfident,
+        legibility: "good",
+      },
+    };
+  });
+  return { ...firstPass, faces: mergedFaces };
 }
