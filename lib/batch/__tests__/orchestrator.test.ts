@@ -133,8 +133,15 @@ describe("lib/batch/orchestrator", () => {
     expect(done).toBe(19);
     expect(failed).toBe(1);
     const failedItem = live.items.find((i) => i.status === "failed")!;
-    expect(failedItem.error?.code).toBe("pipeline_error");
-    expect(failedItem.error?.message).toBe("synthetic failure");
+    // P3-3: orchestrator funnels every thrown item through
+    // `toStructuredError`. A plain `Error` carries no transient signal,
+    // so it lands as `INTERNAL` with the defensive UI message — not the
+    // raw `err.message`. That's the NFR-4 guarantee: error messages are
+    // shape-only, never PII or stack content.
+    expect(failedItem.error?.code).toBe("INTERNAL");
+    expect(typeof failedItem.error?.message).toBe("string");
+    expect((failedItem.error?.message ?? "").length).toBeGreaterThan(0);
+    expect(failedItem.error?.retryable).toBe(true);
   });
 
   it("returns silently for a missing job", async () => {

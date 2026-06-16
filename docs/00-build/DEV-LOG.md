@@ -4,6 +4,74 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P3-3 Error-handling pass
+
+**Branch:** `feat/errors`
+**Status:** Done
+
+**Workflow note:** Single-agent build. P3-3 is a hardening sweep across multiple existing files — the changes are tightly coupled (every entry point reads the same `StructuredError` shape), so parallel agents would have added coordination overhead without speedup.
+
+**What landed:**
+- `lib/errors/types.ts` — `StructuredError` discriminated union (`INVALID_INPUT | UNREADABLE_IMAGE | PROVIDER_TIMEOUT | PROVIDER_RATE_LIMIT | PROVIDER_UNAVAILABLE | INTERNAL`) with `message`, `retryable`, optional `recommendation`, optional `fields`. Six small helpers: `invalidInput`, `unreadableImage`, `providerTimeout`, `providerRateLimit`, `providerUnavailable`, `internalError` — each composes the right shape with `retryable` set appropriately.
+- `lib/errors/toResult.ts` — `toDegradedResult(applicationId, err)` converts a structured error into a `VerificationResult` shape so the agent's UI renders one shape for both success and degraded outcomes (FR-16 / FR-26b posture). UNREADABLE_IMAGE + PROVIDER_* all carry `recommendation: "return_unreadable_image"` so the existing `<UnreadableBanner>` renders consistently. INVALID_INPUT is NOT routed through this — it stays a 4xx with the structured `error/fields` shape.
+- `lib/provider/withTimeout.ts` — added `toStructuredError(err)` at the module boundary. `TimeoutError` → `providerTimeout(ms)`; objects with `status: 429` → `providerRateLimit`; `5xx` → `providerUnavailable`; non-transient errors → `internalError`. Stored `ms` on `TimeoutError` so the structured shape carries the deadline.
+- `lib/provider/types.ts` — `ExtractionResponse.degradedError?: StructuredError` added; legacy `degraded: "timeout" | "transient"` kept so existing route-handler tests continue to pass unchanged.
+- `lib/extraction/service.ts` — degraded paths now populate `degradedError` via `toStructuredError`. Behaviour preserved; richer downstream signal added.
+- `lib/verify/runVerification.ts` — funnels degraded extraction through `toDegradedResult` (uses `degradedError` when present, falls back to the legacy `buildTimeoutResult` shape). Unreadable-face short-circuit uses `unreadableImage` + `toDegradedResult`. Non-transient extraction throw maps to `internalError` instead of papering over as unreadable (a real defect now surfaces as INTERNAL with a defensive flag, not as a fake unreadable result).
+- `lib/batch/types.ts` — `BatchItem.error` typed as `StructuredError | undefined` (was a loose `{ code: string; message: string }`).
+- `lib/batch/orchestrator.ts` — caught errors normalized through `toStructuredError`. Per-item try/catch already existed; the captured value is now structured.
+- `lib/batch/__tests__/orchestrator.test.ts` — failed-item assertions updated to the new `StructuredError` shape (`code: "INTERNAL"`, `retryable: true`, defensive message).
+- `app/api/batch/route.ts` — pre-failed item seeds use `invalidInput(message, fields)` instead of the loose object literal. Behaviour identical; shape canonical.
+- `app/batch/[id]/page.tsx` + `app/batch/[id]/types.ts` — `FailedPanel` renders the structured `code` pill + `message` + per-item Retry button. Retry button is hidden when `error.retryable === false` (so `INVALID_INPUT` items don't show one). On retry success, the item moves out of the failed panel into the right lane bucket.
+- `tests/errors/scenarios.test.ts` — 8 new tests covering the audit table end-to-end.
+
+**Audit table covered (the bad-input scenarios the ticket asked for):**
+
+| Code | Scenario | Outcome |
+| --- | --- | --- |
+| INVALID_INPUT | `mime: "application/pdf"` on a face | 400 with plain message naming the offending field; no zod path leak |
+| INVALID_INPUT | `brandName: ""` on a distilled-spirits form | 400 names the missing field |
+| UNREADABLE_IMAGE | Empty face fields + `warning.presence: false` | 200, lane `review`, `extractionFailed: true`, `recommendation: "return_unreadable_image"` (AC-6) |
+| PROVIDER_TIMEOUT | `TimeoutError` thrown twice by the spy provider | 200, degraded lane=review with the "Could not verify in time" message; 2 attempts (D10 retry budget) |
+| PROVIDER_UNAVAILABLE | `{ status: 503 }` twice | 200, degraded lane=review with the "temporarily unavailable" message |
+| PROVIDER_RATE_LIMIT | `{ status: 429 }` twice | 200, degraded lane=review with the "temporarily unavailable" message |
+| Batch malformed body | Body missing both `count` and `applications` | 400 with plain message |
+| Batch mixed | Good item + missing-brand item in the same batch | Good item ends `status: "done"`; bad item ends `status: "failed"` with `code: "INVALID_INPUT"`, `retryable: false` |
+
+**Verification:**
+- `pnpm test` — 36 files, **308 tests pass + 1 skipped** (300 prior + 8 new).
+- `pnpm build` — clean.
+- `pnpm lint` — clean.
+- All existing route handler tests (`app/api/verify/__tests__/route.test.ts`) pass unchanged — observable shapes preserved.
+
+**Deviations from ticket:**
+- The provider-failure helpers (`providerTimeout`, `providerRateLimit`, `providerUnavailable`) all carry `recommendation: "return_unreadable_image"` so the `<UnreadableBanner>` surfaces consistently for every "can't verify" outcome. The ticket suggested only `UNREADABLE_IMAGE` carries the recommendation, but the existing `buildTimeoutResult` shape from P1-9 already set the same recommendation on timeouts; preserving it keeps the existing test suite green and the agent's mental model consistent ("I couldn't verify, please re-upload" applies to slow providers too, not just to actually-bad images).
+- `internalError` has `retryable: true` (a transient unknown is worth one user retry) but no `recommendation` — INTERNAL is not "needs a better image"; it's "something unexpected happened, try again". Matches the spec.
+- The `unreadableImage` helper still cites face names in the message ("Front face is unreadable — please re-upload a clearer image.") so the existing AC-6 test (`flags[0].toLowerCase()).toContain("front")`) still passes. The wording is unchanged from `buildUnreadableResult`; the only difference is the path it travels (through `StructuredError` now).
+- `lib/verify/result.ts`'s `buildUnreadableResult` helper is now unreferenced but left in place — defensive; a hardening pass shouldn't strip exports that other files might still rely on.
+- The poll endpoint's wire shape carries `BatchItem.faces` as serialized `Buffer` objects. Bandwidth-heavy on large batches. Flagged for a future cleanup (switch to base64 strings or a thumbnail handle).
+
+**Why:**
+P3-3 is the rule that says "bad inputs are normal outcomes, not errors". Every prior phase built up that posture in pieces — P1-7's structured unreadable response, P1-9's degraded-on-timeout, P3-1's per-item batch failure — and P3-3 systematises it. One `StructuredError` shape, six codes, one converter to a degraded `VerificationResult`, one rendering surface in the UI. The agent's mental model collapses from "result or error" to "always a result, sometimes degraded with a recommendation". That's exactly the Error Handling discipline from systemsdesign.md materialised in code.
+
+The **discriminated-union `StructuredError`** (not an `Error & { code?: string }` patchwork) is the type system's leverage. Every consumer pattern-matches on `code`; missing a code is a compile error. Adding a new code in the future means adding a new helper, a new toResult branch, and getting compile errors at every existing consumer — exactly the right place to be reminded that you need to update the UI. The alternative — a loose `Error` with a `.code` property — would let a typo slip through and a UI branch silently drop the case.
+
+The **one converter (`toDegradedResult`)** is the structural enforcement of "success and degraded render the same way". Both the verify route and the batch orchestrator route every non-INVALID_INPUT failure through this converter; the consuming UI components don't have separate "success path" and "error path" rendering — they have one rendering path that reads `extractionFailed`, `recommendation`, and `flags[]`. The `<UnreadableBanner>` from P1-8 already handles every recommendation; nothing in the UI had to change for the timeout / 503 / 429 cases.
+
+The **INVALID_INPUT carve-out from `toDegradedResult`** is the right boundary. A wrong file mime or a missing field isn't a "we couldn't verify"; it's a "you sent something that can't be verified". The right response is a 4xx with the field reference, not a synthetic 200 result that says "review". The discriminated union makes this a structural fact: the converter takes a `StructuredError` and the only code it refuses to convert is INVALID_INPUT, which the route handlers funnel to 400 directly. A future maintainer who tries to route INVALID_INPUT through `toDegradedResult` will see the explicit "not converted" branch and (hopefully) ask why.
+
+The **`internalError` mapping for unexpected throws** is the honest path. Before P3-3, the route handler's `catch` block for an extraction failure mapped to `buildUnreadableResult` — which papered over real defects as "image unreadable". After P3-3, an unexpected throw maps to `internalError` with the defensive flag "Something unexpected happened. Please try again." The agent's user-facing surface is still actionable (retry button), but the operator-facing log carries the actual error so the right person knows there's a real bug to fix. NFR-4 still holds — the user-facing message is generic; the log carries the structural detail.
+
+The **batch-side `BatchItem.error: StructuredError`** is the type the UI needs. The retry button can read `retryable` and hide itself for `INVALID_INPUT`; the code pill renders the error class so the supervisor can spot patterns ("all my 503s came from a 60-second window — provider had an outage"). The previous loose `{ code: string; message: string }` would have required string-matching in the UI to decide whether to show the retry button — a brittle pattern the discriminated union eliminates.
+
+The **per-item Retry button** is the small-but-load-bearing affordance for a real workflow. In a 300-app batch, a supervisor doesn't want to re-submit the whole batch because two items failed transiently. The Retry button posts just the failed item's data to `/api/verify` and, on success, moves the item out of the failed panel into the right lane bucket. The batch becomes incrementally fixable; the supervisor doesn't lose progress on the 298 that worked.
+
+The **audit-table test suite** is the proof the ticket holds. Eight scenarios, eight assertions, all running in CI on every commit. A future change that breaks the unreadable lane's recommendation surface, or that lets a zod path leak, or that aborts the batch on a malformed item, fails one of these tests immediately. Phase 5's eval harness will add a broader regression set; P3-3 has the hardening-specific guardrails for free.
+
+**Next:** P3-4 — Performance hardening. The 5s p95 budget under concurrent load + the cold-start path, with the bounded-concurrency seam already in place from P3-1.
+
+---
+
 ## 2026-06-15 — P3-2 Imperfect-image robustness
 
 **Branch:** `feat/imperfect-images`

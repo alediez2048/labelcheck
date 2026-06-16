@@ -23,6 +23,14 @@
  * transient infrastructure noise, not for masking real defects.
  */
 
+import {
+  internalError,
+  providerRateLimit,
+  providerTimeout,
+  providerUnavailable,
+  type StructuredError,
+} from "@/lib/errors/types";
+
 /**
  * Thrown by `withTimeout` when the wrapped function does not settle
  * within the deadline. Used by `withRetry` to distinguish "this is
@@ -30,9 +38,11 @@
  */
 export class TimeoutError extends Error {
   readonly kind = "timeout" as const;
+  readonly ms: number;
   constructor(ms: number) {
     super(`Provider call timed out after ${ms}ms`);
     this.name = "TimeoutError";
+    this.ms = ms;
   }
 }
 
@@ -134,4 +144,46 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+/**
+ * Module-boundary helper: convert whatever the provider stack threw into
+ * a `StructuredError` the verify / batch routes can render uniformly.
+ *
+ * - `TimeoutError` → `PROVIDER_TIMEOUT`.
+ * - Anything with `status: 429` → `PROVIDER_RATE_LIMIT`.
+ * - Anything with `5xx` status, or an obvious transient name/code
+ *   (AbortError, FetchError, ECONNRESET, ETIMEDOUT) → `PROVIDER_UNAVAILABLE`.
+ * - Anything else → `INTERNAL` (defensive — we never leak `err.message`).
+ *
+ * The `withTimeout` + `withRetry` helpers continue to throw their original
+ * errors internally; this helper is what the caller invokes at the seam to
+ * normalize the outcome.
+ */
+export function toStructuredError(err: unknown): StructuredError {
+  if (err instanceof TimeoutError) {
+    return providerTimeout(err.ms);
+  }
+  if (err && typeof err === "object") {
+    const e = err as { name?: unknown; status?: unknown; code?: unknown };
+    if (typeof e.status === "number") {
+      if (e.status === 429) return providerRateLimit();
+      if (e.status >= 500 && e.status < 600) return providerUnavailable();
+    }
+    if (typeof e.name === "string") {
+      if (
+        e.name === "AbortError" ||
+        e.name === "FetchError" ||
+        e.name === "TimeoutError"
+      ) {
+        return providerUnavailable();
+      }
+    }
+    if (typeof e.code === "string") {
+      if (e.code === "ECONNRESET" || e.code === "ETIMEDOUT") {
+        return providerUnavailable();
+      }
+    }
+  }
+  return internalError();
 }

@@ -32,6 +32,7 @@ import batchConfig from "@/config/batch.json";
 import { runBatch } from "@/lib/batch/orchestrator";
 import { createJobWithFailures } from "@/lib/batch/store";
 import type { BatchItem } from "@/lib/batch/types";
+import { invalidInput } from "@/lib/errors/types";
 import { validateApplication } from "@/lib/validation/application";
 import type { BeverageType, FaceKind } from "@/types";
 import type { SampleForm } from "@/fixtures/samples";
@@ -307,10 +308,10 @@ function seedFromExplicit(app: ParsedApplication): SeedItem {
         form: app.form,
         faces: [],
         status: "failed",
-        error: {
-          code: "invalid_face_bytes",
-          message: `Face ${face.kind} bytes could not be decoded.`,
-        },
+        error: invalidInput(
+          `Face ${face.kind} bytes could not be decoded.`,
+          [`faces.${face.kind}.bytes`],
+        ),
       };
     }
     decodedFaces.push({ kind: face.kind, bytes, mime: face.mime });
@@ -326,6 +327,7 @@ function seedFromExplicit(app: ParsedApplication): SeedItem {
     faces: decodedFaces,
   });
   if (!validation.ok) {
+    const fieldNames = Object.keys(validation.fieldErrors);
     const firstMessage =
       Object.values(validation.fieldErrors)[0] ??
       validation.formErrors[0] ??
@@ -337,7 +339,7 @@ function seedFromExplicit(app: ParsedApplication): SeedItem {
       form: app.form,
       faces: [],
       status: "failed",
-      error: { code: "validation_error", message: firstMessage },
+      error: invalidInput(firstMessage, fieldNames),
     };
   }
 

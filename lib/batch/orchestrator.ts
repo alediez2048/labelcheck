@@ -18,6 +18,7 @@
 
 import pLimit from "p-limit";
 
+import { toStructuredError } from "@/lib/provider/withTimeout";
 import {
   runVerification,
   type RunVerificationInput,
@@ -75,14 +76,18 @@ export async function runBatch(
           updateItem(jobId, itemId, { status: "done", result });
         } catch (err) {
           // A thrown error is contained at the item boundary so the rest
-          // of the batch continues (systemsdesign Error Handling;
-          // expanded in P3-3). The `pipeline_error` code is the only one
-          // emitted today — P3-3 will introduce more granular codes
-          // alongside provider error classification.
-          const message = err instanceof Error ? err.message : String(err);
+          // of the batch continues (systemsdesign Error Handling). The
+          // thrown error is normalised to a `StructuredError` via the
+          // module-boundary helper so the failed-items panel renders the
+          // same code vocabulary as the verify path (P3-3). The pipeline
+          // already swallows expected failures (degraded provider,
+          // unreadable image) inside `runVerification`, so anything that
+          // reaches here is by definition unexpected and maps to
+          // `INTERNAL`; `toStructuredError` will downgrade to a more
+          // specific code if the thrown shape carries a transient signal.
           updateItem(jobId, itemId, {
             status: "failed",
-            error: { code: "pipeline_error", message },
+            error: toStructuredError(err),
           });
         }
       }),

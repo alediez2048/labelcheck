@@ -8,6 +8,7 @@
  * stable.
  */
 
+import type { StructuredError } from "@/lib/errors/types";
 import type { BeverageType, FaceKind, VerificationResult } from "@/types";
 import type { SampleForm } from "@/fixtures/samples";
 
@@ -42,7 +43,12 @@ export type BatchItem = {
   }>;
   status: BatchItemStatus;
   result?: VerificationResult;
-  error?: { code: string; message: string };
+  /**
+   * Populated when status transitions to `failed`. P3-3 normalised this
+   * to the shared `StructuredError` shape so the failed-items panel
+   * renders the same code/message vocabulary as the verify path.
+   */
+  error?: StructuredError;
 };
 
 export type BatchJob = {

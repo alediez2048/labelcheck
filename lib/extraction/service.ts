@@ -21,6 +21,7 @@ import type {
 import {
   isTransientError,
   TimeoutError,
+  toStructuredError,
   withRetry,
   withTimeout,
 } from "@/lib/provider/withTimeout";
@@ -184,13 +185,24 @@ export async function extract(
   } catch (err) {
     if (err instanceof TimeoutError) {
       outcome = "timeout";
-      firstPass = { faces: [], degraded: "timeout" };
+      // P3-3: alongside the legacy `degraded` enum, attach the structured
+      // error so the route handler can route through `toDegradedResult`
+      // without re-classifying the cause.
+      firstPass = {
+        faces: [],
+        degraded: "timeout",
+        degradedError: toStructuredError(err),
+      };
     } else if (isTransientError(err)) {
       // Exhausted-retry transient error (e.g. provider 503 on both
       // attempts). The right behaviour is the same as a timeout — the
       // agent sees an actionable review-lane result, not a stack trace.
       outcome = "transient";
-      firstPass = { faces: [], degraded: "transient" };
+      firstPass = {
+        faces: [],
+        degraded: "transient",
+        degradedError: toStructuredError(err),
+      };
     } else {
       outcome = "error";
       throw err;
@@ -228,7 +240,13 @@ export async function extract(
     });
   }
 
-  return firstPass ?? { faces: [], degraded: "transient" };
+  return (
+    firstPass ?? {
+      faces: [],
+      degraded: "transient",
+      degradedError: toStructuredError(new Error("Unknown extraction failure")),
+    }
+  );
 }
 
 /**

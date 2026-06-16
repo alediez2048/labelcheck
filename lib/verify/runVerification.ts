@@ -12,6 +12,11 @@
  * D4 / D5: model reads, code decides; never let model verdicts leak.
  */
 
+import { toDegradedResult } from "@/lib/errors/toResult";
+import {
+  internalError,
+  unreadableImage,
+} from "@/lib/errors/types";
 import { extract, type ExtractableApplication } from "@/lib/extraction/service";
 import { matchApplication } from "@/lib/matching/match";
 import type { SampleForm } from "@/fixtures/samples";
@@ -24,9 +29,14 @@ import type {
 import {
   buildSuccessResult,
   buildTimeoutResult,
-  buildUnreadableResult,
   unreadableFaces,
 } from "./result";
+
+const FACE_LABELS: Readonly<Record<FaceKind, string>> = {
+  front: "Front",
+  back: "Back",
+  neck: "Neck",
+};
 
 export type RunVerificationInput = {
   applicationId: string;
@@ -61,34 +71,43 @@ export async function runVerification(
 
   // 2. Run extraction. An extraction-pipeline failure (decode error,
   //    provider exception that isn't transient) is treated as an
-  //    unreadable input rather than a thrown error (FR-16).
+  //    INTERNAL structured error rather than a thrown error — the agent
+  //    sees a defensive review-lane result, not a stack trace (P3-3).
   let extraction;
   try {
     extraction = await extract(extractable);
   } catch {
-    const allFaces = extractable.faces.map((f) => f.kind);
-    return buildUnreadableResult({
-      applicationId: input.applicationId,
-      unreadable: allFaces,
-    });
+    return toDegradedResult(input.applicationId, internalError());
   }
 
   // 3a. Short-circuit on a degraded extraction (D10 — timeout or
-  //     exhausted-retry transient).
+  //     exhausted-retry transient). P3-3 prefers the structured-error
+  //     `degradedError` field when present; the legacy
+  //     `buildTimeoutResult` is the defensive fallback for older
+  //     extraction outputs.
   if (extraction.degraded) {
+    if (extraction.degradedError) {
+      return toDegradedResult(input.applicationId, extraction.degradedError);
+    }
     return buildTimeoutResult({
       applicationId: input.applicationId,
       degraded: extraction.degraded,
     });
   }
 
-  // 3b. Short-circuit if any face is unreadable (FR-26b).
+  // 3b. Short-circuit if any face is unreadable (FR-26b). The structured
+  //     `UNREADABLE_IMAGE` error carries the FR-26b recommendation; the
+  //     reason message names the affected face(s) so the agent knows
+  //     which artwork to look at.
   const unreadable = unreadableFaces(extraction);
   if (unreadable.length > 0) {
-    return buildUnreadableResult({
-      applicationId: input.applicationId,
-      unreadable,
-    });
+    const reason = unreadable
+      .map(
+        (f) =>
+          `${FACE_LABELS[f]} face is unreadable — please re-upload a clearer image.`,
+      )
+      .join(" ");
+    return toDegradedResult(input.applicationId, unreadableImage(reason));
   }
 
   // 4. Match → triage.
