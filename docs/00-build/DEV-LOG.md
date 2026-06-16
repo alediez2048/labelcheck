@@ -4,6 +4,73 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P4-1 Knowledge base store and ingestion — Phase 4 begins
+
+**Branch:** `feat/knowledge-base`
+**Status:** Done
+
+**Workflow note:** Sixth parallel-agent build. Agent A: data layer (types, store, parser, chunker, embedder, search, ingest orchestrator, lib tests, seed fixture). Agent B: upload UI + API routes (POST /api/kb/upload, GET /api/kb/sources, dropzone, sources list with status badges, page with poll loop). Contract-first dispatch — `KnowledgeBaseSource` + `ingestUpload(input): IngestKickoff` + the API request/response shapes dictated upfront. Agent A's response stream errored mid-run but the file writes had already committed to disk; the resulting state passed lint + build + tests on first verification. Agent B finished cleanly and reported the expected build-time module-resolution gap, which closed when Agent A's files were inspected.
+
+**One runtime bug found during smoke and fixed in the orchestrator step:** `pdf-parse@2.4.5` loads `pdfjs-dist@5.4.296` at module-load time, and `pdfjs-dist` fails under Next.js's RSC webpack runtime with `"Object.defineProperty called on non-object"`. The static `import { PDFParse } from "pdf-parse"` at the top of `lib/kb/parse.ts` ran on every upload route boot, breaking even Markdown uploads. Fix: lazy `await import("pdf-parse")` inside the PDF branch only. Markdown / DOCX / TXT uploads never load pdfjs. Documented inline.
+
+**What landed:**
+
+### Data layer (Agent A)
+- `types/kb.ts` — `IngestStatus` enum (queued / indexing / ready / failed), `KnowledgeBaseSource`, `KnowledgeBaseChunk`, `KnowledgeBaseEmbedder`, `KnowledgeBaseStore`. Mirrors `knowledge_base` from `docs/02-design/schema.md`.
+- `lib/kb/store.ts` — module-level `Map<filename, version[]>` + `Map<filename, chunks[]>` with a `singleton getStore()` accessor. On every mutation, writes a JSON file under `.data/kb/<filename>.json` containing `{ source, history, chunks }`. On first import, rehydrates from disk if any files exist. NFR-4: KB content is admin-uploaded reference material (not applicant PII), so file-backed local store is acceptable; documented inline.
+- `lib/kb/parse.ts` — mime dispatch over four parsers. PDF lazy-imports `pdf-parse` inside the branch (fix above). DOCX uses `mammoth.extractRawText`. Markdown / Plain are direct `bytes.toString("utf8")`. PDF result is rejected with "no extractable text — re-upload as DOCX or MD" when output is < 20 chars (catches image-only TTB-style PDFs).
+- `lib/kb/chunk.ts` — paragraph-aware split on `\n\n+`. Aggregates to a ~500-word target (rough 650-token proxy; documented). Carries the previous chunk's last paragraph forward as overlap. Title = first 100 chars trimmed at first newline. Always returns at least one chunk on non-empty input.
+- `lib/kb/embed.ts` — `MockEmbedder` returns a deterministic 384-dim unit vector derived from FNV-1a hash over the text bytes. `getEmbedder()` is the swappable seam (production: Voyage AI or OpenAI text-embedding-3-small documented inline).
+- `lib/kb/search.ts` — `searchByEmbedding(store, queryEmbedding, limit)` performs brute-force cosine similarity over all CURRENT chunks. Production swap path: pgvector `embedding <=> $1 LIMIT k`.
+- `lib/kb/ingest.ts` — `ingestUpload(input)` returns `{ sourceFilename, version }` immediately. Kicks off the parse → chunk → embed → upsert background pipeline via `setImmediate`. Status transitions: queued → indexing → ready (on success) or → failed (on any throw, with `errorReason` captured). On re-upload, the prior version's `effective_to` is set instead of being deleted.
+- `fixtures/kb/sample-warning-guidance.md` — seed help doc about handling government-warning issues (title-case heading, missing warning, bold-uncertain). DOES NOT include the verbatim 27 CFR § 16.21 text (that's the Configuration store's job per CONTEXT.md's "Knowledge base vs Configuration store" distinction).
+- `tests/lib/kb/{chunk,search,ingest}.test.ts` — 12 new tests covering chunk size + overlap + title derivation; cosine ranking with the mock embedder (same-text self-rank assertion to bound the structural-mock limitation); ingest status transitions on success / parse-error / re-upload version bump.
+- `package.json` — `pdf-parse@^2.4.5` and `mammoth@^1.9.1` runtime deps; `@types/pdf-parse@^1.1.5` dev dep.
+- `.gitignore` — `.data/` added.
+
+### UI + API (Agent B)
+- `app/api/kb/upload/route.ts` — POST multipart handler. Pulls `file` + `uploadedBy` from `req.formData()`. Validates: file present, mime in `{application/pdf, vnd.openxmlformats-officedocument.wordprocessingml.document, text/markdown, text/plain}`, size ≤ 12 MB. Calls `ingestUpload`. Returns 202 with `{ sourceFilename, version }`. The prototype trusts the client's `uploadedBy`; production auth context replaces this — documented inline.
+- `app/api/kb/sources/route.ts` — GET returns `{ sources: getStore().listSources() }`.
+- `components/kb/UploadDropzone.tsx` — client component. Drag-and-drop area + "Choose file" button (accepts `.pdf,.docx,.md,.txt`). On file select, POSTs `FormData` with `file + uploadedBy`. Inline spinner during upload; emerald success / rose error notice. Supports a `replaceModeFor` caption for the Replace-with-new-version affordance.
+- `components/kb/SourcesList.tsx` — per-source row with filename + topic + version badge + status pill (slate `⏳ queued`, amber `… indexing`, emerald `✓ ready`, rose `✕ failed` with `errorReason` inline) + chunk count (mono, right-aligned) + uploadedBy + relative timestamp + Replace button.
+- `app/(admin)/knowledge-base/page.tsx` — replaces the P2-5 placeholder. Composes the dropzone + sources list. Polls `/api/kb/sources` every 800ms, chained off the previous fetch's resolution so slow responses don't stack. Stops polling when no source is `queued` or `indexing`. Reads `currentAgent.id` from `useQueue()` for the upload's `uploadedBy` field.
+
+**Verification:**
+- `pnpm test` — 40 files, **324 tests pass + 1 skipped** (312 prior + 12 new across the three KB suites).
+- `pnpm build` — clean; new routes `/api/kb/upload` and `/api/kb/sources` in the manifest.
+- `pnpm lint` — clean.
+- Manual end-to-end smoke (via curl, with `pnpm dev` running):
+  - `GET /api/kb/sources` on empty store → `{"sources":[]}`.
+  - `POST /api/kb/upload` with `sample-warning-guidance.md` → 202 with `{"sourceFilename":"sample-warning-guidance.md","version":1}`.
+  - `GET /api/kb/sources` 2s later → `sample-warning-guidance.md ready v1 chunks: 1`.
+  - Re-upload same filename → 202 with `version: 2`; the listed source now shows `v2 effectiveFrom:<new>`; `.data/kb/sample-warning-guidance.md.json` carries the v1 row in `history[]` with `effectiveTo` set.
+
+**Deviations from ticket:**
+- `lib/kb/parse.ts` lazy-imports `pdf-parse` inside the PDF branch. The static import was correct per the ticket but broke at runtime under Next 15.5's RSC webpack bundling (the loader chain instantiates `pdfjs-dist` at module load and trips an `Object.defineProperty` guard). The lazy import is the minimal fix that lets the upload route boot even for non-PDF uploads. Documented inline at the seam.
+- Agent A's response stream errored mid-completion (Anthropic API internal server error). The file writes had already landed; nothing was missing. Caught during the orchestrator verify step.
+- The embedder is mock-only by default. Production swap targets (Voyage AI for Anthropic pipelines, OpenAI `text-embedding-3-small` for OpenAI) are documented at `getEmbedder()`. The retrieval tests in P4-2 will validate the structural correctness of the search; the semantic quality lands when a real embedder is configured (out of scope for the prototype).
+- The "Replace with new version" affordance is the simplest workflow per the prompt: clicking Replace scrolls to the main dropzone with a "Replace mode for <filename>" caption. The actual version bump happens server-side via the filename-match rule in `ingestUpload`. No separate API endpoint or file-rename UX.
+- Agent A's `lib/kb/store.ts` exposes `getStore(): KnowledgeBaseStore` rather than the contract's named exports `listSources()` and `getSource()`. Agent B's route handler adapted to call `getStore().listSources()`. Functionally equivalent; the public seam is the same.
+
+**Why:**
+P4-1 opens Phase 4 with the corpus the assistant in P4-2 is allowed to cite from — and only from. The design principle is the same one CONTEXT.md draws between Knowledge base and Configuration store: the KB holds best-practice help articles and onboarding guidance; the config store holds the regulatory rules (the verbatim warning text, tolerances, fields-by-type) the matching engine uses. Mixing them would mean the assistant could quote a calibration value as if it were a help-doc citation, blurring "what the system knows" with "what the supervisor told the system to say". The two stores stay separate by design.
+
+The **`KnowledgeBaseStore` interface as the production seam** is the discipline that lets pgvector drop in without touching the route layer. The prototype's in-memory + file-backed implementation IS the structural smoke; the contract — `upsertSource`, `upsertChunks`, `listSources`, `getSource`, `listChunks`, `listCurrentChunks`, `supersedeSource` — maps one-for-one onto pgvector queries: insert vs update vs `SELECT WHERE effective_to IS NULL`, etc. Schema.md's `knowledge_base` table is the production target; the column shape matches what `KnowledgeBaseSource` and `KnowledgeBaseChunk` carry. The swap is a persistence change at one file, not a refactor across the app.
+
+The **`setImmediate` background ingest** is the right shape for the prototype because the spec says "off the request path" (Assistant section of systemsdesign). A real queue (BullMQ, Inngest, or pgvector's own ingestion path) lands in production; the prototype's `setImmediate` is the structural equivalent — the upload route returns 202 with the kickoff id, the background callback does the parse + embed + upsert, the UI polls the sources endpoint to watch the status transition. The user never sees a hung upload while the embed runs.
+
+The **versioning rule** — re-upload bumps version, sets prior `effective_to`, keeps the prior chunks for audit — is the structural enforcement of "the assistant's trace ties back to the version that was retrieved at the time" (observability.md Component B). Deleting and overwriting on re-upload would make P5-1's traces lie: a trace that says "retrieved chunk X" on Monday would have no way to know that "chunk X" had been replaced by Tuesday. The version-and-supersede pattern means every trace is reproducible against the exact chunks that were live at trace time. The same pattern lives on `rule_config` per schema.md; this ticket mirrors it for `knowledge_base`.
+
+The **mock embedder with deterministic hash-derived vectors** is the right scope for the prototype's retrieval test surface. A real embedder (Voyage AI, OpenAI `text-embedding-3-small`) costs money on every chunk + every query; the prototype doesn't want that cost on every CI run. The mock embedder's structural property — same text → same vector — is what `tests/lib/kb/search.test.ts` asserts (same-text-self-rank). Semantic quality belongs to the real embedder; the prototype's job is to validate the seam, the pipeline, and the storage shape. P4-2's retrieval surface will read this same mock by default; a configured real embedder ships when the take-home reviewer wants to demo semantic quality, which is one env-var flip away.
+
+The **lazy `pdf-parse` import** is a small but load-bearing fix. The "static import at module load" pattern broke the entire upload route — even a Markdown upload would crash because the route handler's import chain ran. The lazy import inside the PDF branch only means the PDF library cost (and its known Next.js bundling pitfalls) are paid by PDF uploads only. The other three file types load nothing extra. A future maintainer who sees the lazy import should know WHY — the inline comment cites the actual error message and the Next.js + pdfjs-dist incompatibility.
+
+The **content of `sample-warning-guidance.md`** matters as much as the pipeline. The fixture is ABOUT the warning check — title-case heading, missing warning, bold-uncertain — not the warning itself. If the canonical 27 CFR § 16.21 text lived in the KB, an admin who edited it via the upload flow would silently change the matching engine's behaviour, which is exactly what CONTEXT.md says should never happen. The verbatim text stays in `config/warning.json` (the Configuration store); the KB cites the help article that says "here's what to do when the warning's bold flag comes back uncertain". The two stores serve two different concerns, on purpose.
+
+**Next:** P4-2 — Assistant chat surface. The retrieval seam (`searchByEmbedding`) is ready; the chat endpoint runs the user's question through the embedder, retrieves the top-k chunks, and asks the model to ANSWER GROUNDED in those chunks only — declining gracefully when retrieval returns nothing (the seed fixture is what makes the demo path real).
+
+---
+
 ## 2026-06-15 — P3-4 Performance hardening — Phase 3 complete
 
 **Branch:** `feat/perf`

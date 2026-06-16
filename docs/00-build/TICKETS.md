@@ -236,10 +236,10 @@ Phase 3 exit: a 300-application batch completes with progress and grouped result
 
 Description: the read-only chat helper and the admin-managed grounding source it answers from.
 
-### P4-1 — Knowledge base store and ingestion
-- Depends: P2-5 · Branch: feat/kb-ingest · Est: 4h
+### P4-1 — Knowledge base store and ingestion ✅ done 2026-06-15
+- Depends: P2-5 · Branch: feat/knowledge-base · Est: 4h
 - Goal: upload documents, chunk, embed, index; admin Knowledge Base tab with per-document status.
-- Acceptance: [ ] upload PDF/DOCX/MD/TXT; [ ] chunked + embedded (pgvector in prod); [ ] status shown; [ ] versioned.
+- Acceptance: [x] upload PDF / DOCX / MD / TXT (mime allow-list at the route + parser dispatch); [x] chunked (paragraph-aware, ~500-word target with overlap) + embedded (mock 384-dim FNV-1a hash vectors — production swap to Voyage AI or OpenAI documented at the seam); [x] file-backed prototype store under `.data/kb/` (gitignored; pgvector in prod via the same `KnowledgeBaseStore` interface); [x] per-document status badge transitions queued → indexing → ready → failed; [x] versioned (re-upload bumps version, sets prior version's `effective_to` instead of overwriting); [x] admin-only (route under the `(admin)` shell + UI hide; production server-side auth context replaces the prototype's client-provided `uploadedBy`); [x] smoke-verified end-to-end via curl: upload MD → 202 with `{sourceFilename, version}` → poll shows `ready, v1, 1 chunk`; re-upload bumps to v2 with v1 in history carrying `effectiveTo`.
 - Refs: FR-31; schema knowledge_base.
 
 ### P4-2 — Retrieval-grounded assistant

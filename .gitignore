@@ -41,3 +41,8 @@ data/sample-colas/fail/images/
 # Memory directory is private per-machine
 memory/
 *.tsbuildinfo
+
+# Knowledge base file-backed prototype store (admin-uploaded reference
+# material per NFR-4 — no applicant PII — but still gitignored so the
+# repo doesn't carry per-machine indexed corpora).
+.data/
