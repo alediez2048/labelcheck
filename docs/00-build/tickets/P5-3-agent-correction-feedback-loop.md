@@ -169,3 +169,49 @@ Every disposition now teaches the tool. Agreement and override are tracked live,
 ```
 (none — JSONL append and sampling are pure stdlib)
 ```
+
+---
+
+## Outcome — done 2026-06-16
+
+**Branch:** `feat/feedback-loop`
+**Status:** Done — 428 tests pass + 1 skipped (+19 new); lint + build clean.
+**Workflow:** Parallel-agent build (8th). Agent A: lib + API + recorder wiring + eval `--dataset=corrections`. Agent B: agreement widget + Disagreement queue + sidebar nav. Contract-first dispatch; integration clean on first combined build.
+
+**What landed:**
+- `lib/feedback/{types,effectiveLane,override,corpus,sampler,agreement,recorder}.ts` — append-only JSONL corpus, pure derivation/detection, env-tunable sampler, rolling + all-time + per-beverage-type agreement metric.
+- `app/api/feedback/{record,agreement,disagreements,disagreements/[id]/confirm}/route.ts` — four routes.
+- `lib/queue/{QueueProvider,feedbackHook}.ts` — fire-and-forget POST after disposition; failures NEVER block the disposition path.
+- `scripts/eval.ts` — `--dataset=golden|corrections` flag. `corrections` synthesises `CaseRun[]` from corpus records with `expectedLane = effectiveLane`.
+- `components/feedback/{LanePill,AgreementRateWidget,DisagreementRow,types}.tsx` — color + icon + text everywhere.
+- `app/(admin)/disagreement-queue/page.tsx` — admin route; polls every 8s.
+- `app/(admin)/operations/page.tsx` — `<AgreementRateWidget />` above `<IntakeFunnel />`; polls every 10s.
+- `components/shell/AdminShell.tsx` — Disagreement queue nav after Team.
+- 19 new tests on tmpdir-hermetic corpus + pure derivations.
+
+**Deviations:**
+- Sampler formula is deterministic (`overrideCount * ratio > sampledCount`). The first sample lands on the 11th override; randomization is a drop-in when production volumes warrant it.
+- Brand kept verbatim (transcribed label data; product name, not applicant identity). Matches the Phase 1 fixtures and the P5-2 eval report.
+- Synthetic record id is `<applicationIdHash>:<recordedAt ISO>` — millisecond-grained, collision-safe at prototype volume.
+- The recorder lazy-imports `@opentelemetry/api` for test envs without OTel loaded.
+- The recorder's POST endpoint returns 200 with `{ok: false, error}` on failure, NOT 500 — the QueueProvider's fire-and-forget caller doesn't read the response either way.
+
+### Why
+
+P5-3 closes the loop observability.md leads with: every disposition that overrides the tool's lane is labeled ground truth, produced by an expert in the normal course of work. No one labels data on purpose; the labels accumulate as a side effect. The corpus grows; the agreement metric is the live accuracy proxy; the disagreement queue surfaces what needs confirmation either way.
+
+The **pure functions for `deriveEffectiveLane` and `detectOverride`** are D4 materialised in the feedback loop. The agent's effective lane is computed in code from the disposition + structured reason summary; the override classification is computed in code from the two lanes. No model decides what "ground truth" means.
+
+The **fire-and-forget posture on the QueueProvider's recorder call** is the structural enforcement of "the disposition write must not be blocked". The recorder's failure is a span event, not a thrown error. The disposition writes to the local store; the feedback POST fires in the background; the agent's UX is unaffected.
+
+The **JSONL append-only corpus** is the right shape for the prototype. Append-only-friendly, streamable for the eval harness, auditable. Production moves to a governed DB in P6-2 — same record shape, different storage.
+
+The **sampler's deterministic formula** keeps tests non-flaky and the demo predictable. Randomization is a one-line change when production volumes warrant it.
+
+The **disagreement queue's Confirm/Reject is bidirectional** — the team marks "tool was right" OR "agent was right". The corpus learns either way. Without the bidirectional confirmation, every override would be treated as a tool error and the corpus would drift.
+
+The **agreement rate as the headline metric on Operations** is the live accuracy proxy P5-2's offline eval complements. The eval runs on a fixed dataset; the agreement rate runs on the live disposition stream. Both feed the same picture from different angles.
+
+The **`brand` kept verbatim** is the conscious accommodation. The Phase 1 fixtures and the P5-2 eval report treat it as system data; the corpus matches. If a future ticket reclassifies brand as sensitive, the schema accommodates a hash via `hashPii` without migration.
+
+The **`pnpm eval --dataset=corrections` extension** is the production-eval seam. The same six metric families that grade the synthetic golden set now grade the captured corpus. P5-5's CI run compares both: golden catches synthetic regressions; corrections catches real-world drift.

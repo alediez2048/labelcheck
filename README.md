@@ -155,6 +155,9 @@ Copy `.env.example` to `.env` and fill in the values you need. `.env` is gitigno
 | `OTEL_FILE_PATH` | `.data/traces/otel.jsonl` | Output path when `OTEL_EXPORTER=file`. |
 | `OTEL_OTLP_ENDPOINT` | unset | OTLP HTTP endpoint when `OTEL_EXPORTER=otlp` (P6-6). |
 | `PII_HASH_SALT` | dev fallback | Salt for hashing PII in trace attributes (P5-1). **Required in production.** See `docs/PRIVACY-IN-TRACES.md`. |
+| `FEEDBACK_AGREEMENT_WINDOW` | `100` | Rolling-window size for the tool-vs-agent agreement rate (P5-3). The Operations widget surfaces this against the all-time number. |
+| `FEEDBACK_SAMPLER_RATIO` | `0.10` | Fraction of daily overrides sampled into the disagreement queue (P5-3). The sampler also enforces `FEEDBACK_SAMPLER_CAP_PER_DAY`. |
+| `FEEDBACK_SAMPLER_CAP_PER_DAY` | `25` | Hard cap on the size of a day's sampled disagreement queue (P5-3) — keeps the supervisor's review pile bounded even when override volume spikes. |
 
 ## Documentation
 

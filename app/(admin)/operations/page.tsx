@@ -23,6 +23,7 @@
 import React, { useState } from "react";
 
 import { SubmitBatchButton } from "@/components/batch/SubmitBatchButton";
+import { AgreementRateWidget } from "@/components/feedback/AgreementRateWidget";
 import { IntakeFunnel } from "@/components/operations/IntakeFunnel";
 import { LiveIntakeFeed } from "@/components/operations/LiveIntakeFeed";
 import { MatchLaneApprovalPanel } from "@/components/operations/MatchLaneApprovalPanel";
@@ -171,6 +172,8 @@ export default function OperationsPage(): React.ReactElement {
           <SubmitBatchButton />
         </div>
       </section>
+
+      <AgreementRateWidget />
 
       <IntakeFunnel snapshot={funnel} />
 
