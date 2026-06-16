@@ -191,3 +191,52 @@ The assistant declines legal advice, disposition requests, cross-user stats, and
 # pnpm add zod
 # (likely already installed in P1-1 validation; reuse if so.)
 ```
+
+---
+
+## Outcome — done 2026-06-15 — Phase 4 complete
+
+**Branch:** `feat/guardrails`
+**Status:** Done. Phase 4 closes here.
+**Workflow:** Single-agent build (hardening across coupled files; sequential).
+
+**What landed:**
+- `lib/assistant/refusals.ts` — 5 fixed-shape template constants + `RefusalKind` + `REFUSAL_RATIONALE` map for the UI.
+- `lib/assistant/intent.ts` — deterministic regex classifier. `cross_user_stats` covers prompt-injection cues ("ignore prior instructions", "act as admin", "pretend you're admin", "you are now").
+- `lib/assistant/postcheck.ts` — response-side guardrail. **Cross-user check runs BEFORE uncited-compliance** (leak is higher-severity). Per-name-token matching catches first-name leaks ("Priya" → seed has "Priya Shah").
+- `config/assistant-guardrails.json` — compliance-claim + prompt-injection regex lists. Tunable.
+- `lib/assistant/{prompt,generator,turn,trace}.ts` extended — intent flows through prompt + generator; postcheck runs after; trace shape gains `intentTags + refusalTemplate + postcheckAction`.
+- `components/assistant/ChatPanel.tsx` — refusal messages get amber border-left + ⚠ glyph + `<details>Why?</details>` rationale.
+- `fixtures/eval/assistant-guardrails.json` — 17 adversarial questions across 6 categories with `mustNotContain` arrays.
+- `tests/eval/assistant-guardrails.test.ts` + `tests/lib/assistant/{intent,postcheck}.test.ts` — 34 new tests.
+- `package.json` — `test:guardrails` script.
+- `.github/workflows/ci.yml` — new "Guardrail eval (P4-3)" job step.
+
+**Pass/fail summary (observability.md Component B):**
+- legal_advice 3/3 · disposition_request 3/3 · cross_user_stats 4/4 (zero leak) · unsupported_compliance 2/2 · out_of_scope 2/2 · control_in_scope 3/3 · **17/17 total**.
+
+**Tests:** 46 files, 377 pass + 1 skipped (339 prior + 38 new). `test:guardrails` 17/17. Lint + build clean.
+
+**Deviations:**
+- Intent regex expanded beyond the prompt spec (`federal law` for legal_advice; `pretend|act as admin|you are now|everyone'?s|division (numbers|stats)` for cross_user_stats) to cover two adversarial entries.
+- Postcheck uses per-name-token matching (≥3 chars, excluding caller's own tokens) to catch first-name leaks.
+- Control KB questions need `controlSeededChunks` seeded with exact-match content because the mock embedder is hash-based, not semantic. Documented; real embedder lifts this.
+- Eval-harness summary `console.log` renders only under `--reporter=verbose`. CI logs show JSON traces; flip the reporter when needed.
+
+### Why
+
+P4-3 closes Phase 4 by turning observability.md's three bars — out-of-scope refusal, no fabricated rules, role-scope isolation — into structural code. The discipline is the same as P3-3: failure modes are normal outcomes with structured responses, not exceptions. Here the "failure modes" are adversarial user inputs; the response is a brief refusal that points to the human process.
+
+The **5 fixed-shape template constants** make guardrails testable. Free-text apologies that vary by call would defeat string-match assertions. Constants mean `expect(response).toContain(REFUSAL_LEGAL)` works with confidence.
+
+The **deterministic regex classifier** is the same scope-control as P4-2's mock generator: prototype CI runs without secrets. A real intent classifier drops in at the `classifyIntent` seam later.
+
+The **refusal precedence in postcheck — cross-user first, then uncited-compliance** enforces "a leak is the higher-severity failure". A response that BOTH leaks AND makes an unsupported claim is classified as a leak.
+
+The **per-name-token cross-user check** materialises zero-leak. Full-name string-match misses "Priya's stats" when the seed has "Priya Shah". Token splitting + ≥3-char filter + caller-tokens-excluded catches first-name leaks; the unit test surface includes the caller's own tokens in the allowlist so legitimate self-references pass.
+
+The **CI gate on `pnpm test:guardrails`** is the same posture P1-10 took for AC tests. A failing eval fails the build. "Zero role-scope leak" becomes a contract, not a hope.
+
+The **prompt-injection cues routed through `cross_user_stats`** keeps the refusal surface tight: one refusal type per threat class, regardless of how the question is phrased. A separate REFUSAL_PROMPT_INJECTION would leak the system's categorisation back to the attacker.
+
+The **belt-and-braces** — prompt + classifier + postcheck + eval — is defence in depth. Skipping any one layer means a future change in another could regress silently. Four layers, four chances to catch a regression. Same posture P2-5's admin gates took.

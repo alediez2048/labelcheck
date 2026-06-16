@@ -1,5 +1,5 @@
 /**
- * Structured assistant turn trace (P4-2).
+ * Structured assistant turn trace (P4-2, extended in P4-3).
  *
  * One log line per `runTurn` invocation, emitted as JSON so the
  * observability backend (Langfuse / Phoenix in P6-6) can consume the
@@ -13,6 +13,10 @@
  *   - `retrievedSources` — filenames of the chunks the prompt cited.
  *   - `usedTool`        — `get_my_rollup` when the tool fired, else absent.
  *   - `totalMs`         — wall-clock latency for the whole turn.
+ *   - `intentTags`      — classifier output (P4-3). Empty array possible.
+ *   - `refusalTemplate` — which refusal the generator emitted (or "none").
+ *   - `postcheckAction` — which refusal the postcheck substituted
+ *                         (or "none").
  *
  * Production seam: the Langfuse / Phoenix backend consumes the same
  * record shape; the prototype writes to stdout (`console.info`) so a
@@ -23,12 +27,23 @@
 
 import type { AssistantRole } from "@/types/assistant";
 
+import type { IntentTag } from "./intent";
+import type { RefusalKind } from "./refusals";
+
+/** "none" sentinel for the trace's refusal slots — keeps the shape
+ *  flat instead of `RefusalKind | undefined`, which is easier to
+ *  count over in the observability backend. */
+export type TraceRefusal = RefusalKind | "none";
+
 export type AssistantTurnTrace = {
   event: "trace.assistantTurn";
   role: AssistantRole;
   retrievedSources: ReadonlyArray<string>;
   usedTool?: "get_my_rollup";
   totalMs: number;
+  intentTags: ReadonlyArray<IntentTag>;
+  refusalTemplate: TraceRefusal;
+  postcheckAction: TraceRefusal;
 };
 
 /**
@@ -43,12 +58,18 @@ export function emitTurnTrace(input: {
   retrievedSources: ReadonlyArray<string>;
   usedTool?: "get_my_rollup";
   totalMs: number;
+  intentTags: ReadonlyArray<IntentTag>;
+  refusalTemplate: TraceRefusal;
+  postcheckAction: TraceRefusal;
 }): void {
   const trace: AssistantTurnTrace = {
     event: "trace.assistantTurn",
     role: input.role,
     retrievedSources: input.retrievedSources,
     totalMs: input.totalMs,
+    intentTags: input.intentTags,
+    refusalTemplate: input.refusalTemplate,
+    postcheckAction: input.postcheckAction,
     ...(input.usedTool ? { usedTool: input.usedTool } : {}),
   };
   // eslint-disable-next-line no-console

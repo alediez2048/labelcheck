@@ -30,6 +30,15 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { useQueue } from "@/lib/queue/QueueProvider";
+import {
+  REFUSAL_CROSS_USER,
+  REFUSAL_DISPOSITION,
+  REFUSAL_LEGAL,
+  REFUSAL_OUT_OF_SCOPE,
+  REFUSAL_RATIONALE,
+  REFUSAL_UNSUPPORTED_COMPLIANCE,
+  type RefusalKind,
+} from "@/lib/assistant/refusals";
 import type {
   AssistantMessage,
   AssistantTurnRequest,
@@ -38,6 +47,29 @@ import type {
 } from "@/types/assistant";
 
 import { Citation } from "./Citation";
+
+/**
+ * Map a message content string to the refusal kind it represents
+ * (or null when it's a normal answer). Used by the UI to decide
+ * whether to render the refusal treatment (NFR-2: refusals are
+ * signalled with colour + icon + text, not tone alone).
+ */
+function detectRefusalKind(content: string): RefusalKind | null {
+  switch (content) {
+    case REFUSAL_LEGAL:
+      return "legal_advice";
+    case REFUSAL_DISPOSITION:
+      return "disposition_request";
+    case REFUSAL_CROSS_USER:
+      return "cross_user_stats";
+    case REFUSAL_UNSUPPORTED_COMPLIANCE:
+      return "unsupported_compliance";
+    case REFUSAL_OUT_OF_SCOPE:
+      return "out_of_scope";
+    default:
+      return null;
+  }
+}
 
 const WELCOME_TEXT =
   "Ask me how the tool works, what counts as a defect, or how you're doing this week. I can only answer from the Knowledge Base and your own numbers.";
@@ -244,6 +276,9 @@ export function ChatPanel(): React.ReactElement {
             {messages.map((message, index) => {
               const citations = assistantCitations[index] ?? [];
               const isUser = message.role === "user";
+              const refusalKind = !isUser
+                ? detectRefusalKind(message.content)
+                : null;
               return (
                 <li
                   key={index}
@@ -253,10 +288,28 @@ export function ChatPanel(): React.ReactElement {
                     className={
                       isUser
                         ? "max-w-[85%] whitespace-pre-wrap rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-900"
-                        : "max-w-[85%] whitespace-pre-wrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                        : refusalKind !== null
+                          ? "relative max-w-[85%] whitespace-pre-wrap rounded-lg border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 px-3 py-2 pr-7 text-sm text-amber-900"
+                          : "max-w-[85%] whitespace-pre-wrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                     }
                   >
+                    {refusalKind !== null ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute right-2 top-1 text-amber-600"
+                      >
+                        {"\u26A0"}
+                      </span>
+                    ) : null}
                     {message.content}
+                    {refusalKind !== null ? (
+                      <details className="mt-1 text-xs text-amber-800">
+                        <summary className="cursor-pointer select-none font-medium">
+                          Why?
+                        </summary>
+                        <p className="mt-1">{REFUSAL_RATIONALE[refusalKind]}</p>
+                      </details>
+                    ) : null}
                   </div>
                   {!isUser && citations.length > 0 ? (
                     <div className="mt-1 flex flex-wrap gap-1">
