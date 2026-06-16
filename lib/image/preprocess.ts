@@ -95,21 +95,25 @@ export async function preprocessImage(
 ): Promise<PreprocessResult> {
   const maxEdge = resolveMaxEdge();
 
-  const inputMeta = await readInputMetadata(bytes);
-  if (!inputMeta.width || !inputMeta.height) {
-    throw new Error("Image could not be decoded");
-  }
+  // Best-effort sharp pipeline: on Vercel the native binding can fail
+  // to load OR to decode through the bundler's CJS/ESM interop. The
+  // browser-rendered PNG is already at the target long-edge cap and
+  // EXIF-clean (canvas output has no EXIF), so a sharp failure is
+  // tolerated — we pass the bytes through unchanged and let the
+  // provider handle the original buffer. Demo posture; production
+  // path (P6-1, in-boundary self-hosted) runs against a known sharp
+  // build and re-enables strict preprocessing.
+  let inputMeta: { width?: number; height?: number } = {};
+  let outBuf: Buffer = bytes;
+  let outMeta: { width?: number; height?: number } = {};
+  let bypassReason: string | null = null;
 
-  // Single chained pipeline:
-  //  - .rotate()                — apply EXIF orientation (no args!)
-  //  - .resize({ fit: "inside", withoutEnlargement: true })
-  //                              — cap the LONG edge at maxEdge if over,
-  //                                pass through unchanged if at or below.
-  //                                Together these two options express D7
-  //                                exactly: "shrink iff oversized; never grow."
-  const sharp = await getSharp();
-  let outBuf: Buffer;
   try {
+    inputMeta = await readInputMetadata(bytes);
+    if (!inputMeta.width || !inputMeta.height) {
+      throw new Error("Image could not be decoded");
+    }
+    const sharp = await getSharp();
     outBuf = await sharp(bytes, { failOn: "error" })
       .rotate()
       .resize({
@@ -119,13 +123,14 @@ export async function preprocessImage(
         withoutEnlargement: true,
       })
       .toBuffer();
-  } catch {
-    throw new Error("Image could not be decoded");
-  }
-
-  const outMeta = await sharp(outBuf).metadata();
-  if (!outMeta.width || !outMeta.height) {
-    throw new Error("Image could not be decoded");
+    outMeta = await sharp(outBuf).metadata();
+    if (!outMeta.width || !outMeta.height) {
+      throw new Error("Image could not be decoded");
+    }
+  } catch (err) {
+    bypassReason = err instanceof Error ? err.message : String(err);
+    outBuf = bytes;
+    outMeta = { width: inputMeta.width, height: inputMeta.height };
   }
 
   // Structured log point — input/output dimensions only. Bytes never logged.
@@ -139,13 +144,14 @@ export async function preprocessImage(
       outputWidth: outMeta.width,
       outputHeight: outMeta.height,
       longEdgeCap: maxEdge,
+      bypassed: bypassReason,
     }),
   );
 
   return {
     bytes: outBuf,
-    width: outMeta.width,
-    height: outMeta.height,
+    width: outMeta.width ?? 0,
+    height: outMeta.height ?? 0,
     mime,
   };
 }
