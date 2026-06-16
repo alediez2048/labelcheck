@@ -26,6 +26,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import type { VerificationResult } from "@/types";
+
 import { LaneGroup } from "./LaneGroup";
 import type { BatchItem, BatchPollResponse } from "./types";
 
@@ -161,10 +163,33 @@ export default function BatchResultsPage(): React.ReactElement {
 }
 
 function Body({ data }: { data: BatchPollResponse }): React.ReactElement {
-  const { progress, items, finished } = data;
-  const completed = progress.done + progress.failed;
+  // Local overrides apply on top of the poll response so per-item retries
+  // can replace a failed entry with the freshly-returned verification
+  // result. Keyed by item id so the override survives the next poll.
+  const [overrides, setOverrides] = useState<Record<string, BatchItem>>({});
+
+  const onRetrySuccess = useCallback(
+    (itemId: string, result: VerificationResult): void => {
+      setOverrides((prev) => {
+        const base = data.items.find((i) => i.id === itemId);
+        if (!base) return prev;
+        return {
+          ...prev,
+          [itemId]: { ...base, status: "done", result, error: undefined },
+        };
+      });
+    },
+    [data.items],
+  );
+
+  const items = data.items.map((it) => overrides[it.id] ?? it);
+  const { progress, finished } = data;
+  const adjustedProgress = recomputeProgress(progress, data.items, overrides);
+  const completed = adjustedProgress.done + adjustedProgress.failed;
   const percent =
-    progress.total === 0 ? 0 : Math.round((completed / progress.total) * 100);
+    adjustedProgress.total === 0
+      ? 0
+      : Math.round((completed / adjustedProgress.total) * 100);
 
   const failedItems = items.filter((i) => i.status === "failed");
 
@@ -179,14 +204,16 @@ function Body({ data }: { data: BatchPollResponse }): React.ReactElement {
       <ProgressSection
         percent={percent}
         completed={completed}
-        total={progress.total}
-        running={progress.running}
+        total={adjustedProgress.total}
+        running={adjustedProgress.running}
         finished={finished}
       />
 
-      <CountsRow progress={progress} />
+      <CountsRow progress={adjustedProgress} />
 
-      {failedItems.length > 0 && <FailedPanel items={failedItems} />}
+      {failedItems.length > 0 && (
+        <FailedPanel items={failedItems} onRetrySuccess={onRetrySuccess} />
+      )}
 
       {completed > 0 && (
         <div className="flex flex-col gap-4">
@@ -204,6 +231,34 @@ function Body({ data }: { data: BatchPollResponse }): React.ReactElement {
       )}
     </div>
   );
+}
+
+/**
+ * Adjust the server-supplied progress to reflect any client-side retry
+ * overrides. A successful retry transitions an item from `failed` to
+ * `done` + the result's lane bucket.
+ */
+function recomputeProgress(
+  base: BatchPollResponse["progress"],
+  serverItems: ReadonlyArray<BatchItem>,
+  overrides: Record<string, BatchItem>,
+): BatchPollResponse["progress"] {
+  let failed = base.failed;
+  let done = base.done;
+  const byLane = { ...base.byLane };
+  for (const it of serverItems) {
+    const ov = overrides[it.id];
+    if (!ov) continue;
+    if (it.status === "failed" && ov.status === "done") {
+      failed -= 1;
+      done += 1;
+      const lane = ov.result?.lane;
+      if (lane === "match") byLane.match += 1;
+      else if (lane === "mismatch") byLane.mismatch += 1;
+      else if (lane === "review") byLane.review += 1;
+    }
+  }
+  return { ...base, failed, done, byLane };
 }
 
 function ProgressSection({
@@ -322,8 +377,10 @@ function CountsRow({
 
 function FailedPanel({
   items,
+  onRetrySuccess,
 }: {
   items: ReadonlyArray<BatchItem>;
+  onRetrySuccess: (itemId: string, result: VerificationResult) => void;
 }): React.ReactElement {
   return (
     <section
@@ -346,25 +403,140 @@ function FailedPanel({
       </p>
       <ul className="mt-3 flex flex-col gap-2">
         {items.map((item) => (
-          <li
+          <FailedItemRow
             key={item.id}
-            className="rounded-md border border-rose-200 bg-white px-3 py-2 text-sm"
-          >
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-medium text-slate-800">{item.brand}</span>
-              <span className="font-mono text-xs text-slate-500">
-                {item.applicationId}
-              </span>
-            </div>
-            {item.error && (
-              <p className="mt-1 text-xs text-rose-900">
-                <span className="font-semibold">{item.error.code}:</span>{" "}
-                {item.error.message}
-              </p>
-            )}
-          </li>
+            item={item}
+            onRetrySuccess={onRetrySuccess}
+          />
         ))}
       </ul>
     </section>
   );
+}
+
+/**
+ * One failed-item row. Surfaces the structured error's `code` as a pill,
+ * the plain-language `message`, and a Retry button when the error is
+ * retryable (P3-3). The retry posts the original form + faces back to
+ * `/api/verify` and replaces the failed row on success.
+ */
+function FailedItemRow({
+  item,
+  onRetrySuccess,
+}: {
+  item: BatchItem;
+  onRetrySuccess: (itemId: string, result: VerificationResult) => void;
+}): React.ReactElement {
+  const [busy, setBusy] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  const canRetry = Boolean(
+    item.error?.retryable && item.beverageType && item.form && item.faces && item.faces.length > 0,
+  );
+
+  const onRetry = useCallback(async (): Promise<void> => {
+    if (!item.beverageType || !item.form || !item.faces) return;
+    setBusy(true);
+    setRetryError(null);
+    try {
+      // The wire-encoded buffer survives JSON serialization as
+      // `{type:"Buffer", data:number[]}`. Re-encode each face's bytes as
+      // base64 so the /api/verify route reads them through the same
+      // path the verify UI uses.
+      const faces = item.faces.map((f) => ({
+        kind: f.kind,
+        mime: f.mime,
+        bytes: encodeFaceBytes(f.bytes),
+      }));
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          applicationId: item.applicationId,
+          beverageType: item.beverageType,
+          form: item.form,
+          faces,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setRetryError(body.error ?? `Retry failed (${res.status})`);
+        return;
+      }
+      const result = (await res.json()) as VerificationResult;
+      onRetrySuccess(item.id, result);
+    } catch (e) {
+      setRetryError(e instanceof Error ? e.message : "Retry failed");
+    } finally {
+      setBusy(false);
+    }
+  }, [item, onRetrySuccess]);
+
+  return (
+    <li className="rounded-md border border-rose-200 bg-white px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-medium text-slate-800">{item.brand}</span>
+        <span className="font-mono text-xs text-slate-500">
+          {item.applicationId}
+        </span>
+      </div>
+      {item.error && (
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full border border-rose-300 bg-rose-100 px-2 py-0.5 font-mono text-xs font-semibold text-rose-900">
+            {item.error.code}
+          </span>
+          <span className="text-xs text-rose-900">{item.error.message}</span>
+        </div>
+      )}
+      {(canRetry || retryError) && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {canRetry && (
+            <button
+              type="button"
+              onClick={() => void onRetry()}
+              disabled={busy}
+              className="inline-flex min-h-[36px] items-center justify-center gap-2 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-900 hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-rose-300 disabled:opacity-60"
+            >
+              <span aria-hidden="true">↻</span>
+              <span>{busy ? "Retrying…" : "Retry"}</span>
+            </button>
+          )}
+          {retryError && (
+            <span className="text-xs text-rose-900" role="alert">
+              {retryError}
+            </span>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Re-encode the wire-format face bytes back to base64 for the verify
+ * request. Buffer-shaped values arrive as `{type:"Buffer", data:[...]}`
+ * after JSON.stringify on a Node Buffer; strings are passed through
+ * unchanged (some seed paths attach base64 strings directly).
+ */
+function encodeFaceBytes(
+  raw: { type: "Buffer"; data: number[] } | string,
+): string {
+  if (typeof raw === "string") return raw;
+  if (raw && raw.type === "Buffer" && Array.isArray(raw.data)) {
+    // The browser doesn't have Buffer; build a base64 string from the
+    // raw byte array. Chunked to avoid `apply` stack overflow on large
+    // byte arrays — 0x8000 is well within every engine's call-arg cap.
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < raw.data.length; i += chunkSize) {
+      const chunk = raw.data.slice(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, chunk);
+    }
+    return typeof btoa === "function"
+      ? btoa(binary)
+      : Buffer.from(binary, "binary").toString("base64");
+  }
+  return "";
 }

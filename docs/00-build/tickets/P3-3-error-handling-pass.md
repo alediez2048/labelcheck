@@ -167,3 +167,55 @@ Every expected bad input produces a clean, actionable result the agent can act o
 ### Dependencies to install
 
 No new dependencies. This ticket is a hardening pass over existing code.
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/errors`
+**Status:** Done — 308 tests pass + 1 skipped (+8 new); lint + build clean.
+**Workflow:** Single-agent (hardening sweep across coupled files; parallel would have added overhead).
+
+**What landed:**
+- `lib/errors/types.ts` — `StructuredError` discriminated union (`INVALID_INPUT | UNREADABLE_IMAGE | PROVIDER_TIMEOUT | PROVIDER_RATE_LIMIT | PROVIDER_UNAVAILABLE | INTERNAL`) with `message`, `retryable`, optional `recommendation` + `fields`. Six helpers.
+- `lib/errors/toResult.ts` — `toDegradedResult(applicationId, err)` converts a structured error to a `VerificationResult` shape so success + degraded render the same way. INVALID_INPUT is NOT routed through here.
+- `lib/provider/withTimeout.ts` — `toStructuredError(err)` at the module boundary. `TimeoutError` → `providerTimeout(ms)`; 429 → `providerRateLimit`; 5xx → `providerUnavailable`; everything else non-transient → `internalError`.
+- `lib/provider/types.ts` — `ExtractionResponse.degradedError?: StructuredError` (legacy `degraded` kept so existing tests pass unchanged).
+- `lib/extraction/service.ts` — degraded paths populate `degradedError`.
+- `lib/verify/runVerification.ts` — funnels degraded extraction through `toDegradedResult`. Non-transient extraction throw → `internalError` (real defects no longer paper over as "unreadable").
+- `lib/batch/{types,orchestrator}.ts` — `BatchItem.error: StructuredError | undefined`; orchestrator normalises caught errors via `toStructuredError`.
+- `app/api/batch/route.ts` — pre-failed items use `invalidInput(message, fields)`.
+- `app/batch/[id]/{page,types}.tsx` — FailedPanel renders the structured code pill + message + per-item Retry button (hidden when `error.retryable === false`).
+- `tests/errors/scenarios.test.ts` — 8 audit-table scenarios end-to-end.
+
+**Audit table (covered scenarios):**
+- INVALID_INPUT: PDF mime on a face → 400 + plain message.
+- INVALID_INPUT: missing `brandName` → 400 names the field.
+- UNREADABLE_IMAGE: empty face → 200, lane=review, recommendation=return_unreadable_image (AC-6).
+- PROVIDER_TIMEOUT: TimeoutError x2 → 200 degraded.
+- PROVIDER_UNAVAILABLE: 503 x2 → 200 degraded.
+- PROVIDER_RATE_LIMIT: 429 x2 → 200 degraded.
+- Batch malformed body → 400 plain message.
+- Batch mixed (good + bad item) → bad ends failed with INVALID_INPUT retryable=false; good ends done.
+
+**Deviations:**
+- Provider helpers carry `recommendation: "return_unreadable_image"` so the UnreadableBanner renders consistently for every "can't verify" outcome (the existing `buildTimeoutResult` from P1-9 set the same recommendation; preserving it keeps the existing tests green).
+- `unreadableImage` reason still cites face names ("Front face is unreadable — ...") so the existing AC-6 test still passes.
+- `lib/verify/result.ts`'s `buildUnreadableResult` helper is now unreferenced but left in place; hardening pass shouldn't strip exports.
+- Poll endpoint serializes `BatchItem.faces` as `Buffer` objects — bandwidth-heavy on large batches. Flagged for future cleanup.
+
+### Why
+
+P3-3 systematises the "bad inputs are normal outcomes, not errors" posture across every entry point. One shape, six codes, one converter, one UI rendering path. The agent's mental model collapses from "result or error" to "always a result, sometimes degraded with a recommendation".
+
+The **discriminated-union `StructuredError`** is the type system's leverage. Every consumer pattern-matches on `code`; missing a code is a compile error. Adding a new code means adding a new helper, a new toResult branch, and getting compile errors at every existing consumer — exactly where to be reminded that the UI needs updating.
+
+The **single converter `toDegradedResult`** enforces "success and degraded render the same way". The verify route and the batch orchestrator both funnel non-INVALID_INPUT failures through it; the UI components don't have separate "success path" and "error path" rendering. The `<UnreadableBanner>` from P1-8 already handles every recommendation; no UI change for the timeout / 503 / 429 cases.
+
+The **INVALID_INPUT carve-out** is the right boundary. A wrong file mime isn't a "we couldn't verify"; it's a "you sent something unverifiable". The 4xx with field reference is correct; a synthetic 200 "review" result would be misleading.
+
+The **`internalError` mapping** is the honest path. Before P3-3 the route's catch on extraction throws mapped to `buildUnreadableResult` — papering over real defects as "image unreadable". After P3-3 an unexpected throw maps to `internalError` with a defensive flag. User-facing surface stays actionable; the log carries the actual error for the operator.
+
+The **batch-side typed `error: StructuredError`** is what lets the UI hide the Retry button on `retryable: false` cleanly. No string-matching.
+
+The **per-item Retry button** is the small-but-load-bearing affordance for the workflow. A supervisor can re-submit just the failed items, not the whole 300-app batch. Batches become incrementally fixable.

@@ -216,10 +216,10 @@ Description: the most-requested stretch features and robustness, so the tool hol
 - Acceptance: [x] mildly skewed photos read end-to-end on the first pass when legibility is acceptable; [x] low-confidence warning triggers ONE targeted re-read of the cropped region (D7), bounded — no retry, no multi-pass chain; [x] re-read result merged when it returns higher legibility; first-pass kept otherwise; [x] severe cases (re-read also fails) → FR-16 low-confidence lane with the FR-26b "Return — unreadable image" recommendation (no throws, no stack traces); [x] structured `extraction.reread` log (NFR-4 PII-redacted) for observability; [x] crop heuristic (bottom 40% of back face) when the model doesn't return a region hint, documented inline.
 - Refs: FR-6; D7, A13.
 
-### P3-3 — Error-handling pass
+### P3-3 — Error-handling pass ✅ done 2026-06-15
 - Depends: P1-7 · Branch: feat/errors · Est: 2h
 - Goal: every expected bad input returns an actionable result; no stack traces; failed batch items isolated.
-- Acceptance: [ ] unreadable/invalid inputs handled; [ ] a failed batch item does not abort the run.
+- Acceptance: [x] `StructuredError` discriminated union (`INVALID_INPUT | UNREADABLE_IMAGE | PROVIDER_TIMEOUT | PROVIDER_RATE_LIMIT | PROVIDER_UNAVAILABLE | INTERNAL`) with `retryable` + optional `recommendation`; [x] `toDegradedResult(applicationId, err)` produces a `VerificationResult`-shaped low-confidence outcome so success + degraded render the same way; [x] verify route, extraction service, batch orchestrator, and provider wrapper all funnel through `StructuredError`; [x] unreadable/invalid inputs handled (8 audit-table scenarios tested); [x] failed batch item is isolated with a `StructuredError`; the run continues; [x] batch UI Retry button on failed items (hidden when `error.retryable === false`).
 - Refs: systemsdesign Error Handling.
 
 ### P3-4 — Performance hardening

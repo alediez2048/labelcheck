@@ -9,17 +9,36 @@
  * per-application payload (D4, D5).
  */
 
-import type { VerificationResult } from "@/types";
+import type { StructuredError } from "@/lib/errors/types";
+import type { BeverageType, VerificationResult } from "@/types";
+import type { SampleForm } from "@/fixtures/samples";
 
 export type BatchItemStatus = "pending" | "running" | "done" | "failed";
+
+/**
+ * P3-3: the wire shape carries `faces` as JSON-encoded Buffers
+ * (`{"type":"Buffer","data":[...]}`) so the retry button on the failed-
+ * items panel can re-submit the same bytes to `/api/verify`. The decode
+ * happens in the retry handler — most consumers of `BatchItem` here
+ * only care about `brand`, `status`, `result`, and `error`.
+ */
+export type WireFace = {
+  kind: "front" | "back" | "neck";
+  bytes: { type: "Buffer"; data: number[] } | string;
+  mime: "image/jpeg" | "image/png";
+};
 
 export type BatchItem = {
   id: string;
   applicationId: string;
   brand: string;
+  beverageType?: BeverageType;
+  form?: SampleForm;
+  faces?: ReadonlyArray<WireFace>;
   status: BatchItemStatus;
   result?: VerificationResult;
-  error?: { code: string; message: string };
+  /** P3-3: structured-error shape shared with the verify path. */
+  error?: StructuredError;
 };
 
 export type BatchProgress = {

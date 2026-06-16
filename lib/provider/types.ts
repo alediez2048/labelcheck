@@ -12,6 +12,7 @@
  * rest of the system is provider-agnostic.
  */
 
+import type { StructuredError } from "@/lib/errors/types";
 import type { BeverageType, FaceKind, FieldName, WarningFlags } from "@/types";
 
 /**
@@ -82,6 +83,14 @@ export type FaceExtraction = {
 export type ExtractionResponse = {
   faces: FaceExtraction[];
   degraded?: "timeout" | "transient";
+  /**
+   * P3-3: the richer signal alongside the legacy `degraded` flag. When
+   * the extraction service degrades because of a provider failure, this
+   * field carries the structured error the route handler converts into
+   * a degraded `VerificationResult`. Older callers that only read
+   * `degraded` keep working; new callers prefer `degradedError`.
+   */
+  degradedError?: StructuredError;
 };
 
 /**
