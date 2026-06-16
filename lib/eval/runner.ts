@@ -75,6 +75,18 @@ export type RunOutcome = {
 };
 
 /**
+ * Per-provider outcome surface for the bake-off (P5-4).
+ *
+ * When `status === "ok"` the runner produced a `RunOutcome`; when
+ * `status === "not-run"` the adapter could not be exercised (missing
+ * env, unreachable endpoint, unknown id, etc) and the bake-off records
+ * the reason verbatim so the comparison report can surface it.
+ */
+export type ProviderRunOutcome =
+  | { status: "ok"; runs: CaseRun[]; provider: "mock" | "live" }
+  | { status: "not-run"; reason: string };
+
+/**
  * Tiny representative JPEG. The mock provider keys off `applicationId`,
  * not on the bytes — the bytes only need to survive `sharp` preprocessing.
  * Mirror of the bench-latency helper for shape consistency.
@@ -190,6 +202,47 @@ export async function runEval(options?: RunOptions): Promise<RunOutcome> {
  * Kept internal otherwise.
  */
 export const EVAL_CANONICAL_WARNING_TEXT = CANONICAL_WARNING;
+
+/**
+ * Run the eval for one specific provider id (P5-4 bake-off).
+ *
+ * Sets `process.env.PROVIDER = providerId` (and `EVAL_PROVIDER` so the
+ * runner's provider-tag also lines up) for the duration of the call,
+ * restoring the prior values in a `try/finally`. Catches any adapter
+ * error (`"not provisioned"`, `"endpoint unreachable"`, etc.) and
+ * returns a `{ status: "not-run", reason }` so the caller can build a
+ * per-provider "not-run" report instead of crashing the whole bake-off.
+ */
+export async function runEvalForProvider(
+  providerId: string,
+  options?: RunOptions,
+): Promise<ProviderRunOutcome> {
+  const priorProvider = process.env.PROVIDER;
+  const priorEvalProvider = process.env.EVAL_PROVIDER;
+  process.env.PROVIDER = providerId;
+  // Mock is the only id the existing `runEval` knows as "mock". Anything
+  // else is a live adapter from the bake-off's point of view.
+  process.env.EVAL_PROVIDER = providerId === "mock" ? "mock" : "live";
+
+  try {
+    const outcome = await runEval(options);
+    return { status: "ok", runs: outcome.runs, provider: outcome.provider };
+  } catch (err: unknown) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return { status: "not-run", reason };
+  } finally {
+    if (priorProvider === undefined) {
+      delete process.env.PROVIDER;
+    } else {
+      process.env.PROVIDER = priorProvider;
+    }
+    if (priorEvalProvider === undefined) {
+      delete process.env.EVAL_PROVIDER;
+    } else {
+      process.env.EVAL_PROVIDER = priorEvalProvider;
+    }
+  }
+}
 
 /**
  * Synthesise `CaseRun`s from the agent-correction corpus (P5-3).

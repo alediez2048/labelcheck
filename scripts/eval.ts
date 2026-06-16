@@ -40,8 +40,22 @@ import { buildJsonReport } from "@/lib/eval/report/json";
 import { buildMarkdownReport } from "@/lib/eval/report/markdown";
 import { runEval, runEvalFromCorpus } from "@/lib/eval/runner";
 import type { CaseRun, EvalReport } from "@/lib/eval/types";
+import { runBakeoff } from "./bakeoff";
 
 type Dataset = "golden" | "corrections";
+
+function parseProviders(argv: ReadonlyArray<string>): string[] | null {
+  for (const arg of argv) {
+    if (arg.startsWith("--providers=")) {
+      const csv = arg.slice("--providers=".length);
+      return csv
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    }
+  }
+  return null;
+}
 
 function parseDataset(argv: ReadonlyArray<string>): Dataset {
   for (const arg of argv) {
@@ -70,7 +84,43 @@ async function loadRuns(
 }
 
 async function main(): Promise<void> {
-  const dataset = parseDataset(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  // --providers=<csv> delegates to the bake-off harness. A single provider
+  // still goes through this delegation so the report shape is consistent
+  // (the bake-off writes per-provider reports into `eval-reports/bakeoff-<ts>/`).
+  // The single-provider, no-flag path keeps the legacy `eval-reports/<ts>/`
+  // single-report layout.
+  const providers = parseProviders(argv);
+  if (providers && providers.length > 0) {
+    const { rootDir, recommendationText, results } = await runBakeoff(providers);
+    // eslint-disable-next-line no-console
+    console.log("");
+    // eslint-disable-next-line no-console
+    console.log(
+      `LabelCheck eval (bake-off mode) — providers: ${providers.join(", ")}`,
+    );
+    // eslint-disable-next-line no-console
+    console.log("");
+    // eslint-disable-next-line no-console
+    console.log(recommendationText);
+    // eslint-disable-next-line no-console
+    console.log("");
+    for (const r of results) {
+      const summary =
+        r.status === "ok" && r.report
+          ? `FN ${(r.report.falseNegativeRate.rate * 100).toFixed(1)}%, p95 ${Math.round(r.report.latency.p95)}ms`
+          : `not-run — ${r.reason ?? "no reason"}`;
+      // eslint-disable-next-line no-console
+      console.log(`  - ${r.providerId}: ${summary}`);
+    }
+    // eslint-disable-next-line no-console
+    console.log("");
+    // eslint-disable-next-line no-console
+    console.log(`Reports: ${rootDir}`);
+    return;
+  }
+
+  const dataset = parseDataset(argv);
   const runStartedAt = new Date().toISOString();
   const { runs, provider } = await loadRuns(dataset);
 

@@ -6,23 +6,43 @@
  * Sonnet 4.6 per D8) and P6-1 (Azure OpenAI in Azure Government as the
  * recommended production path, with self-hosted olmOCR as the air-gapped
  * fallback — see techstack.md Model Selection).
+ *
+ * Selection table — the model bake-off (P5-4) also keys candidates by the
+ * same ids via `lib/provider/registry.ts`.
+ *
+ * | PROVIDER          | Adapter                       | Notes                              |
+ * | ---               | ---                           | ---                                 |
+ * | (unset) / mock    | MockVisionProvider            | CI default; no env required        |
+ * | anthropic         | AnthropicVisionProvider       | Requires ANTHROPIC_API_KEY         |
+ * | azure-openai-gov  | AzureOpenAIGovVisionProvider  | Requires AZURE_OPENAI_GOV_*        |
+ * | olmocr            | OlmocrVisionProvider          | Reads OLMOCR_ENDPOINT              |
+ * | glm-ocr           | GlmOcrVisionProvider          | Requires GLM_OCR_ENDPOINT; pending |
+ * | qwen-vl           | QwenVlVisionProvider          | Requires QWEN_VL_ENDPOINT; pending |
  */
 
 import { AnthropicVisionProvider } from "./anthropic";
+import { AzureOpenAIGovVisionProvider } from "./azure-openai-gov";
+import { GlmOcrVisionProvider } from "./glm-ocr";
 import { MockVisionProvider } from "./mock";
+import { OlmocrVisionProvider } from "./olmocr";
+import { QwenVlVisionProvider } from "./qwen-vl";
 import type { VisionProvider } from "./types";
 
-const KNOWN_LIVE_PROVIDERS = new Set(["anthropic", "openai", "olmocr", "azure-openai"]);
+const KNOWN_PROVIDERS = new Set([
+  "mock",
+  "anthropic",
+  "azure-openai-gov",
+  "olmocr",
+  "glm-ocr",
+  "qwen-vl",
+]);
 
 /**
  * Return the configured vision provider.
  *
- * - `PROVIDER` unset or `"mock"` → MockVisionProvider (the default).
- * - `PROVIDER=anthropic` → AnthropicVisionProvider (Claude Sonnet 4.6).
- *   Requires `ANTHROPIC_API_KEY`.
- * - `PROVIDER` is `azure-openai` or `olmocr` → throws with a pointer to
- *   P6-1 (the in-boundary implementations).
- * - `PROVIDER` is anything else → throws with the list of known values.
+ * Throws with a clear "not provisioned" / "not yet implemented" message
+ * when the requested adapter is missing required env, so the bake-off
+ * can catch it and mark the candidate `not-run`.
  */
 export function getProvider(): VisionProvider {
   const name = (process.env.PROVIDER ?? "mock").toLowerCase();
@@ -35,16 +55,25 @@ export function getProvider(): VisionProvider {
     return new AnthropicVisionProvider();
   }
 
-  if (KNOWN_LIVE_PROVIDERS.has(name)) {
-    throw new Error(
-      `Live provider "${name}" is not yet implemented. ` +
-        `See P6-1 (azure-openai / olmocr) ticket.`,
-    );
+  if (name === "azure-openai-gov") {
+    return new AzureOpenAIGovVisionProvider();
+  }
+
+  if (name === "olmocr") {
+    return new OlmocrVisionProvider();
+  }
+
+  if (name === "glm-ocr") {
+    return new GlmOcrVisionProvider();
+  }
+
+  if (name === "qwen-vl") {
+    return new QwenVlVisionProvider();
   }
 
   throw new Error(
     `Unknown PROVIDER value "${name}". ` +
-      `Known: mock, ${[...KNOWN_LIVE_PROVIDERS].sort().join(", ")}.`,
+      `Known: ${[...KNOWN_PROVIDERS].sort().join(", ")}.`,
   );
 }
 
