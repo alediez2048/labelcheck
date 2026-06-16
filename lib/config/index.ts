@@ -9,10 +9,11 @@
  * a stack trace.
  */
 
-import fs from "node:fs";
-import path from "node:path";
 import { ZodError } from "zod";
 
+import warningJson from "../../config/warning.json";
+import tolerancesJson from "../../config/tolerances.json";
+import fieldsByTypeJson from "../../config/fields-by-type.json";
 import type { BeverageType } from "@/types";
 import {
   FieldsByTypeConfigSchema,
@@ -24,36 +25,19 @@ import {
   type WarningConfig,
 } from "./schema";
 
-const CONFIG_DIR = path.join(process.cwd(), "config");
-
 /**
- * Read a JSON file from `config/`, parse, validate with the given schema.
- * Throws a single, file-named error on any failure — no stack traces in
- * the message body.
+ * Validate one of the bundled JSON config blobs against its Zod
+ * schema. Bundled at build time via direct ES-module imports so the
+ * code runs everywhere — including serverless functions where
+ * process.cwd() doesn't point at the source tree.
  */
-function loadJson<T>(file: string, schema: { parse: (v: unknown) => T }): T {
-  const filepath = path.join(CONFIG_DIR, file);
-
-  let raw: string;
+function validateConfig<T>(
+  file: string,
+  raw: unknown,
+  schema: { parse: (v: unknown) => T },
+): T {
   try {
-    raw = fs.readFileSync(filepath, "utf8");
-  } catch (err) {
-    throw new Error(
-      `Failed to read config/${file}: ${(err as Error).message}`,
-    );
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    throw new Error(
-      `Invalid JSON in config/${file}: ${(err as Error).message}`,
-    );
-  }
-
-  try {
-    return schema.parse(parsed);
+    return schema.parse(raw);
   } catch (err) {
     if (err instanceof ZodError) {
       const summary = err.issues
@@ -76,7 +60,7 @@ let fieldsByTypeCache: FieldsByTypeConfig | null = null;
 /** Canonical warning text + heading rules (FR-11, D6). */
 export function getWarningConfig(): WarningConfig {
   if (warningCache === null) {
-    warningCache = loadJson("warning.json", WarningConfigSchema);
+    warningCache = validateConfig("warning.json", warningJson, WarningConfigSchema);
   }
   return warningCache;
 }
@@ -84,7 +68,7 @@ export function getWarningConfig(): WarningConfig {
 /** Per-field matching rules and thresholds (FR-8, FR-9, FR-10, A19). */
 export function getTolerances(): TolerancesConfig {
   if (tolerancesCache === null) {
-    tolerancesCache = loadJson("tolerances.json", TolerancesConfigSchema);
+    tolerancesCache = validateConfig("tolerances.json", tolerancesJson, TolerancesConfigSchema);
   }
   return tolerancesCache;
 }
@@ -94,7 +78,7 @@ export function getRequiredFields(
   beverageType: BeverageType,
 ): readonly ConfigFieldKey[] {
   if (fieldsByTypeCache === null) {
-    fieldsByTypeCache = loadJson("fields-by-type.json", FieldsByTypeConfigSchema);
+    fieldsByTypeCache = validateConfig("fields-by-type.json", fieldsByTypeJson, FieldsByTypeConfigSchema);
   }
   return fieldsByTypeCache[beverageType];
 }
