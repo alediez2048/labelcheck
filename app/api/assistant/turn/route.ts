@@ -25,6 +25,7 @@ import { NextResponse } from "next/server";
 
 import { runTurn } from "@/lib/assistant/turn";
 import { emitTurnTrace } from "@/lib/assistant/trace";
+import { withAssistantSpan } from "@/lib/observability/spans";
 import { SEED_AGENTS } from "@/lib/queue/fixtures";
 import type {
   AssistantMessage,
@@ -60,12 +61,27 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: UNKNOWN_AGENT }, { status: 400 });
   }
 
+  // P5-1: wrap the turn in `withAssistantSpan`. The latest user
+  // message is hashed (not stored verbatim) before it touches the
+  // span; the orchestrator fills the rest of the attributes via the
+  // observability hook as the turn unfolds.
+  const latestUserMessage =
+    request.messages[request.messages.length - 1]?.content ?? "";
+
   try {
-    const response = await runTurn({
-      request,
-      callerAgentId: agent.id,
-      callerRole: agent.role,
-    });
+    const response = await withAssistantSpan(
+      agent.role,
+      latestUserMessage,
+      async (ctx) =>
+        runTurn({
+          request,
+          callerAgentId: agent.id,
+          callerRole: agent.role,
+          observability: {
+            setAttributes: (attrs) => ctx.setAttributes(attrs),
+          },
+        }),
+    );
     return NextResponse.json(response, { status: 200 });
   } catch (err) {
     // Emit a minimal trace even on failure so the observability

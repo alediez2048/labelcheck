@@ -262,10 +262,10 @@ Phase 4 exit: the assistant answers from uploaded content with role-scoped summa
 
 Description: prove and improve AI quality rather than assume it, the backbone that lets every later change ship safely.
 
-### P5-1 — Tracing
+### P5-1 — Tracing ✅ done 2026-06-15
 - Depends: P1-7 · Branch: feat/otel · Est: 3h
 - Goal: OpenTelemetry spans around verification and the assistant, PII redacted.
-- Acceptance: [ ] per-verification and per-turn traces; [ ] no PII in traces; [ ] latency and lane captured.
+- Acceptance: [x] per-verification parent span + `extraction.call` + `matching` child spans on every request; per-turn `assistant.turn` span on every chat turn; [x] no PII in traces — `lib/observability/redact.ts` with salted SHA-256 + `SAFE_ATTRIBUTE_KEYS` allow-list; anything outside the list is hashed before it enters a span attribute; [x] latency captured (span duration + `extraction.duration_ms` + `assistant.total_ms`); lane captured (`verification.lane` attribute + `verificationLaneCounter` metric); [x] exporter swappable via `OTEL_EXPORTER` env (`console` default / `file` JSONL / `otlp` HTTP); [x] `PII_HASH_SALT` env documented (required in prod; dev fallback with `console.warn`); [x] async-flush BatchSpanProcessor — instrumentation does not block the request hot path; [x] `docs/PRIVACY-IN-TRACES.md` auditor-facing redaction policy; [x] smoke-verified: grep for "Marcus"/"Vine St" in the console output returns nothing; only hashes.
 - Refs: observability.md; NFR-11.
 
 ### P5-2 — Offline eval harness

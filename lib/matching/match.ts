@@ -12,6 +12,7 @@
  */
 
 import { getTolerances, getWarningConfig, getRequiredFields, type FieldRule, type TolerancesConfig, type WarningConfig } from "@/lib/config";
+import { getTracer } from "@/lib/observability/tracing";
 import type { ExtractionResponse, FaceExtraction } from "@/lib/provider";
 import type { BeverageType, FaceKind, FieldName, FieldResult } from "@/types";
 
@@ -181,6 +182,21 @@ function attachConfidence(
 }
 
 export function matchApplication(input: MatchApplicationInput): FieldResult[] {
+  // P5-1: wrap the matching loop in a `matching` child span. Per-field
+  // verdict events are emitted by the route handler (option (b) in the
+  // P5-1 prompt) — the matching engine itself stays pure and does not
+  // import the span helper. The child span gives us a wall-clock
+  // attribution for the matching stage without coupling the engine to
+  // the observability surface.
+  const span = getTracer().startSpan("matching");
+  try {
+    return runMatch(input);
+  } finally {
+    span.end();
+  }
+}
+
+function runMatch(input: MatchApplicationInput): FieldResult[] {
   const tolerances = input.tolerances ?? getTolerances();
   const warningConfig = input.warningConfig ?? getWarningConfig();
   const requiredFields = getRequiredFields(input.beverageType);

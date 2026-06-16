@@ -33,6 +33,7 @@ import {
   validateApplication,
   type ApplicationSubmission,
 } from "@/lib/validation/application";
+import { withVerificationSpan } from "@/lib/observability/spans";
 import type { VerificationResult } from "@/types";
 
 type JsonFace = {
@@ -269,16 +270,33 @@ export async function POST(req: Request): Promise<NextResponse> {
     // 4. Run the reusable per-application pipeline (extract → match →
     //    triage). The pipeline lives in `lib/verify/runVerification.ts`
     //    so the batch orchestrator (P3-1) composes the same flow.
-    const result = await runVerification({
-      applicationId: decoded.submission.applicationId,
-      beverageType: submission.beverageType,
-      form: submission.form,
-      faces: submission.faces.map((f) => ({
-        kind: f.kind,
-        bytes: f.bytes,
-        mime: f.mime,
-      })),
-    });
+    //
+    //    P5-1: the entire pipeline runs INSIDE `withVerificationSpan`,
+    //    which sets up the parent `verification` span and feeds the
+    //    pipeline an observability hook. The hook receives face count,
+    //    per-field events, and the final lane/confidence; the
+    //    `extraction.call` child span inherits the context via OTel
+    //    propagation without manual threading.
+    const result = await withVerificationSpan(
+      decoded.submission.applicationId,
+      async (ctx) => {
+        return runVerification({
+          applicationId: decoded.submission.applicationId,
+          beverageType: submission.beverageType,
+          form: submission.form,
+          faces: submission.faces.map((f) => ({
+            kind: f.kind,
+            bytes: f.bytes,
+            mime: f.mime,
+          })),
+          observability: {
+            setAttributes: (attrs) => ctx.setAttributes(attrs),
+            addFieldEvent: (n, v, c, sf) =>
+              ctx.addFieldEvent(n, v, c, sf),
+          },
+        });
+      },
+    );
 
     outcome = outcomeFor(result);
     lane = result.lane;
