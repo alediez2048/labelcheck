@@ -20,12 +20,12 @@
 
 import React, { useState } from "react";
 
-import type { BatchItem, BatchPollResponse } from "@/app/batch/[id]/types";
 import { beverageFromClass } from "@/lib/intake/beverageFromClass";
 import { processPdf } from "@/lib/intake/clientPdf";
 import { parseColaForm } from "@/lib/intake/parseColaForm";
 import { useQueue, type QueueApplicationInput } from "@/lib/queue/QueueProvider";
 import type { SampleForm } from "@/fixtures/samples";
+import type { VerificationResult } from "@/types";
 
 type ProgressItem = {
   fileName: string;
@@ -72,36 +72,26 @@ function fallbackForm(rawForm: Partial<SampleForm>): SampleForm {
 }
 
 /**
- * Convert a completed BatchItem into the queue-input shape.
- * Faces become data: URLs so the queue row + review surfaces can
- * render them without another network hop.
+ * Build a QueueApplicationInput from a verify response + the
+ * original payload. We keep the rendered label image as a data:
+ * URL so the queue + review surfaces can render it without another
+ * network hop.
  */
-function batchItemToQueueInput(
-  item: BatchItem,
-  beverageType: ApplicationPayload["beverageType"],
-): QueueApplicationInput | null {
-  if (!item.result) return null;
-  const faces = (item.faces ?? []).map((face) => {
-    let base64 = "";
-    if (typeof face.bytes === "string") {
-      base64 = face.bytes;
-    } else if (face.bytes && Array.isArray(face.bytes.data)) {
-      let binary = "";
-      const data = face.bytes.data;
-      for (let i = 0; i < data.length; i++) binary += String.fromCharCode(data[i]!);
-      base64 = btoa(binary);
-    }
-    return {
-      kind: face.kind,
-      previewUrl: `data:${face.mime};base64,${base64}`,
-    };
-  });
+function buildQueueInput(
+  payload: ApplicationPayload,
+  result: VerificationResult,
+): QueueApplicationInput {
   return {
-    applicationId: item.applicationId,
-    brand: item.brand,
-    beverageType,
-    faces,
-    verification: item.result,
+    applicationId: payload.applicationId,
+    brand: payload.form.brandName,
+    beverageType: payload.beverageType,
+    faces: [
+      {
+        kind: "front",
+        previewUrl: `data:image/png;base64,${payload.labelPngBase64}`,
+      },
+    ],
+    verification: result,
   };
 }
 
@@ -121,49 +111,79 @@ export function UploadPdfButton(): React.ReactElement {
     );
   }
 
-  async function pollBatch(
-    jobId: string,
-    payloadByAppId: Map<string, ApplicationPayload>,
-  ): Promise<void> {
-    const seenDone = new Set<string>();
-    for (let attempt = 0; attempt < 60; attempt++) {
-      await new Promise((r) => setTimeout(r, 1000));
-      let body: BatchPollResponse;
-      try {
-        const res = await fetch(`/api/batch/${jobId}`);
-        if (!res.ok) continue;
-        body = (await res.json()) as BatchPollResponse;
-      } catch {
-        continue;
+  /**
+   * Verify one application via the synchronous /api/verify endpoint.
+   * Returns null on any failure (caller updates progress).
+   */
+  async function verifyOne(
+    payload: ApplicationPayload,
+  ): Promise<VerificationResult | null> {
+    try {
+      updateProgressByAppId(payload.applicationId, {
+        status: "grading",
+        detail: "extracting label…",
+      });
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          applicationId: payload.applicationId,
+          beverageType: payload.beverageType,
+          form: payload.form,
+          faces: [
+            {
+              kind: "front",
+              bytes: payload.labelPngBase64,
+              mime: "image/png",
+            },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        updateProgressByAppId(payload.applicationId, {
+          status: "failed",
+          detail: `verify ${res.status}${t ? `: ${t.slice(0, 120)}` : ""}`,
+        });
+        return null;
       }
-      const inputs: QueueApplicationInput[] = [];
-      for (const item of body.items ?? []) {
-        if (item.status !== "done" && item.status !== "failed") continue;
-        if (seenDone.has(item.applicationId)) continue;
-        seenDone.add(item.applicationId);
-        if (item.status === "failed") {
-          updateProgressByAppId(item.applicationId, {
-            status: "failed",
-            detail: item.error?.message ?? "extraction failed",
-          });
-          continue;
-        }
-        const payload = payloadByAppId.get(item.applicationId);
-        const beverageType =
-          payload?.beverageType ??
-          (item.beverageType ?? "distilled_spirits");
-        const input = batchItemToQueueInput(item, beverageType);
-        if (input) {
-          inputs.push(input);
-          updateProgressByAppId(item.applicationId, {
-            status: "done",
-            detail: `lane=${input.verification.lane}`,
-          });
-        }
-      }
-      if (inputs.length > 0) appendVerifiedApplications(inputs);
-      if (body.finished) return;
+      const result = (await res.json()) as VerificationResult;
+      return result;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown verify error";
+      updateProgressByAppId(payload.applicationId, {
+        status: "failed",
+        detail: msg,
+      });
+      return null;
     }
+  }
+
+  /**
+   * Bounded-concurrency runner so dropping 20 PDFs doesn't fan out
+   * 20 simultaneous Anthropic calls. Matches the server-side
+   * orchestrator's concurrency=5 from config/batch.json.
+   */
+  async function verifyAll(payloads: ReadonlyArray<ApplicationPayload>): Promise<void> {
+    const concurrency = 5;
+    let idx = 0;
+    async function worker(): Promise<void> {
+      while (true) {
+        const myIdx = idx++;
+        if (myIdx >= payloads.length) return;
+        const payload = payloads[myIdx]!;
+        const result = await verifyOne(payload);
+        if (result === null) continue;
+        const input = buildQueueInput(payload, result);
+        appendVerifiedApplications([input]);
+        updateProgressByAppId(payload.applicationId, {
+          status: "done",
+          detail: `lane=${result.lane}`,
+        });
+      }
+    }
+    const workers = Array.from({ length: Math.min(concurrency, payloads.length) }, worker);
+    await Promise.all(workers);
   }
 
   async function processFiles(files: ReadonlyArray<File>): Promise<void> {
@@ -234,35 +254,7 @@ export function UploadPdfButton(): React.ReactElement {
     }
 
     try {
-      const applicationsPayload = ready.map((r) => ({
-        applicationId: r.applicationId,
-        beverageType: r.beverageType,
-        form: r.form,
-        faces: [
-          { kind: "front" as const, bytes: r.labelPngBase64, mime: "image/png" as const },
-        ],
-      }));
-      const res = await fetch("/api/batch", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ applications: applicationsPayload }),
-      });
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        throw new Error(`Batch create failed (${res.status})${t ? `: ${t.slice(0, 200)}` : ""}`);
-      }
-      const body = (await res.json()) as { jobId: string };
-      if (!body.jobId) throw new Error("Batch create returned no jobId");
-
-      for (const r of ready) {
-        updateProgressByAppId(r.applicationId, {
-          status: "grading",
-          detail: "extracting label…",
-        });
-      }
-
-      const payloadByAppId = new Map(ready.map((r) => [r.applicationId, r] as const));
-      await pollBatch(body.jobId, payloadByAppId);
+      await verifyAll(ready);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
