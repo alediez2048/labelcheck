@@ -43,3 +43,10 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Guardrail eval (P4-3)
+        # Runs the adversarial guardrail set; a leak or a missed refusal
+        # fails the build. Same suite is already executed as part of
+        # `pnpm test`, but a separate step makes the pass/fail signal
+        # visible in CI logs (observability.md Component B: pass/fail).
+        run: pnpm test:guardrails

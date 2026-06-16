@@ -74,6 +74,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       role: agent.role,
       retrievedSources: [],
       totalMs: 0,
+      intentTags: [],
+      refusalTemplate: "none",
+      postcheckAction: "none",
     });
     // eslint-disable-next-line no-console
     console.error("[assistant.turn] orchestrator failed", err);

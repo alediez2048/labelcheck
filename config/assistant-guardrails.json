@@ -1,0 +1,15 @@
+{
+  "complianceClaimPatterns": [
+    "\\byou must\\b",
+    "\\bthe rule is\\b",
+    "\\bthe warning must\\b",
+    "\\bis required\\b",
+    "\\bfederal law\\b",
+    "\\bregulation requires\\b"
+  ],
+  "promptInjectionPatterns": [
+    "\\bignore (prior|previous|earlier|all) instructions\\b",
+    "\\bact as (an? )?admin\\b",
+    "\\byou are now\\b"
+  ]
+}

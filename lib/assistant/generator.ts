@@ -1,5 +1,5 @@
 /**
- * Assistant generator seam (P4-2).
+ * Assistant generator seam (P4-2, refusal-aware in P4-3).
  *
  * The chat-with-tools surface the orchestrator (`./turn.ts`) calls
  * twice per turn:
@@ -21,9 +21,24 @@
  * API with `tools: [getMyRollupSchema]`. Stubbed for now — the
  * prototype demos through the mock heuristic. Adding the live
  * adapter is a self-contained change (no callers move).
+ *
+ * P4-3 hardening: the mock's branch order is now refusal-first. The
+ * tags from the classifier carry the decision; the mock emits the
+ * fixed-shape refusal verbatim (the same constants the eval harness
+ * matches against). Without this the mock would happily fall through
+ * to the KB / numbers branches on a "show me Jane's stats" question.
  */
 
 import type { AssistantMessage, RollupSnapshot } from "@/types/assistant";
+
+import type { IntentTag } from "./intent";
+import {
+  REFUSAL_CROSS_USER,
+  REFUSAL_DISPOSITION,
+  REFUSAL_LEGAL,
+  REFUSAL_OUT_OF_SCOPE,
+  REFUSAL_UNSUPPORTED_COMPLIANCE,
+} from "./refusals";
 
 /**
  * What the orchestrator hands the generator on each call.
@@ -33,13 +48,17 @@ import type { AssistantMessage, RollupSnapshot } from "@/types/assistant";
  * conversation history, oldest first. `toolsEnabled` tells the
  * generator whether the rollup tool is on the table — the
  * orchestrator turns it off for the second call so the model
- * doesn't loop calling tools forever.
+ * doesn't loop calling tools forever. `intentTags` is the
+ * classifier's output (P4-3) — the mock branches on it before
+ * looking at message text.
  */
 export type GenerateInput = {
   systemPrompt: string;
   messages: ReadonlyArray<AssistantMessage>;
   /** Whether the rollup tool is offered to the model. */
   toolsEnabled: boolean;
+  /** Classifier tags for the latest user message (P4-3). */
+  intentTags: ReadonlyArray<IntentTag>;
 };
 
 /**
@@ -67,50 +86,58 @@ export type AssistantGenerator = {
 // real model doesn't require touching `turn.ts`.
 // ---------------------------------------------------------------------------
 
-/** Patterns the mock treats as "asking about my own numbers". */
-const NUMBERS_QUESTION_PATTERNS: ReadonlyArray<RegExp> = [
-  /how\s+am\s+i\s+doing/i,
-  /my\s+numbers/i,
-  /my\s+stats/i,
-  /this\s+week/i,
-  /this\s+month/i,
-  /completed/i,
-  /handled/i,
-];
-
 const WEEK_PATTERN = /\bweek\b/i;
 const MONTH_PATTERN = /\bmonth\b/i;
 
 /** Best-effort snippet length for the KB-grounded mock answer. */
 const SNIPPET_MAX = 280;
 
-const NO_ANSWER_REPLY =
-  "I don't have an answer for that yet. Try the docs (Knowledge Base) or ask your supervisor.";
-
 /**
- * Mock generator. The behaviour, in order:
+ * Mock generator. Branch order (top to bottom — first match wins):
  *
- *   1. Find the most recent user message.
- *   2. If it sounds like a "my own numbers" question AND tools are
- *      offered, return a `get_my_rollup` tool call with the inferred
- *      range (week / month, default month).
- *   3. Else, if the system prompt's KB context block is non-empty,
- *      return a templated answer that quotes the first chunk and
- *      names the source filename.
- *   4. Else, return the "don't know yet" fallback.
+ *   1. `legal_advice` tag       → REFUSAL_LEGAL.
+ *   2. `disposition_request`    → REFUSAL_DISPOSITION.
+ *   3. `cross_user_stats`       → REFUSAL_CROSS_USER.
+ *   4. `numbers_question` AND   → `get_my_rollup` tool call.
+ *      NOT cross_user_stats        (the tool only ever returns the
+ *                                   caller's own slice; the prior
+ *                                   branch caught the cross-user
+ *                                   attempts.)
+ *   5. KB context present       → templated quote answer.
+ *   6. `kb_question` AND no KB  → REFUSAL_UNSUPPORTED_COMPLIANCE.
+ *   7. otherwise                → REFUSAL_OUT_OF_SCOPE.
  *
- * This is deliberately a small set of regexes — it lets the
- * prototype demo without a key without pretending to be a real
- * language model.
+ * This is deliberately a small set of branches — it lets the prototype
+ * demo without a key without pretending to be a real language model.
+ * The eval harness asserts the branch boundaries directly.
  */
 export class MockAssistantGenerator implements AssistantGenerator {
   readonly name = "mock-heuristic";
 
   generate(input: GenerateInput): Promise<GenerateOutput> {
+    const tags = input.intentTags;
     const latestUser = findLatestUser(input.messages);
     const text = latestUser?.content ?? "";
 
-    if (input.toolsEnabled && isNumbersQuestion(text)) {
+    // 1. legal_advice
+    if (tags.includes("legal_advice")) {
+      return Promise.resolve({ text: REFUSAL_LEGAL });
+    }
+    // 2. disposition_request
+    if (tags.includes("disposition_request")) {
+      return Promise.resolve({ text: REFUSAL_DISPOSITION });
+    }
+    // 3. cross_user_stats — covers prompt injection too.
+    if (tags.includes("cross_user_stats")) {
+      return Promise.resolve({ text: REFUSAL_CROSS_USER });
+    }
+
+    // 4. numbers question (and not cross-user) → tool call.
+    if (
+      input.toolsEnabled &&
+      tags.includes("numbers_question") &&
+      !tags.includes("cross_user_stats")
+    ) {
       const range: "week" | "month" = WEEK_PATTERN.test(text)
         ? "week"
         : MONTH_PATTERN.test(text)
@@ -122,12 +149,19 @@ export class MockAssistantGenerator implements AssistantGenerator {
       });
     }
 
+    // 5. KB context present → templated KB answer.
     const block = extractKbBlock(input.systemPrompt);
     if (block !== null) {
       return Promise.resolve({ text: templatedKbAnswer(block) });
     }
 
-    return Promise.resolve({ text: NO_ANSWER_REPLY });
+    // 6. KB-shaped question with no context → unsupported compliance.
+    if (tags.includes("kb_question")) {
+      return Promise.resolve({ text: REFUSAL_UNSUPPORTED_COMPLIANCE });
+    }
+
+    // 7. fallback → out-of-scope.
+    return Promise.resolve({ text: REFUSAL_OUT_OF_SCOPE });
   }
 }
 
@@ -172,15 +206,6 @@ function findLatestUser(
     }
   }
   return undefined;
-}
-
-function isNumbersQuestion(text: string): boolean {
-  for (const pattern of NUMBERS_QUESTION_PATTERNS) {
-    if (pattern.test(text)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**
