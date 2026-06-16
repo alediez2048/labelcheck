@@ -4,6 +4,83 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-16 — P5-2 Offline eval harness
+
+**Branch:** `feat/evals`
+**Status:** Done
+
+**Workflow note:** Single-agent build (sequential — metric modules feed report writers feed runner).
+
+**What landed:**
+- `lib/eval/types.ts` — `GoldenCase`, `CaseRun`, `PerFieldMetric`, `LaneConfusion`, `FalseNegativeReport`, `WarningCheckReport`, `CalibrationBucket`, `CalibrationReport`, `LatencyReport`, `EvalReport`. The stable surface P5-4 (bake-off) + P5-5 (CI gate) consume.
+- `lib/eval/runner.ts` — `runEval()` drives the golden set through the pipeline. Injects `TEST_WARNING_CONFIG` (the canonical 27 CFR § 16.21 text) via the new `warningConfig?` parameter on `runVerification`, bypassing the A18 placeholder in `config/warning.json` for the eval. Forwards `EVAL_PROVIDER` → `PROVIDER` in a `try/finally` so the process env is restored. Synthesizes face JPEGs via `sharp` for each case (one face for unreadable cases, two faces for others).
+- `lib/eval/metrics/perField.ts` — per-`FieldName` TP/FP/FN/TN counts and P/R/F1. Zero-denominator handled by returning 0.
+- `lib/eval/metrics/laneConfusion.ts` — 3×3 confusion (`match | mismatch | review` predicted vs expected) + per-lane accuracy + overall.
+- `lib/eval/metrics/falseNegativeRate.ts` — `count(expectedLane !== "match" && predictedLane === "match") / count(expectedLane !== "match")`. Returns the leaked case ids for the report's debug bullet list.
+- `lib/eval/metrics/warningCheck.ts` — three sub-metrics (presence, verbatim, ALL CAPS). Documented inline that the three share ground truth (the `government_warning` field's expected verdict) until the golden set gains explicit warning sub-labels.
+- `lib/eval/metrics/calibration.ts` — 10 fixed-width buckets `[0, 0.1) ... [0.9, 1.0]` (top inclusive). ECE = `Σ (count_b / N) * |observedAccuracy_b - predictedMean_b|` over non-empty buckets.
+- `lib/eval/metrics/latency.ts` — nearest-rank p50/p95/p99/max + breach list against 5000ms budget.
+- `lib/eval/report/json.ts` — pretty-printed JSON.
+- `lib/eval/report/markdown.ts` — GFM Markdown; **headline (false-negative rate) prints first**, then lane confusion → warning check → calibration → per-field P/R → latency.
+- `scripts/eval.ts` — entrypoint. Writes `eval-reports/<ISO timestamp>/{report.json, report.md}`. Prints the headline + report path to stdout.
+- `tests/eval/metrics.test.ts` — 12 hand-crafted-input unit tests for each metric function.
+- `lib/verify/runVerification.ts` (modified) — added optional `warningConfig?: WarningConfig` on `RunVerificationInput`; threaded into `matchApplication`. Route handler unchanged.
+- `package.json` — `"eval": "tsx scripts/eval.ts"`.
+- `.gitignore` — `eval-reports/`.
+- `README.md` — Eval (P5-2) section after Tracing.
+
+**Run output (mock adapter, 9 cases):**
+
+```
+LabelCheck eval — provider=mock cases=9
+Headline (false-negative rate on real mismatches): 0 / 7 = 0.0%
+Report: eval-reports/2026-06-16T13-25-41-784Z
+```
+
+Lane confusion — 100% overall accuracy:
+
+| | predicted: match | predicted: mismatch | predicted: review |
+| --- | ---:| ---:| ---:|
+| **expected: match** | 2 | 0 | 0 |
+| **expected: mismatch** | 0 | 6 | 0 |
+| **expected: review** | 0 | 0 | 1 |
+
+Warning check — presence 88.9%, verbatim 88.9%, ALL CAPS 88.9%. ECE 0.1111 (one near-miss case in [0.0, 0.1) bucket; the other 8 in [0.9, 1.0]). Latency p50=2ms, p95=10ms, max=10ms (no budget breaches).
+
+**Verification:**
+- `pnpm test` — 49 files, **409 tests pass + 1 skipped** (397 prior + 12 new metric tests).
+- `pnpm build` — clean.
+- `pnpm lint` — clean.
+- `pnpm eval` — runs end-to-end, writes report directory, prints headline.
+
+**Deviations from ticket:**
+- The ticket suggested a `manifest.json`. The Phase 1 golden set already exists as a typed array at `tests/golden/index.ts`; the runner imports it directly rather than duplicating as JSON. The ticket itself called this out as the cleaner shape; documented at the runner's seam.
+- `RunOptions.warningConfig: null` opts out of the canonical injection — additive debug surface on top of the spec.
+- The runner restores `process.env.PROVIDER` after the run via `try/finally` so subsequent invocations in the same Node process aren't polluted. Subtle but matters for the future P5-4 bake-off, which will swap providers within one process.
+- `scripts/eval-harness.ts` (the P5-2 placeholder from P0-7 / P5-2 stub) is left in place wired to `pnpm test:eval`; the new `pnpm eval` is additive so the old hook keeps working.
+- Warning sub-metrics share ground truth (documented inline). A sharper presence/verbatim/ALL CAPS breakdown lands when the golden set gains explicit warning sub-labels — a future ticket.
+
+**Why:**
+P5-2 turns "the AC sentences are true" (P1-10's assertion) into "and here's the measurement to prove it stays true". The same code path runs in CI (P1-10's `pnpm test`), the same code path runs in the eval harness (`pnpm eval`) — but P5-2 emits a structured report instead of pass/fail assertions. The metrics observability.md lists become numbers an operator can chart over time, not just guardrails that fire on regression. P5-4 (bake-off) extends the same harness by iterating providers; P5-5 (CI gate) wraps the harness with a fail-if-FN-rate-regresses contract.
+
+The **headline-first ordering** in the Markdown is the same posture P3-1's lane-grouped batch UI took: the supervisor sees the costly error first. A reader who stops after the first heading still knows the safety number. Aggregating P/R or warning-check accuracy ahead of the false-negative rate would let "98.7% accuracy" hide the one false negative that matters. The order is the message.
+
+The **calibration curve validates D5** in measurement form. Phase 1's code-derived confidence is only useful if it tracks observed correctness; the 10-bucket table makes that claim testable. The ECE number is the single scalar the eval can chart; the per-bucket table is what the operator stares at when ECE creeps up. A future maintainer who "calibrates" by hand-tuning the lane thresholds in `config/tolerances.json` now has the evidence to do it: sweep the threshold, rerun `pnpm eval`, watch ECE move. Without the calibration table the threshold tuning is guesswork.
+
+The **provider-agnostic seam (`EVAL_PROVIDER` env)** is the substrate P5-4's bake-off iterates. Today's harness runs against the mock by default — deterministic, secret-free, suitable for CI. When the take-home reviewer runs `EVAL_PROVIDER=live pnpm eval` with an API key, the same harness produces the live-adapter numbers. P5-4 wraps a loop around the env so each provider's report is comparable. The call site never changes.
+
+The **TEST_WARNING_CONFIG injection via the new `warningConfig?` parameter on `runVerification`** is the right shape for the prototype's A18 placeholder. Phase 1's tests inject the canonical text via `vi.spyOn(configModule, "getWarningConfig")`; the eval harness can't use vi (it's not running under Vitest). Threading the parameter through `runVerification` → `matchApplication` (which already accepts it) gives the runner clean access without monkey-patching. The route handler doesn't pass the parameter, so production behaviour is unchanged.
+
+The **report under `eval-reports/<ISO timestamp>/`** keeps every run as a separate artifact. Sweeping a threshold means N runs producing N report dirs; comparing them is a diff. The directory is gitignored because reports are run artifacts, not source. The `.gitkeep` is removed (the directory is just always created on the first run).
+
+The **12 unit tests on hand-crafted inputs** are the discipline that keeps the metric math honest. A bug in the calibration ECE formula or the per-field F1 denominator would silently pollute every report; the unit tests catch the math, not the integration. Tests are deliberately small so a failure points at the specific metric module, not at the runner.
+
+The **AC-10 static no-PII check passes unchanged** because `scripts/` is outside its scan path. The `await mkdir` + `await writeFile` calls in `scripts/eval.ts` are legitimate for the eval harness (it has to write the report), and the static check's allow-list already accommodates this by scoping to `app/`, `lib/`, and `middleware.ts` only. NFR-4 still holds: the report doesn't carry applicant PII (only ids, counts, and verdicts), and run artifacts under `eval-reports/` aren't checked in.
+
+**Next:** P5-3 — Agent-correction feedback loop. The eval harness measures lane accuracy + confidence calibration; P5-3 captures every agent disposition that overrides the system's lane and writes it back as labeled training data. The loop closes the production eval signal.
+
+---
+
 ## 2026-06-15 — P5-1 Tracing — Phase 5 begins
 
 **Branch:** `feat/otel`

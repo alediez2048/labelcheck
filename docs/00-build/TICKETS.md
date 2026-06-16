@@ -268,10 +268,10 @@ Description: prove and improve AI quality rather than assume it, the backbone th
 - Acceptance: [x] per-verification parent span + `extraction.call` + `matching` child spans on every request; per-turn `assistant.turn` span on every chat turn; [x] no PII in traces — `lib/observability/redact.ts` with salted SHA-256 + `SAFE_ATTRIBUTE_KEYS` allow-list; anything outside the list is hashed before it enters a span attribute; [x] latency captured (span duration + `extraction.duration_ms` + `assistant.total_ms`); lane captured (`verification.lane` attribute + `verificationLaneCounter` metric); [x] exporter swappable via `OTEL_EXPORTER` env (`console` default / `file` JSONL / `otlp` HTTP); [x] `PII_HASH_SALT` env documented (required in prod; dev fallback with `console.warn`); [x] async-flush BatchSpanProcessor — instrumentation does not block the request hot path; [x] `docs/PRIVACY-IN-TRACES.md` auditor-facing redaction policy; [x] smoke-verified: grep for "Marcus"/"Vine St" in the console output returns nothing; only hashes.
 - Refs: observability.md; NFR-11.
 
-### P5-2 — Offline eval harness
+### P5-2 — Offline eval harness ✅ done 2026-06-16
 - Depends: P1-10 · Branch: feat/evals · Est: 4h
 - Goal: run the golden set and report per-field precision/recall, lane accuracy, false-negative rate, warning-check accuracy, confidence calibration.
-- Acceptance: [ ] metrics produced; [ ] false-negative rate is the headline; [ ] calibration curve output.
+- Acceptance: [x] `pnpm eval` runs end-to-end and writes timestamped reports to `eval-reports/<ISO>/{report.json,report.md}` (gitignored); [x] all six metric families produced — per-field P/R/F1, 3×3 lane confusion, false-negative rate, warning-check sub-metrics (presence/verbatim/ALL CAPS), 10-bucket calibration with ECE, latency distribution with budget breaches; [x] false-negative rate is the headline (printed first in stdout AND first section in `report.md`); [x] calibration curve outputs 10 buckets + ECE number; [x] provider-agnostic via `EVAL_PROVIDER` env (defaults to mock); [x] no PII in the report; [x] **smoke-verified on mock**: 0/7 = 0.0% false-negative rate, 100% overall lane accuracy (2/2 match, 6/6 mismatch, 1/1 review), ECE 0.1111, p50/p95/max 2/10/10ms (well under 5000ms budget).
 - Refs: observability.md.
 
 ### P5-3 — Agent-correction feedback loop

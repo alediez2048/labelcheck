@@ -172,3 +172,47 @@ pnpm add -D tsx
 ```
 
 (No runtime deps required — Vitest is already in the toolchain, and the metric math is pure TypeScript.)
+
+---
+
+## Outcome — done 2026-06-16
+
+**Branch:** `feat/evals`
+**Status:** Done — 409 tests pass + 1 skipped (+12 new); lint + build clean.
+**Workflow:** Single-agent (sequential — metrics feed report writers feed runner).
+
+**What landed:**
+- `lib/eval/{types,runner}.ts` + `lib/eval/metrics/{perField,laneConfusion,falseNegativeRate,warningCheck,calibration,latency}.ts` + `lib/eval/report/{json,markdown}.ts`.
+- `scripts/eval.ts` — entrypoint. Writes `eval-reports/<ISO>/{report.json, report.md}`.
+- `lib/verify/runVerification.ts` — added optional `warningConfig?` parameter; threaded into `matchApplication`. Route handler unchanged.
+- `package.json` — `"eval"` script. `.gitignore` — `eval-reports/`. `README.md` — Eval section.
+- `tests/eval/metrics.test.ts` — 12 hand-crafted-input unit tests.
+
+**Mock-adapter run (9 cases):**
+- Headline: **0 / 7 = 0.0% false-negative rate.**
+- Lane confusion: 100% overall accuracy (2/2 match, 6/6 mismatch, 1/1 review).
+- Warning check: 88.9% (presence + verbatim + ALL CAPS).
+- Calibration: ECE 0.1111 (one near-miss in [0.0, 0.1); 8 in [0.9, 1.0]).
+- Latency: p50=2ms / p95=10ms / max=10ms — no budget breaches.
+
+**Deviations:**
+- No `manifest.json` — the typed array at `tests/golden/index.ts` IS the manifest (the spec itself called this out).
+- `RunOptions.warningConfig: null` opts out of canonical injection — debug surface.
+- Runner restores `process.env.PROVIDER` in a `try/finally` so subsequent invocations aren't polluted (matters for P5-4 bake-off).
+- Warning sub-metrics share ground truth (documented inline); sharper labels need a future manifest extension.
+
+### Why
+
+P5-2 turns "the AC sentences are true" (P1-10) into "and here's the measurement to prove it stays true". The same code path runs in CI assertions AND in the eval harness; the harness emits structured numbers instead of pass/fail. P5-4 extends by iterating providers; P5-5 wraps with the fail-if-FN-rate-regresses contract.
+
+The **headline-first ordering** is the same posture P3-1's batch UI took: the costly error first. A reader stopping after the first heading still knows the safety number. "98.7% accuracy" can hide the one false negative that matters.
+
+The **calibration curve validates D5** in measurement form. The 10-bucket table + ECE makes "code-derived confidence tracks observed correctness" testable. A future maintainer who calibrates lane thresholds in `config/tolerances.json` now has evidence: sweep the threshold, rerun `pnpm eval`, watch ECE move. Without the table, threshold tuning is guesswork.
+
+The **provider-agnostic seam** (`EVAL_PROVIDER` env) is the substrate P5-4 iterates. The mock default keeps CI deterministic and secret-free; the live run is one env flip.
+
+The **`warningConfig?` parameter on `runVerification`** is the right shape for the A18 placeholder. Phase 1 tests inject via `vi.spyOn`; the eval harness can't use vi. Threading the parameter through gives clean access without monkey-patching. Route handler doesn't pass the param, so production is unchanged.
+
+The **report under `eval-reports/<ISO>/`** keeps every run as a separate artifact. Sweeping a threshold means N runs producing N report dirs; comparing them is a diff. Gitignored — run artifacts, not source.
+
+The **12 unit tests on hand-crafted inputs** keep the metric math honest. A bug in the F1 denominator or the ECE formula would silently pollute every report; the unit tests catch the math, not the integration.

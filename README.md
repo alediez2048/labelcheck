@@ -99,6 +99,33 @@ keeps moving. See `docs/PRIVACY-IN-TRACES.md` for the full redaction
 policy — what's hashed, what's verbatim, which keys are on the
 allow-list.
 
+## Eval (P5-2)
+
+```bash
+pnpm eval                                          # mock adapter (default)
+EVAL_PROVIDER=live ANTHROPIC_API_KEY=... pnpm eval # live adapter
+```
+
+`pnpm eval` runs the Phase 1 golden set (`tests/golden/index.ts`) end
+to end through the verification pipeline and writes a metrics report
+under `eval-reports/<ISO timestamp>/`:
+
+- `report.json` — structured metrics; P5-4 (model bake-off) and P5-5
+  (CI eval gate) read this.
+- `report.md` — human summary; leads with the **false-negative rate
+  on real mismatches** (observability.md's headline safety metric).
+
+The Markdown report covers: false-negative rate, 3x3 lane confusion,
+government-warning check accuracy, confidence calibration table + ECE
+(D5), per-field precision / recall / F1, and the p50/p95/p99/max
+latency distribution against the 5-second budget (NFR-1).
+
+`eval-reports/` is gitignored — reports are per-run artifacts. The
+runner is provider-agnostic via `EVAL_PROVIDER`; `mock` is the
+default and runs deterministically without an API key. No applicant
+PII enters the report — all values are enums, counts, ratios, and
+stable internal case ids (NFR-4).
+
 ## Repo layout
 
 ```
