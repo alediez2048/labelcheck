@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { withVerificationSpan } from "@/lib/observability/spans";
+import { runVerification } from "@/lib/verify/runVerification";
 
 export async function POST(): Promise<NextResponse> {
   return NextResponse.json({
     alive: true,
     route: "verify2",
-    spanOk: typeof withVerificationSpan === "function",
+    runVerificationOk: typeof runVerification === "function",
   });
 }
