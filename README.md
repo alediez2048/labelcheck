@@ -126,6 +126,42 @@ default and runs deterministically without an API key. No applicant
 PII enters the report — all values are enums, counts, ratios, and
 stable internal case ids (NFR-4).
 
+## Bake-off (P5-4)
+
+```bash
+pnpm bakeoff                                                    # default: mock,anthropic,olmocr
+pnpm bakeoff --providers=mock,anthropic,olmocr
+pnpm bakeoff --providers=mock,anthropic,azure-openai-gov,olmocr,glm-ocr,qwen-vl
+```
+
+The bake-off runs the full P5-2 eval against the golden set once per
+provider, writes per-provider reports under
+`eval-reports/bakeoff-<ISO timestamp>/<providerId>/`, and produces a
+single `comparison.md` + `comparison.json` at the bake-off root.
+
+The comparison report enforces the stakeholder framing rule from
+`docs/02-design/techstack.md`:
+
+- **Lead candidate** = Azure OpenAI in Azure Government (FedRAMP High,
+  US vendor, no external endpoint) when its env is configured. If Azure
+  Gov is not exercised in the run, the comparison says so and promotes
+  the air-gapped fallback to the lead role.
+- **Air-gapped fallback** = olmOCR (Allen Institute, US-origin,
+  Apache 2.0) — the provenance-safe lead among self-hosted candidates.
+- **Pending security review** = GLM-OCR (Zhipu AI) and Qwen2.5-VL
+  (Alibaba). Chinese-origin models that can be measured for accuracy on
+  the same harness but never appear in the lead position of the
+  recommendation regardless of their measured metrics. The framing rule
+  is enforced in code in `lib/eval/bakeoff/comparison.ts` (unit-tested
+  in `tests/eval/bakeoff/comparison.test.ts`).
+
+Ranking: false-negative rate ASC (the headline; observability.md is
+explicit) subject to a 5-second p95 latency gate (NFR-1). Tie-breaks:
+warning-check accuracy DESC, ECE ASC, then estimated cost per call
+ASC. A candidate that fails the p95 gate is excluded with a reason
+citing the budget; a candidate the harness could not provision is
+excluded with the underlying error.
+
 ## Repo layout
 
 ```
@@ -147,9 +183,16 @@ Copy `.env.example` to `.env` and fill in the values you need. `.env` is gitigno
 |---|---|---|
 | `ACCESS_PASSCODE` | unset | Spend-shield passcode for the deployed app (P0-6). Unset for local dev — the access gate becomes a no-op. **Not authentication** — production uses PIV/CAC + SSO + RBAC + audit (NFR-8, P6-3). |
 | `ACCESS_COOKIE_SECRET` | unset | Server-side HMAC secret for signing the access cookie (P0-6). **Required when `ACCESS_PASSCODE` is set.** Use 32+ bytes of randomness. |
-| `PROVIDER` | `mock` | Vision provider adapter selector (P0-3). Supported values: `mock` (default), `anthropic` (Claude Sonnet 4.6, P1-2), `azure-openai` (P6-1), `olmocr` (P6-1). |
+| `PROVIDER` | `mock` | Vision provider adapter selector (P0-3). Supported values: `mock` (default), `anthropic` (Claude Sonnet 4.6, P1-2), `azure-openai-gov` (P5-4 / P6-1), `olmocr` (P5-4 / P6-1), `glm-ocr` (P5-4 bake-off — pending security review), `qwen-vl` (P5-4 bake-off — pending security review). |
 | `ANTHROPIC_API_KEY` | unset | Required when `PROVIDER=anthropic` (P1-2). The Anthropic provider throws at startup if the value is missing. |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Override the Claude model used by the Anthropic provider (P1-2). Useful for evals against a specific model snapshot during P5-4 bake-off. |
+| `AZURE_OPENAI_GOV_ENDPOINT` | unset | Azure OpenAI on Azure Government resource URL (e.g. `https://<resource>.openai.azure.us/`). Required for `PROVIDER=azure-openai-gov` (P5-4). |
+| `AZURE_OPENAI_GOV_API_KEY` | unset | Azure OpenAI on Azure Government resource key. Required for `PROVIDER=azure-openai-gov` (P5-4). |
+| `AZURE_OPENAI_GOV_DEPLOYMENT` | unset | Deployment name for the GPT-4o vision model on Azure Gov. Required for `PROVIDER=azure-openai-gov` (P5-4). |
+| `AZURE_OPENAI_GOV_API_VERSION` | `2024-08-01-preview` | API version pinned for the Azure Gov adapter (P5-4). |
+| `OLMOCR_ENDPOINT` | `http://localhost:8080` | Local olmOCR serving endpoint (P5-4). The adapter posts to `<endpoint>/extract`. |
+| `GLM_OCR_ENDPOINT` | unset | Local GLM-OCR serving endpoint. **PENDING SECURITY REVIEW — Chinese-origin model; not approved for Treasury workloads without executive review** (techstack.md framing rule). |
+| `QWEN_VL_ENDPOINT` | unset | Local Qwen2.5-VL serving endpoint. **PENDING SECURITY REVIEW — Chinese-origin model; not approved for Treasury workloads without executive review** (techstack.md framing rule). |
 | `IMAGE_MAX_LONG_EDGE` | `1568` | Long-edge cap for image preprocessing (P0-5). Default is Claude's usable maximum (D7). **Do not set below 1568 without changing the provider** — the smallest text on the label (the government warning) becomes illegible and the warning check silently weakens. |
 | `OTEL_EXPORTER` | `console` | Trace + metric exporter (P5-1). Supported values: `console`, `file`, `otlp`. |
 | `OTEL_FILE_PATH` | `.data/traces/otel.jsonl` | Output path when `OTEL_EXPORTER=file`. |

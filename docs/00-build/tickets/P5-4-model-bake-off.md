@@ -179,4 +179,35 @@ Running `pnpm bakeoff` produces a comparison report ranking candidate extraction
 pnpm add @azure/openai
 ```
 
+---
+
+## Outcome (2026-06-16)
+
+**Branch:** `feat/bakeoff` · **Status:** Done
+
+Single-agent build. The work was sequential and the framing rule (Chinese-origin candidates never lead) was the single load-bearing decision the whole ticket exists to encode.
+
+**Landed:**
+
+- `lib/provider/registry.ts` — `ProviderEntry` with `origin: { vendor, countryOfOrigin, license, inBoundary, securityReview }` + `estimatedCostPerCallUsd` + `build()`. Six entries: `mock`, `anthropic`, `azure-openai-gov` (US, in-boundary via Azure Government, approved), `olmocr` (US, in-boundary, approved — Apache 2.0 air-gappable), `glm-ocr` (China, pending review), `qwen-vl` (China, pending review).
+- `lib/provider/azure-openai-gov.ts` — adapter via the `openai` SDK's `AzureOpenAI` client.
+- `lib/provider/olmocr.ts`, `glm-ocr.ts`, `qwen-vl.ts` — HTTP adapters (POST `<endpoint>/extract`) against a self-hosted inference server.
+- `lib/eval/bakeoff/comparison.ts` — `rankProviders(reports, registry)` + `buildRecommendation(ranked)`. Lead slot reserved for `origin.inBoundary === "via-azure-government"` AND `origin.securityReview === "approved"`. Air-gapped-fallback slot prefers `olmocr`. Chinese-origin candidates explicitly excluded from the lead slot even when they have the best metrics or are the only survivor.
+- `lib/eval/bakeoff/report.ts` — per-provider `report.{json,md}` (FN-rate, p95 latency, cost/call grid) + top-level `comparison.{json,md}` with the recommendation block.
+- `scripts/bakeoff.ts` — `pnpm bakeoff --providers=<id,id,...>`. Writes `eval-reports/bakeoff-<ISO>/<providerId>/report.{json,md}` plus the comparison.
+- `tests/eval/bakeoff/comparison.test.ts` — 12 framing-rule unit tests including the "ONLY survivor" case and the "best metrics" case.
+- `package.json` — added `bakeoff` script; added `openai` SDK.
+- `README.md` — federal procurement note + bake-off usage.
+
+**Verification:** `pnpm lint` clean. `pnpm build` clean. `pnpm test` 440 passing (+12). `pnpm bakeoff --providers=mock` runs end-to-end and emits the framing-rule guard correctly ("No US-origin, security-review-approved candidate ran. The framing rule precludes recommending any of the surveyed candidates.").
+
+**Deviations from spec:**
+
+- Lead-slot eligibility narrowed from "in-boundary" generally to `inBoundary === "via-azure-government"` AND `securityReview === "approved"`. olmOCR fills the air-gapped-fallback slot instead of competing for lead — matches the prod framing precisely.
+- Installed `openai` SDK alongside `@azure/openai` 2.0.0 because the Azure-branded package is now a thin barrel re-exporting the main SDK's `AzureOpenAI` client.
+
+### Why
+
+The bake-off exists to remove vibes from model selection. Phase 6 puts a model in front of TTB reviewers; the procurement story has to be defensible, and "we picked the best metrics" is not defensible when the best-metrics candidate is Chinese-origin. The framing rule (lead slot reserved for US-origin, security-review-approved, in-boundary candidates; Chinese-origin candidates pinned to "pending review" regardless of metrics) is the single load-bearing decision this ticket encodes — and the unit tests pin it down so a future contributor can't accidentally unlock the lead slot for a model that would tank the procurement conversation. olmOCR earns the air-gapped-fallback slot because Apache 2.0 + US-origin makes it the only candidate we can run in a SCIF without a vendor relationship. The CLI + reports + comparison grid are the artifacts a reviewer can read; the framing rule is the invariant they enforce.
+
 (olmOCR and the pending-review adapters call local HTTP endpoints — no SDK required; fetch is sufficient.)

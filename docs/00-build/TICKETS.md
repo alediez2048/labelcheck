@@ -280,10 +280,10 @@ Description: prove and improve AI quality rather than assume it, the backbone th
 - Acceptance: [x] every disposition writes a `CorpusRecord` to `eval-data/agent-corrections/<ISO date>.jsonl` (gitignored — captured signal, not source); record carries `applicationIdHash` (sha256:<8 hex>) + brand verbatim + `predictedLane` + `effectiveLane` + `overrideKind` + `predictedFields[]` + optional `returnReasonFields[]` + `confirmation: pending`; [x] override detection in code (pure functions in `lib/feedback/{effectiveLane,override}.ts`); [x] agreement rate computed and surfaced (`GET /api/feedback/agreement` returns rolling + all-time + per-beverage-type breakdown; `<AgreementRateWidget />` polls every 10s on the Operations page); [x] disagreements sampled via `lib/feedback/sampler.ts` (env-tunable ratio/cap) and surfaced via `/disagreement-queue` admin route with Confirm/Reject buttons; [x] `pnpm eval --dataset=corrections` runs the same metric harness over the captured corpus; [x] recorder failures NEVER block disposition writes (try/catch + span event); [x] no applicant PII in the corpus.
 - Refs: observability.md.
 
-### P5-4 — Model bake-off
-- Depends: P5-2 · Branch: feat/model-bakeoff · Est: 3h
+### P5-4 — Model bake-off ✅ done 2026-06-16
+- Depends: P5-2 · Branch: feat/bakeoff · Est: 3h
 - Goal: compare candidate extraction models (a frontier API for the prototype; a self-hostable specialized OCR-VL such as olmOCR or GLM-OCR for the in-boundary path) on the golden set; pick on measured accuracy.
-- Acceptance: [ ] runs the golden set per model behind the adapter; [ ] reports accuracy/latency/cost; [ ] recommends a default and an in-boundary candidate.
+- Acceptance: [x] runs the golden set per model behind the adapter (`pnpm bakeoff --providers=<id,id,...>` iterates `lib/provider/registry.ts` entries through the P5-2 eval harness); [x] reports accuracy/latency/cost (per-provider `report.json` + `report.md`, plus top-level `comparison.{json,md}` with metric grid); [x] recommends a default and an in-boundary candidate (framing rule enforced in `lib/eval/bakeoff/comparison.ts`: lead slot reserved for `inBoundary === "via-azure-government"` + `securityReview === "approved"`; air-gapped-fallback slot prefers olmOCR; Chinese-origin candidates NEVER lead regardless of metrics).
 - Refs: techstack Model selection; observability Open Items.
 
 ### P5-5 — CI eval gate
