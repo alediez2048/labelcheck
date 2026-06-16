@@ -4,6 +4,67 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P4-2 Retrieval-grounded assistant
+
+**Branch:** `feat/assistant`
+**Status:** Done
+
+**Workflow note:** Seventh parallel-agent build. Agent A: backend (types, retrieve, getMyRollup tool, prompt template, generator, turn orchestrator, trace, API route, 15 tests). Agent B: UI (Citation chip, ChatPanel mounted in both shell layouts). Contract-first dispatch — `AssistantTurnRequest` + `AssistantTurnResponse` shapes dictated upfront. Integration clean on the first combined build.
+
+**What landed:**
+
+### Backend (Agent A)
+- `config/assistant.json` — `{ topK: 4, minSimilarity: 0.55, systemPromptVersion: 1 }`. Tunable without code changes (FR-25 spirit).
+- `types/assistant.ts` — `AssistantRole`, `Citation`, `AssistantMessage`, `AssistantTurnRequest`, `AssistantTurnResponse`, `RollupSnapshot`.
+- `lib/assistant/retrieve.ts` — `retrieveContext(query)`. Embeds the query via the P4-1 mock embedder, calls `searchByEmbedding(getStore(), q, topK)`, filters below the similarity floor, projects to `{ chunks, citations }`.
+- `lib/assistant/tools/getMyRollup.ts` — the ONLY tool exposed to the model. No `agentId` parameter; derives the scope from the `ctx.callerAgentId` + `ctx.callerRole` the server resolves. Agent → `agentKpis(state, ctx.callerAgentId, range)` + own-disposition counts. Admin → `divisionKpis(state, range)` + division-wide counts. Reads from the `SEED_*` fixtures directly (the prototype's stand-in for `metric_rollup`; documented inline).
+- `lib/assistant/prompt.ts` — system-prompt template. Imperative statements in order: read-only, two sources only (KB + tool), decline gracefully if neither, role-scoped, exactly one tool, cite the source filename. KB chunks formatted in a labelled block; empty case renders `--- KB CONTEXT EMPTY ---` so the model can see it.
+- `lib/assistant/generator.ts` — `AssistantGenerator` interface + `MockAssistantGenerator` heuristic + `AnthropicAssistantGenerator` stub + `formatRollup(snapshot)`. The mock heuristic: numbers-question regex match → toolCall; KB-context-non-empty → templated quote with filename + topic; else → "I don't have an answer for that yet." The orchestrator short-circuits the mock's second model call (after tool fires) by calling `formatRollup(snapshot)` directly; production swaps in a real second generator call.
+- `lib/assistant/turn.ts` — `runTurn(input)` orchestrator. retrieve → buildSystemPrompt → generate → (optionally) getMyRollup → format → trace. Emits `trace.assistantTurn` with PII-redacted attributes ({role, retrievedSources[], usedTool, totalMs}).
+- `lib/assistant/trace.ts` — structured turn trace via `console.info(JSON.stringify({...}))`. The Langfuse / Phoenix backend lands in P6-6; this is the seam it consumes.
+- `app/api/assistant/turn/route.ts` — POST handler. Parses + validates `messages` + `activeAgentId`, looks up the agent in `SEED_AGENTS` (UNKNOWN → 400 "Unknown active agent"), derives role server-side, calls `runTurn(...)`. Returns 200 with the response, 400 on validation, 500 on orchestrator throw. The body-derived `activeAgentId` is the prototype seam; production resolves the caller from a session cookie / PIV-CAC + SSO. Documented inline.
+- `tests/lib/assistant/{retrieve,getMyRollup}.test.ts` + `tests/app/api/assistant/turn.test.ts` — 15 new tests covering retrieve floor behaviour, role-scope isolation on the tool, agent-vs-admin differ on the integration turn, unknown active-agent → 400.
+
+### UI (Agent B)
+- `components/assistant/Citation.tsx` — slate pill with `[filename]` + indigo `v{version}` badge + topic tooltip. Presentational.
+- `components/assistant/ChatPanel.tsx` — floating bottom-right launcher (56px square, `💬` glyph) opens a 360 × 520 panel with sticky header (title + "As {name} · {role}" + close), scrollable message list, textarea + Send footer. User bubbles right-aligned slate-100; assistant bubbles left-aligned white with citation chips below. Welcome message when empty. Component-local message + citations state (NFR-4 session-only). On Send: POSTs to `/api/assistant/turn` with `{messages, activeAgentId: currentAgent.id}`. Inline rose error on 4xx/5xx + generic network error. `role="dialog"`, `aria-modal="false"`, `aria-live="polite"` on the message list, Esc closes, auto-focus on open.
+- `app/(admin)/layout.tsx` + `app/(agent)/layout.tsx` — `<ChatPanel />` mounted after `{children}` inside the shell wrapper. Same component in both shells; `useQueue().currentAgent` provides the right id based on the role switcher.
+
+**Verification:**
+- `pnpm test` — 43 files, **339 tests pass + 1 skipped** (324 prior + 15 new).
+- `pnpm build` — clean. 19 routes (new `/api/assistant/turn` in the manifest).
+- `pnpm lint` — clean.
+- Manual end-to-end smoke (curl, with `pnpm dev` + the KB seed loaded):
+  - **Agent (Marcus) asks "how am I doing this month?"** → `usedTool: get_my_rollup`, `role: agent`, citations: 0, content: "This month you've processed 4 applications; 0 cleared as match, 2 as mismatch, 2 needed review. 0 approved, 4 returned."
+  - **Admin (Sasha) asks the same question** → `usedTool: get_my_rollup`, `role: admin`, citations: 0, content: "This month the division has processed 14 applications; 8 cleared as match, 4 as mismatch, 2 needed review. 8 approved, 6 returned."
+  - The two answers DIFFER as required (FR-30, D16) — the ticket's headline manual check.
+  - **"What counts as a warning defect?"** → "I don't have an answer for that yet. Try the docs (Knowledge Base) or ask your supervisor." This is the expected "mock embedder has no semantic similarity" path; a real embedder (Voyage AI / OpenAI) would surface the seeded `sample-warning-guidance.md` chunk. Documented limitation; not a regression.
+
+**Deviations from ticket:**
+- The mock embedder is a hash-based FNV-1a from P4-1 — structurally correct (same text → same vector) but not semantically meaningful. A KB-grounded question with words that hash-overlap a chunk would surface it; a natural-language question generally won't. The decline-gracefully path is exercised correctly. P4-2's seam (`getEmbedder()`) accepts a real embedder via env var; the demo path swaps in Voyage AI for Anthropic pipelines or OpenAI `text-embedding-3-small` for OpenAI pipelines without touching this file.
+- Agent A short-circuited the mock generator's "second model call after the tool fires" by calling `formatRollup(snapshot)` directly in the orchestrator. Production swaps in a real second generator call (the model formats the snapshot into prose). Documented at the seam.
+- The `activeAgentId` is in the request body, NOT a session cookie. The prototype trusts the body because the role switcher is client-side; the server still verifies the id maps to a known agent and derives the role from `SEED_AGENTS`, NOT from the body. Production resolves the caller from session state / SSO. Documented inline.
+- `formatRollup` collapses `needs_correction` + `rejected` into one "returned" count. Matches the spec's "approved + returned" framing. P4-3's eval may want them split; left as-is.
+
+**Why:**
+P4-2 is the moment LabelCheck stops being a deterministic verifier and starts being a tool with a conversational surface. The assistant doesn't decide anything — that's the structural rule from CONTEXT.md and FR-30 — but it can answer questions about the tool, explain how the warning check works, and summarise the caller's own numbers. The role-scope isolation isn't aspirational; it's enforced at the tool-implementation level (`getMyRollup` has NO `agentId` parameter — the model literally cannot ask for someone else's data) and verified by the manual smoke showing the agent and admin answers differ for the same question.
+
+The **tool registry of exactly one** (`{ get_my_rollup }`) is the structural enforcement of the read-only rule. The model can't approve, return, reassign, edit specialisations, change availability, or write to the KB — because none of those tools are wired up. A future maintainer who reaches for "let's let it suggest a disposition" is breaking FR-30 and CONTEXT.md (Assistant); the right response to that pressure is to point at the disposition surface (P1-8 / P2-1) where the agent owns the call. The assistant's job is to inform, not to act.
+
+The **server-derived caller role** is the discipline that makes "zero leak" structural. The request body carries `activeAgentId`, but the SERVER looks that id up in `SEED_AGENTS` and reads the role from there — not from the body. The model never sees other users' ids. The tool's signature has no `agentId` field; the implementation reads from `ctx.callerAgentId` which the server controls. A request that smuggles a different agent's id wouldn't help — the rollup is keyed off `ctx`, not the model's tool input. This is the "tool implementation must not accept an `agent_id` parameter" rule from observability.md materialised in TypeScript.
+
+The **decline-gracefully default** when retrieval is empty is the prototype's structural answer to faithfulness (observability.md Component B). The mock generator's third branch — "no KB context, no numbers question" — returns "I don't have an answer for that yet. Try the docs or ask your supervisor." NOT "let me think about it from first principles". A real model with chat-with-tools would be similarly bounded by the system prompt's "do NOT improvise from training knowledge" line. The mock matches the production posture by construction; P4-3's guardrails harden it for the unusual cases.
+
+The **single configurable similarity floor** (`config/assistant.json` `minSimilarity: 0.55`) is the calibration seam. P5-2's eval harness will sweep this knob across the assistant question set and find the value that maximises faithfulness (no fabricated rules) without sacrificing helpfulness (the assistant refusing reasonable questions because retrieval scored 0.54). Hardcoding the floor would force a deploy for every calibration; config means a JSON edit + a host restart.
+
+The **trace shape** (`{role, retrievedSources, usedTool, totalMs}`) is the seam P5-1's OTel spans will read directly. The same posture P1-11's `verify.timing` shipped, applied to the assistant: ids, counts, durations, enums — no message content, no answer text, no transcribed values. NFR-4 holds; the operator can spot patterns (retrieval often empty → KB needs more content; tool fires often → users want their numbers; latency high → swap to a faster generator) without ever seeing a user's question.
+
+The **mock generator as the default** is the right scope for the prototype. A real chat-with-tools call costs money on every turn AND requires an API key; the prototype defaults to deterministic mock so CI runs without secrets. The Anthropic / OpenAI swap is one stub class to fill in. The demo path works with the mock; the real path lands when the take-home reviewer wants to see actual model behaviour, which is one env-var flip.
+
+**Next:** P4-3 — Guardrails. Out-of-scope refusal (legal advice, decisions, regulations beyond the KB), refusal copy that matches the assistant's voice, and a small refusal eval set to verify zero-leak across the role boundary under adversarial prompts.
+
+---
+
 ## 2026-06-15 — P4-1 Knowledge base store and ingestion — Phase 4 begins
 
 **Branch:** `feat/knowledge-base`

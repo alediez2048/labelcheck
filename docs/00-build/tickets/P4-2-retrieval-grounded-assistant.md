@@ -204,3 +204,43 @@ pnpm add openai
 # Optional: a small server-side rate limiter on /api/assistant/turn (e.g. an in-memory token bucket)
 # — not a new dep, just a util.
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/assistant`
+**Status:** Done — 339 tests pass + 1 skipped (+15); lint + build clean.
+**Workflow:** Seventh parallel-agent build. Agent A: backend. Agent B: ChatPanel UI + shell mounts. Contract-first dispatch.
+
+**What landed:**
+- `config/assistant.json` — `topK: 4`, `minSimilarity: 0.55`, tunable without code.
+- `types/assistant.ts` — wire types + `RollupSnapshot`.
+- `lib/assistant/{retrieve,prompt,generator,turn,trace}.ts` + `tools/getMyRollup.ts`.
+- `app/api/assistant/turn/route.ts` — POST handler; resolves caller from `SEED_AGENTS`; 400 on unknown id.
+- `components/assistant/{Citation,ChatPanel}.tsx`.
+- `app/(admin)/layout.tsx` + `app/(agent)/layout.tsx` — `<ChatPanel />` mounted in both shells.
+- 15 new tests across retrieve / getMyRollup / turn integration.
+
+**Verified end-to-end:** Marcus asks "how am I doing this month?" → "4 processed, 0 match, 2 mismatch, 2 review". Sasha asks the same → "14 processed, 8 match, 4 mismatch". **The two answers differ — the headline manual check passes.** KB-grounded question lands on the decline-gracefully path (mock embedder limitation; real embedder swaps at the seam).
+
+**Deviations:**
+- Mock FNV-1a embedder is structurally correct but not semantically meaningful. Voyage AI / OpenAI swap is documented at `getEmbedder()`.
+- `activeAgentId` in body, not session cookie. Server still verifies + derives role from `SEED_AGENTS` (not body). Production uses session/SSO.
+- `formatRollup` collapses needs_correction + rejected into one "returned" count. Matches the spec's framing.
+
+### Why
+
+P4-2 is the moment LabelCheck stops being a deterministic verifier and starts being a tool with a conversational surface. The assistant doesn't decide — that's the structural FR-30 rule — but it can answer about how the tool works, explain the warning check, and summarise the caller's own numbers. Role-scope isolation is enforced at the tool implementation: `getMyRollup` has NO `agentId` parameter; the model literally cannot ask for someone else's data.
+
+The **tool registry of exactly one** (`{ get_my_rollup }`) is the structural read-only rule. The model can't approve, return, reassign, edit, or write to the KB — because none of those tools are wired. A maintainer who reaches for "let it suggest a disposition" is breaking FR-30; the assistant informs, not acts.
+
+The **server-derived caller role** makes "zero leak" structural. The body carries `activeAgentId`, but the SERVER looks it up in `SEED_AGENTS` and reads the role from there. The tool reads `ctx.callerAgentId`, not body input. A request that smuggles a different agent's id wouldn't help — the rollup is keyed off `ctx`.
+
+The **decline-gracefully default** when retrieval is empty is the prototype's answer to faithfulness. "I don't have an answer for that yet" instead of "let me improvise from training". P4-3 hardens for adversarial cases.
+
+The **configurable similarity floor** is the calibration seam P5-2's eval harness will sweep. Hardcoding would force a deploy for every calibration; config means a JSON edit + a host restart.
+
+The **trace shape** (`{role, retrievedSources, usedTool, totalMs}`) is the seam P5-1's OTel spans will read. PII-redacted; no message content, no answer text. The operator can spot patterns without seeing user questions.
+
+The **mock generator as default** keeps CI deterministic + secret-free. The Anthropic / OpenAI swap is one stub class to fill.

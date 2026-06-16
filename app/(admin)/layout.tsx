@@ -20,6 +20,7 @@
 import { useRouter } from "next/navigation";
 import React, { useEffect } from "react";
 
+import { ChatPanel } from "@/components/assistant/ChatPanel";
 import { AdminShell } from "@/components/shell/AdminShell";
 import { useQueue } from "@/lib/queue/QueueProvider";
 
@@ -45,5 +46,10 @@ export default function AdminGroupLayout({
     return null;
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AdminShell>
+      {children}
+      <ChatPanel />
+    </AdminShell>
+  );
 }

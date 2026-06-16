@@ -1,0 +1,5 @@
+{
+  "topK": 4,
+  "minSimilarity": 0.55,
+  "systemPromptVersion": 1
+}
