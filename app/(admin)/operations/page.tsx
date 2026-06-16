@@ -152,54 +152,27 @@ export default function OperationsPage(): React.ReactElement {
         </p>
       )}
 
+      <IntakeFunnel snapshot={funnel} />
+
       <section
         aria-labelledby="upload-pdfs-heading"
         className="rounded-lg border border-slate-200 bg-white p-5"
       >
-        <header>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2
             id="upload-pdfs-heading"
             className="text-base font-semibold text-slate-800"
           >
             Upload TTB COLA PDFs
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Drop one or more TTB COLA PDFs. The browser extracts the form
-            fields and renders the label page, then submits the batch for
-            verification — match / mismatch / review per application.
+          <p className="text-xs text-slate-500">
+            Browser-side parse + render. Verdicts flow into the panels below.
           </p>
-        </header>
-        <div className="mt-4">
+        </div>
+        <div className="mt-3">
           <UploadPdfButton />
         </div>
       </section>
-
-      <section
-        aria-labelledby="batch-intake-heading"
-        className="rounded-lg border border-slate-200 bg-white p-5"
-      >
-        <header>
-          <h2
-            id="batch-intake-heading"
-            className="text-base font-semibold text-slate-800"
-          >
-            Synthetic demo batch (P3-1)
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Loads canned synthetic applications including the three known
-            defect cases (AC-2 ABV mismatch, AC-3 title-case warning,
-            AC-4 net-contents mismatch) so you can demo mismatches
-            deterministically without uploading PDFs.
-          </p>
-        </header>
-        <div className="mt-4">
-          <SubmitBatchButton />
-        </div>
-      </section>
-
-      <AgreementRateWidget />
-
-      <IntakeFunnel snapshot={funnel} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <MatchLaneApprovalPanel
@@ -218,6 +191,34 @@ export default function OperationsPage(): React.ReactElement {
       </div>
 
       <LiveIntakeFeed entries={liveIntake} />
+
+      <details className="rounded-lg border border-slate-200 bg-white">
+        <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          Demo helpers (synthetic batch + agreement widget)
+        </summary>
+        <div className="flex flex-col gap-5 border-t border-slate-200 p-5">
+          <section aria-labelledby="batch-intake-heading">
+            <header>
+              <h3
+                id="batch-intake-heading"
+                className="text-sm font-semibold text-slate-800"
+              >
+                Synthetic demo batch (P3-1)
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Canned synthetic applications including the three known
+                defect cases (AC-2 ABV mismatch, AC-3 title-case warning,
+                AC-4 net-contents mismatch) — for demoing mismatches
+                deterministically without uploading PDFs.
+              </p>
+            </header>
+            <div className="mt-3">
+              <SubmitBatchButton />
+            </div>
+          </section>
+          <AgreementRateWidget />
+        </div>
+      </details>
     </main>
   );
 }

@@ -47,7 +47,27 @@ import {
   SEED_AGENTS,
 } from "./fixtures";
 import { selectMyQueue, selectPoolCount } from "./myQueue";
-import type { QueueAgent, QueueItem, QueueStoreState } from "./types";
+import type {
+  QueueAgent,
+  QueueApplication,
+  QueueItem,
+  QueueStoreState,
+} from "./types";
+
+/**
+ * Minimal shape the dropzone hands to `appendVerifiedApplications`.
+ * Mirrors `QueueApplication` but omits the routing state (the action
+ * fills in `assignedAgentId = null` / `claimedAt = null` for a
+ * freshly-verified item) and lets the caller skip `receivedAt` /
+ * `verifiedDurationMs` for sensible defaults.
+ */
+export type QueueApplicationInput = Omit<
+  QueueApplication,
+  "assignedAgentId" | "claimedAt" | "receivedAt" | "verifiedDurationMs"
+> & {
+  receivedAt?: string;
+  verifiedDurationMs?: number;
+};
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type BulkApproveResult =
@@ -114,6 +134,14 @@ type QueueContextValue = {
     agentId: string,
     availability: "available" | "out_of_office",
   ) => ActionResult;
+  /**
+   * Inject a freshly-verified application (P5-8 drag-and-drop intake).
+   * Idempotent on `applicationId` — re-injecting refreshes the row in
+   * place rather than duplicating it.
+   */
+  appendVerifiedApplications: (
+    incoming: ReadonlyArray<QueueApplicationInput>,
+  ) => void;
 };
 
 const QueueContext = createContext<QueueContextValue | null>(null);
@@ -358,6 +386,59 @@ export function QueueProvider({
     [state],
   );
 
+  /**
+   * Inject a freshly-verified application into the live queue (P5-8
+   * drag-and-drop intake). The upload flow polls /api/batch and calls
+   * this for each completed item so the Operations panels (funnel,
+   * Match pool, Review distribution, Live feed) populate without a
+   * page navigation. Items that already exist (same `applicationId`)
+   * are replaced in place — re-uploading the same PDF refreshes its
+   * verdict rather than duplicating the row.
+   */
+  const appendVerifiedApplications = useCallback(
+    (incoming: ReadonlyArray<QueueApplicationInput>): void => {
+      setState((prev) => {
+        if (incoming.length === 0) return prev;
+        // Dedup by applicationId AND by normalized brand. Re-uploads
+        // of the same PDF (case / diacritic variants) collapse onto
+        // the existing row instead of creating phantom copies that
+        // distribute() can then route to two different agents.
+        const normBrand = (b: string): string =>
+          b.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        const byId = new Map(
+          prev.applications.map((a) => [a.applicationId, a] as const),
+        );
+        const idByBrand = new Map(
+          prev.applications.map((a) => [normBrand(a.brand), a.applicationId] as const),
+        );
+        for (const inp of incoming) {
+          const brandKey = normBrand(inp.brand);
+          const existingIdByBrand = idByBrand.get(brandKey);
+          const targetId =
+            existingIdByBrand && existingIdByBrand !== inp.applicationId
+              ? existingIdByBrand
+              : inp.applicationId;
+          const existing = byId.get(targetId);
+          const queueApp: QueueApplication = {
+            applicationId: targetId,
+            brand: inp.brand,
+            beverageType: inp.beverageType,
+            faces: inp.faces,
+            verification: inp.verification,
+            assignedAgentId: existing?.assignedAgentId ?? null,
+            claimedAt: existing?.claimedAt ?? null,
+            receivedAt: existing?.receivedAt ?? inp.receivedAt ?? new Date().toISOString(),
+            verifiedDurationMs: inp.verifiedDurationMs ?? 0,
+          };
+          byId.set(targetId, queueApp);
+          idByBrand.set(brandKey, targetId);
+        }
+        return { ...prev, applications: Array.from(byId.values()) };
+      });
+    },
+    [],
+  );
+
   const value = useMemo<QueueContextValue>(() => {
     return {
       state,
@@ -373,6 +454,7 @@ export function QueueProvider({
       reassign,
       setSpecialization,
       setAvailability,
+      appendVerifiedApplications,
     };
   }, [
     state,
@@ -385,6 +467,7 @@ export function QueueProvider({
     reassign,
     setSpecialization,
     setAvailability,
+    appendVerifiedApplications,
   ]);
 
   return (

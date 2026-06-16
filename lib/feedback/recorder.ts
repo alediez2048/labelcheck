@@ -137,6 +137,7 @@ export async function recordDispositionForFeedbackLoop(
     id,
     recordedAt,
     applicationIdHash,
+    applicationId: input.applicationId,
     brand: input.brand,
     beverageType: input.beverageType,
     predictedLane: input.predictedLane,

@@ -1,39 +1,45 @@
 /**
  * UploadPdfButton — drag-and-drop / file-picker intake for live TTB
- * COLA PDFs (P5-8). The headline demo control.
+ * COLA PDFs (P5-8). The headline demo control on Operations.
  *
  * For each selected PDF, in the BROWSER:
  *   1. Extract page-1 text via pdfjs-dist → regex form fields.
- *   2. Render the label page (3+ if present, else 1) to a PNG.
+ *   2. Render the label page to a PNG.
  *   3. Assemble the /api/batch per-application payload.
  *
- * Then POSTs the full payload (all selected files in one batch) and
- * redirects to /batch/[jobId], the existing P3-1 results view.
+ * POSTs all files in one batch, polls /api/batch/<jobId>, and pipes
+ * each completed item into the QueueProvider via
+ * `appendVerifiedApplications`. The operator stays on Operations; the
+ * funnel, Match approval pool, Review distribution board, and Live
+ * feed all update in place as items grade.
  *
  * Vercel-safe by construction: the server never touches a PDF.
  */
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 
+import type { BatchItem, BatchPollResponse } from "@/app/batch/[id]/types";
 import { beverageFromClass } from "@/lib/intake/beverageFromClass";
 import { processPdf } from "@/lib/intake/clientPdf";
 import { parseColaForm } from "@/lib/intake/parseColaForm";
+import { useQueue, type QueueApplicationInput } from "@/lib/queue/QueueProvider";
 import type { SampleForm } from "@/fixtures/samples";
 
 type ProgressItem = {
   fileName: string;
-  status: "parsing" | "ready" | "failed";
+  applicationId?: string;
+  status: "parsing" | "submitted" | "grading" | "done" | "failed";
   detail?: string;
 };
 
 type ApplicationPayload = {
   applicationId: string;
+  fileName: string;
   beverageType: ReturnType<typeof beverageFromClass>;
   form: SampleForm;
-  faces: Array<{ kind: "front"; bytes: string; mime: "image/png" }>;
+  labelPngBase64: string;
 };
 
 async function fileToArrayBuffer(file: File): Promise<ArrayBuffer> {
@@ -42,16 +48,16 @@ async function fileToArrayBuffer(file: File): Promise<ArrayBuffer> {
 
 function applicationIdFromName(name: string): string {
   const stem = name.replace(/\.pdf$/i, "");
-  return stem.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 64) || `upload-${Date.now()}`;
+  const normalized = stem
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip diacritics ("Bärenjäger" → "Barenjager")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalized.slice(0, 64) || `upload-${Date.now()}`;
 }
 
-/**
- * Provide non-empty defaults for every required field so server-side
- * validation accepts the submission. When a field couldn't be parsed
- * from the PDF, the matcher will compare the placeholder against the
- * label and produce a mismatch — which is the correct outcome and
- * surfaces cleanly in the review detail.
- */
 function fallbackForm(rawForm: Partial<SampleForm>): SampleForm {
   return {
     brandName: rawForm.brandName || "Unknown brand",
@@ -65,12 +71,100 @@ function fallbackForm(rawForm: Partial<SampleForm>): SampleForm {
   };
 }
 
+/**
+ * Convert a completed BatchItem into the queue-input shape.
+ * Faces become data: URLs so the queue row + review surfaces can
+ * render them without another network hop.
+ */
+function batchItemToQueueInput(
+  item: BatchItem,
+  beverageType: ApplicationPayload["beverageType"],
+): QueueApplicationInput | null {
+  if (!item.result) return null;
+  const faces = (item.faces ?? []).map((face) => {
+    let base64 = "";
+    if (typeof face.bytes === "string") {
+      base64 = face.bytes;
+    } else if (face.bytes && Array.isArray(face.bytes.data)) {
+      let binary = "";
+      const data = face.bytes.data;
+      for (let i = 0; i < data.length; i++) binary += String.fromCharCode(data[i]!);
+      base64 = btoa(binary);
+    }
+    return {
+      kind: face.kind,
+      previewUrl: `data:${face.mime};base64,${base64}`,
+    };
+  });
+  return {
+    applicationId: item.applicationId,
+    brand: item.brand,
+    beverageType,
+    faces,
+    verification: item.result,
+  };
+}
+
 export function UploadPdfButton(): React.ReactElement {
-  const router = useRouter();
+  const { appendVerifiedApplications } = useQueue();
   const [pending, setPending] = useState(false);
   const [progress, setProgress] = useState<ProgressItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+
+  function updateProgressByAppId(
+    applicationId: string,
+    patch: Partial<ProgressItem>,
+  ): void {
+    setProgress((prev) =>
+      prev.map((p) => (p.applicationId === applicationId ? { ...p, ...patch } : p)),
+    );
+  }
+
+  async function pollBatch(
+    jobId: string,
+    payloadByAppId: Map<string, ApplicationPayload>,
+  ): Promise<void> {
+    const seenDone = new Set<string>();
+    for (let attempt = 0; attempt < 60; attempt++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      let body: BatchPollResponse;
+      try {
+        const res = await fetch(`/api/batch/${jobId}`);
+        if (!res.ok) continue;
+        body = (await res.json()) as BatchPollResponse;
+      } catch {
+        continue;
+      }
+      const inputs: QueueApplicationInput[] = [];
+      for (const item of body.items ?? []) {
+        if (item.status !== "done" && item.status !== "failed") continue;
+        if (seenDone.has(item.applicationId)) continue;
+        seenDone.add(item.applicationId);
+        if (item.status === "failed") {
+          updateProgressByAppId(item.applicationId, {
+            status: "failed",
+            detail: item.error?.message ?? "extraction failed",
+          });
+          continue;
+        }
+        const payload = payloadByAppId.get(item.applicationId);
+        const beverageType =
+          payload?.beverageType ??
+          (item.beverageType ?? "distilled_spirits");
+        const input = batchItemToQueueInput(item, beverageType);
+        if (input) {
+          inputs.push(input);
+          updateProgressByAppId(item.applicationId, {
+            status: "done",
+            detail: `lane=${input.verification.lane}`,
+          });
+        }
+      }
+      if (inputs.length > 0) appendVerifiedApplications(inputs);
+      if (body.finished) return;
+    }
+  }
 
   async function processFiles(files: ReadonlyArray<File>): Promise<void> {
     setPending(true);
@@ -102,11 +196,10 @@ export function UploadPdfButton(): React.ReactElement {
 
         ready.push({
           applicationId,
+          fileName: file.name,
           beverageType,
           form,
-          faces: [
-            { kind: "front", bytes: labelPng.base64, mime: "image/png" },
-          ],
+          labelPngBase64: labelPng.base64,
         });
 
         setProgress((p) =>
@@ -114,10 +207,11 @@ export function UploadPdfButton(): React.ReactElement {
             idx === i
               ? {
                   ...it,
-                  status: "ready",
+                  applicationId,
+                  status: "submitted",
                   detail:
                     missing.length > 0
-                      ? `parsed (${missing.length} fields blank — will mismatch)`
+                      ? `parsed (${missing.length} fields blank)`
                       : `parsed`,
                 }
               : it,
@@ -140,10 +234,18 @@ export function UploadPdfButton(): React.ReactElement {
     }
 
     try {
+      const applicationsPayload = ready.map((r) => ({
+        applicationId: r.applicationId,
+        beverageType: r.beverageType,
+        form: r.form,
+        faces: [
+          { kind: "front" as const, bytes: r.labelPngBase64, mime: "image/png" as const },
+        ],
+      }));
       const res = await fetch("/api/batch", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ applications: ready }),
+        body: JSON.stringify({ applications: applicationsPayload }),
       });
       if (!res.ok) {
         const t = await res.text().catch(() => "");
@@ -151,9 +253,19 @@ export function UploadPdfButton(): React.ReactElement {
       }
       const body = (await res.json()) as { jobId: string };
       if (!body.jobId) throw new Error("Batch create returned no jobId");
-      router.push(`/batch/${body.jobId}`);
+
+      for (const r of ready) {
+        updateProgressByAppId(r.applicationId, {
+          status: "grading",
+          detail: "extracting label…",
+        });
+      }
+
+      const payloadByAppId = new Map(ready.map((r) => [r.applicationId, r] as const));
+      await pollBatch(body.jobId, payloadByAppId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
       setPending(false);
     }
   }
@@ -194,8 +306,8 @@ export function UploadPdfButton(): React.ReactElement {
           Drop TTB COLA PDFs here
         </p>
         <p className="text-xs text-slate-600">
-          or choose files — PDFs are parsed and rendered in your browser; the
-          server never sees the original PDF.
+          Parsed + rendered in your browser. Verdicts flow into the Match
+          approval pool or the Review distribution board below.
         </p>
         <label className="mt-2 inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-md border border-indigo-700 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-within:ring-2 focus-within:ring-indigo-300">
           <span aria-hidden="true">↑</span>
@@ -214,25 +326,29 @@ export function UploadPdfButton(): React.ReactElement {
       {progress.length > 0 && (
         <ul className="flex flex-col gap-1 text-xs">
           {progress.map((p, idx) => (
-            <li key={`${p.fileName}-${idx}`} className="flex items-center gap-2">
+            <li
+              key={`${p.fileName}-${idx}`}
+              className="flex items-center gap-2"
+            >
               <span
                 aria-hidden="true"
                 className={
-                  p.status === "ready"
+                  p.status === "done"
                     ? "text-emerald-700"
                     : p.status === "failed"
                       ? "text-rose-700"
                       : "text-slate-500"
                 }
               >
-                {p.status === "ready" ? "✓" : p.status === "failed" ? "✕" : "…"}
+                {p.status === "done"
+                  ? "✓"
+                  : p.status === "failed"
+                    ? "✕"
+                    : "…"}
               </span>
               <span className="flex-1 truncate text-slate-700">{p.fileName}</span>
               <span className="text-slate-500">
-                {p.detail ??
-                  (p.status === "parsing"
-                    ? "parsing in browser…"
-                    : p.status)}
+                {p.detail ?? p.status}
               </span>
             </li>
           ))}

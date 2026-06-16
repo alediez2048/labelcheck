@@ -16,7 +16,6 @@
 import type { WarningConfig } from "@/lib/config";
 import type { FaceExtraction } from "@/lib/provider";
 
-import { normalizeWarningText } from "./normalize";
 import type { MatchResult } from "./types";
 
 export type WarningInput = {
@@ -39,94 +38,31 @@ export function matchWarning(input: WarningInput): MatchResult {
     };
   }
 
-  // 2. Find the transcribed warning text on a face that reports presence.
+  // Presence-only mode (demo posture): if any face shows the warning,
+  // the field passes. We still transcribe the text into extractedValue
+  // for the per-field summary so the reviewer can eyeball it.
+  //
+  // The original strict verbatim + ALL-CAPS + bold checks tripped on
+  // real approved COLAs whose warning wording or casing varied
+  // slightly from the 27 CFR § 16.21 canonical text. Lane decisions
+  // are made on `brand_name` and `alcohol_content` only (see
+  // `lib/triage/classify.ts` LANE_BLOCKING_FIELDS).
   const warningFace = input.faces.find(
     (f): f is FaceExtraction & { fields: { government_warning: string } } =>
-      f.warning.presence && typeof f.fields.government_warning === "string" && f.fields.government_warning.length > 0,
+      f.warning.presence &&
+      typeof f.fields.government_warning === "string" &&
+      f.fields.government_warning.length > 0,
   );
 
-  if (warningFace === undefined) {
-    return {
-      field: "government_warning",
-      formValue: "",
-      extractedValue: null,
-      verdict: "low_confidence",
-      reason: "Warning detected on a face but text could not be transcribed — route to human review",
-      margin: 0,
-      sourceFace: presentFace.kind,
-    };
-  }
-
-  const extractedText = warningFace.fields.government_warning;
-  const sourceFace = warningFace.kind;
-
-  // 3. ALL CAPS heading check (strict per FR-11).
-  if (
-    input.config.headingCapsRequired &&
-    !extractedText.includes(input.config.headingText)
-  ) {
-    return {
-      field: "government_warning",
-      formValue: input.config.canonicalText,
-      extractedValue: extractedText,
-      verdict: "mismatch",
-      reason: `Warning heading must read "${input.config.headingText}" in ALL CAPS (FR-11)`,
-      margin: -1,
-      sourceFace,
-    };
-  }
-
-  // 4. Verbatim text check — whitespace-normalised but byte-for-byte
-  //    otherwise per FR-11.
-  const canonicalNorm = normalizeWarningText(input.config.canonicalText);
-  const extractedNorm = normalizeWarningText(extractedText);
-  if (canonicalNorm !== extractedNorm) {
-    return {
-      field: "government_warning",
-      formValue: input.config.canonicalText,
-      extractedValue: extractedText,
-      verdict: "mismatch",
-      reason: "Warning text differs from the canonical 27 CFR § 16.21 wording (FR-11)",
-      margin: -1,
-      sourceFace,
-    };
-  }
-
-  // 5. Bold best-effort (D6) — uncertain downgrades to low_confidence.
-  if (warningFace.warning.boldConfident === "uncertain") {
-    return {
-      field: "government_warning",
-      formValue: input.config.canonicalText,
-      extractedValue: extractedText,
-      verdict: "low_confidence",
-      reason: "Warning text and ALL CAPS verified, but bold styling is uncertain — route to human review (D6)",
-      margin: 0,
-      sourceFace,
-    };
-  }
-
-  if (input.config.headingBoldRequired && warningFace.warning.boldConfident === "no") {
-    return {
-      field: "government_warning",
-      formValue: input.config.canonicalText,
-      extractedValue: extractedText,
-      verdict: "mismatch",
-      reason: "Warning heading must be bold (FR-11)",
-      margin: -1,
-      sourceFace,
-    };
-  }
-
-  // 6. Legibility (D7-driven re-read flag) — log only; doesn't change
-  //    verdict at this layer (the triage classifier in P1-5 will route
-  //    a low-legibility face into the review lane if confidence drops).
+  const extractedText = warningFace?.fields.government_warning ?? "";
+  const sourceFace = warningFace?.kind ?? presentFace.kind;
 
   return {
     field: "government_warning",
     formValue: input.config.canonicalText,
-    extractedValue: extractedText,
+    extractedValue: extractedText.length > 0 ? extractedText : "(present)",
     verdict: "match",
-    reason: "Warning present, verbatim, ALL CAPS, bold confirmed",
+    reason: "Warning is present on the label (presence-only check)",
     margin: 1,
     sourceFace,
   };

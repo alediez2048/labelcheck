@@ -40,6 +40,7 @@ export async function GET(): Promise<NextResponse> {
         id: r.id,
         recordedAt: r.recordedAt,
         applicationIdHash: r.applicationIdHash,
+        applicationId: r.applicationId,
         brand: r.brand,
         beverageType: r.beverageType,
         predictedLane: r.predictedLane,
