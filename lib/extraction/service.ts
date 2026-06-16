@@ -175,7 +175,7 @@ export async function extract(
   //    context comes from the parent `verification` span set in the
   //    route handler — OTel's context propagation makes this child
   //    inherit it without manual threading.
-  const provider = getProvider();
+  const provider = await getProvider();
   const tracer = getTracer();
   const modelStart = performance.now();
   let outcome: "ok" | "timeout" | "transient" | "error" = "ok";

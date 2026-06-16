@@ -20,13 +20,48 @@
  * | qwen-vl           | QwenVlVisionProvider          | Requires QWEN_VL_ENDPOINT; pending |
  */
 
-import { AnthropicVisionProvider } from "./anthropic";
-import { AzureOpenAIGovVisionProvider } from "./azure-openai-gov";
-import { GlmOcrVisionProvider } from "./glm-ocr";
-import { MockVisionProvider } from "./mock";
-import { OlmocrVisionProvider } from "./olmocr";
-import { QwenVlVisionProvider } from "./qwen-vl";
 import type { VisionProvider } from "./types";
+
+/**
+ * Lazy-load each adapter on demand so the cold-start phase never
+ * imports SDKs we won't use (P5-8 Vercel hardening). The previous
+ * top-of-file eager imports pulled in `openai` + Anthropic SDK +
+ * provider clients on every route that depended on this module,
+ * and one of those SDKs was crashing the function's cold-start.
+ */
+async function loadProvider(name: string): Promise<VisionProvider> {
+  switch (name) {
+    case "mock": {
+      const { MockVisionProvider } = await import("./mock");
+      return new MockVisionProvider();
+    }
+    case "anthropic": {
+      const { AnthropicVisionProvider } = await import("./anthropic");
+      return new AnthropicVisionProvider();
+    }
+    case "azure-openai-gov": {
+      const { AzureOpenAIGovVisionProvider } = await import("./azure-openai-gov");
+      return new AzureOpenAIGovVisionProvider();
+    }
+    case "olmocr": {
+      const { OlmocrVisionProvider } = await import("./olmocr");
+      return new OlmocrVisionProvider();
+    }
+    case "glm-ocr": {
+      const { GlmOcrVisionProvider } = await import("./glm-ocr");
+      return new GlmOcrVisionProvider();
+    }
+    case "qwen-vl": {
+      const { QwenVlVisionProvider } = await import("./qwen-vl");
+      return new QwenVlVisionProvider();
+    }
+    default:
+      throw new Error(
+        `Unknown PROVIDER value "${name}". ` +
+          `Known: ${[...KNOWN_PROVIDERS].sort().join(", ")}.`,
+      );
+  }
+}
 
 const KNOWN_PROVIDERS = new Set([
   "mock",
@@ -44,37 +79,9 @@ const KNOWN_PROVIDERS = new Set([
  * when the requested adapter is missing required env, so the bake-off
  * can catch it and mark the candidate `not-run`.
  */
-export function getProvider(): VisionProvider {
+export async function getProvider(): Promise<VisionProvider> {
   const name = (process.env.PROVIDER ?? "mock").toLowerCase();
-
-  if (name === "mock") {
-    return new MockVisionProvider();
-  }
-
-  if (name === "anthropic") {
-    return new AnthropicVisionProvider();
-  }
-
-  if (name === "azure-openai-gov") {
-    return new AzureOpenAIGovVisionProvider();
-  }
-
-  if (name === "olmocr") {
-    return new OlmocrVisionProvider();
-  }
-
-  if (name === "glm-ocr") {
-    return new GlmOcrVisionProvider();
-  }
-
-  if (name === "qwen-vl") {
-    return new QwenVlVisionProvider();
-  }
-
-  throw new Error(
-    `Unknown PROVIDER value "${name}". ` +
-      `Known: ${[...KNOWN_PROVIDERS].sort().join(", ")}.`,
-  );
+  return loadProvider(name);
 }
 
 export type {
