@@ -85,14 +85,68 @@ export type ExtractionResponse = {
 };
 
 /**
+ * Targeted high-resolution re-read of just the warning region (P3-2, D7).
+ *
+ * After the first-pass `extract()` returns, the extraction service inspects
+ * each face's `warning.legibility`. When the warning is on a face the
+ * matcher pins to and the legibility came back `"low"` (the model's signal
+ * — the decision to re-read is in code per D4 + D5), the service calls
+ * `rereadWarning()` with the cropped warning region from that face's
+ * preprocessed bytes. At most ONE re-read per application (D14): the
+ * warning is a single field, and a re-read is a targeted slice — not a
+ * multi-pass chain.
+ *
+ * The cropped bytes share the same MIME as the source face. Bytes live
+ * only in the request lifecycle, never persisted (NFR-4).
+ */
+export type WarningRereadInput = {
+  applicationId: string;
+  /** The cropped warning region's bytes. */
+  bytes: Buffer;
+  mime: "image/jpeg" | "image/png";
+  /** Which face the crop came from, for the response. */
+  sourceFace: FaceKind;
+};
+
+/**
+ * What the second-pass re-read returns. Same shape as the warning slice
+ * of a `FaceExtraction` (warning text + the three structural flags) —
+ * no verdict, no overall confidence (D4, D5).
+ *
+ * The extraction service merges this back onto the source face IFF the
+ * re-read came back with `legibility: "good"` and non-empty text. A
+ * still-low re-read is treated as "no rescue available" and the
+ * first-pass result is kept — the triage classifier then routes it to
+ * the low-confidence lane per FR-16 + FR-26b.
+ */
+export type WarningRereadResponse = {
+  /** The new transcription (may be empty if the re-read also fails). */
+  warningText: string;
+  /** New legibility signal from the second pass. */
+  legibility: "good" | "low";
+  /** Best-effort flags from the second pass. */
+  allCaps: boolean;
+  boldConfident: "yes" | "no" | "uncertain";
+};
+
+/**
  * The single seam every model integration sits behind (D8).
  *
  * Implementations: `MockVisionProvider` (this ticket); `ClaudeProvider`
  * (P1-2); `AzureOpenAIProvider` and `OlmOCRProvider` (P6-1). They all
  * implement this exact contract so the rest of the system never knows
  * which model is on.
+ *
+ * `rereadWarning` is OPTIONAL on purpose: only the mock implements a
+ * real second pass for P3-2's tests. The live Anthropic adapter throws
+ * `"Not implemented in Phase 3 prototype"` when the seam is exercised;
+ * a real Claude prompt for the cropped region lands when the live
+ * provider is exercised against a real cost budget (out of scope for
+ * P3-2). The extraction service handles a missing method gracefully —
+ * `attempted: false` and the first-pass result is kept.
  */
 export type VisionProvider = {
   readonly name: string;
   extract(input: ExtractionRequest): Promise<ExtractionResponse>;
+  rereadWarning?(input: WarningRereadInput): Promise<WarningRereadResponse>;
 };

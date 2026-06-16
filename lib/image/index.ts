@@ -5,3 +5,6 @@
 
 export { preprocessImage } from "./preprocess";
 export type { ImageMime, PreprocessResult } from "./preprocess";
+
+export { cropWarningRegion } from "./cropWarningRegion";
+export type { CropResult, WarningRegionHint } from "./cropWarningRegion";

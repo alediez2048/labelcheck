@@ -54,4 +54,6 @@ export type {
   FaceExtraction,
   ProviderFaceInput,
   VisionProvider,
+  WarningRereadInput,
+  WarningRereadResponse,
 } from "./types";

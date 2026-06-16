@@ -4,6 +4,54 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-15 — P3-2 Imperfect-image robustness
+
+**Branch:** `feat/imperfect-images`
+**Status:** Done
+
+**Workflow note:** Single-agent build (sequential work — crop helper feeds re-read function feeds service refactor; parallel agents would have added coordination overhead without time savings, per the saved workflow preference).
+
+**What landed:**
+- `lib/provider/types.ts` — `WarningRereadInput`, `WarningRereadResponse`, optional `rereadWarning?` on `VisionProvider`. Optional method so existing mocks compile unchanged.
+- `lib/image/cropWarningRegion.ts` — sharp `.extract` over a normalised hint (`{ x, y, width, height }` as fractions 0..1) or, when the hint is absent, the bottom 40% of the face as a documented heuristic (the warning lives in the lower half of the back face for ~all real labels, D12). Coordinates outside the image are clamped before extract — no throws.
+- `lib/extraction/rereadWarning.ts` — bounded targeted re-read wrapper. Calls `cropWarningRegion`, then the provider's `rereadWarning` method through a 4000ms `withTimeout`. No retry. Returns `{ attempted: false, ... }` when the provider has no method (the live Anthropic provider in the prototype) or `{ attempted: true, legibility: "low", warningText: "" }` when the call timed out / threw / declined — the merge logic treats both shapes as "re-read produced nothing useful", which routes the application to the FR-16 low-confidence lane via the existing path.
+- `lib/extraction/service.ts` — after the first pass, the orchestrator scans faces for `warning.presence === true && warning.legibility === "low"`. The FIRST such face triggers ONE re-read; the rest are skipped (the warning is one field — D12). On a successful re-read with `legibility: "good"` and non-empty text, the merge replaces that face's `warning.legibility`, `warning.allCaps`, `warning.boldConfident`, and `fields.government_warning`. Otherwise the first-pass result is kept. A structured `extraction.reread` log line carries `{ applicationId, sourceFace, attempted, legibilityBefore, legibilityAfter, durationMs }` — no transcribed text (NFR-4).
+- `lib/provider/mock.ts` — two new fixtures: `sample-reread-rescue-001` (first pass returns `legibility: "low"` on the back; re-read returns the canonical warning with `legibility: "good"`) and `sample-reread-fails-001` (first pass low; re-read also low + empty text). `REREAD_FIXTURES` map drives the mock's `rereadWarning` method.
+- `lib/provider/anthropic.ts` — stub `rereadWarning` that rejects with "Not implemented in Phase 3 prototype — mock provider only". The wrapper catches and collapses to `attempted: true, legibility: "low"`, consistent with FR-16.
+- `config/tolerances.json` + `lib/config/schema.ts` — new `warningLegibilityReread` block with `triggerOnLegibility: "low"` and a documentation note. The service's runtime check is structurally hardcoded to `"low"` for the prototype (the legibility signal is two-valued); a future ticket can wire the config through if the model starts returning richer scores.
+- `lib/image/index.ts` + `lib/provider/index.ts` — re-exports for the new types so callers import from the module barrel.
+- `lib/image/__tests__/cropWarningRegion.test.ts` — 5 tests (hint, fallback, clamping, partial-clamp, PNG passthrough).
+- `lib/extraction/__tests__/reread.test.ts` — 7 tests (trigger on low legibility, no-trigger on good legibility, successful merge, re-read-also-fails leaves first-pass alone, one re-read per application even when multiple faces qualify, presence-false skips, provider-without-method skips).
+
+**Verification:**
+- `pnpm test` — 35 files, **300 tests pass + 1 skipped** (288 prior + 12 new).
+- `pnpm build` — clean.
+- `pnpm lint` — clean.
+
+**Deviations from ticket:**
+- The spec's config snippet was slightly inconsistent (`warningLegibilityRereadThreshold` in one place, `warningLegibilityReread` in another). The agent landed `warningLegibilityReread` as a strict-schema object with `triggerOnLegibility: "good" | "low"` plus a `note` field — matches the JSON block in the spec. The service does NOT yet read the config at runtime; the trigger is structurally `"low"` because the legibility signal has only two values today. A future ticket can wire the config through `getTolerances().warningLegibilityReread` when the model returns richer scores.
+- The first-pass `FaceExtraction` doesn't yet carry a per-region bounding-box hint from the model (the prompt would need to be extended). The crop API accepts a hint but the service always passes `undefined`, so the bottom-40%-of-the-face heuristic is what runs. When the live Anthropic prompt is extended to ask for a bounding box, plumb it through `FaceExtraction.warning.regionHint` and into the `rereadWarning` call; the crop helper already handles it.
+- The Anthropic provider's stub `rereadWarning` rejects rather than no-ops. The wrapper catches and collapses to "re-read produced nothing useful", which routes through FR-16. Behaviour is consistent; the symptom for a live-adapter re-read attempt would be "warning still low confidence → FR-16 lane" instead of a thrown error. Worth knowing if anyone runs the live adapter against a low-legibility fixture before the real re-read prompt is implemented.
+
+**Why:**
+P3-2 is the rule that says "imperfect photos shouldn't cost the warning check". The agency's reviewers receive photos taken with smartphones in warehouses and tasting rooms — angle, glare, uneven lighting are normal, not exceptional. The first-pass extraction at full usable resolution (D7, D14) handles most of them; this ticket handles the borderline case where the warning's per-region legibility signal comes back low. One bounded re-read of the cropped warning region, full resolution preserved, merged into the existing extraction result. The matching engine and the triage classifier are unchanged — the re-read is purely a transcription-quality intervention that feeds the same downstream code paths.
+
+The **bounded one-call-per-application discipline** is the architectural promise from D7 and D14 made compatible with FR-6. A multi-pass re-read of every low-confidence field would turn the latency budget into a coin flip — every doubtful field triggers another model round trip, the p95 walks outward, and the user-facing experience degrades silently. The warning is special because it's the highest-stakes check (FR-11, FR-12); a single targeted re-read on the warning region only is the smallest expansion that buys us the right resilience for the right field. The strategy parameter on this is structural, not configurable — adding "re-read ABV" would mean adding a second branch in the same place, not a config flag that flips behaviour silently.
+
+The **back-face-bottom-40% fallback heuristic** is the right shape when the model doesn't ship a region hint. The warning lives in the lower half of the back face for ~all real labels (D12 — the warning sub-check is across faces; reality is the back). Cropping the bottom 40% and re-asking the model "transcribe this region, full resolution" is more useful than asking the model to re-look at the whole face. When the prompt is extended to ask for a bounding-box hint, the heuristic becomes the safety net for the case where the model doesn't return one. Hard-coding the 40% in code rather than config means changes get a code review and a Why comment; a config knob would invite experimentation that could quietly miss the warning entirely.
+
+The **graceful-degradation rule on re-read failure** is the same Error Handling discipline as P1-7's unreadable short-circuit and P1-9's timeout. A throw from the provider, a stub method that rejects, a timed-out re-read, or a re-read that returns the same low-legibility result — all of them collapse to "no useful re-read; keep the first-pass result; downstream code handles low confidence via FR-16 + FR-26b". The service never throws to the API; the API never returns 500 on a re-read failure; the agent never sees a stack trace. The cost is that a real defect (a provider misconfiguration, for instance) gets papered over as "unreadable" — but observability (the `extraction.reread` log) captures the attempt + the outcome so the operator can spot the pattern.
+
+The **NFR-4-clean log line** is the small-but-load-bearing observability hook. Without it, the operator has no way to know how often the re-read fires or how often it rescues the warning check — both of which are signals the calibration sweep in P5-2 will read off. The log carries IDs + structural fields + durations only; no transcribed text, no warning content, no bytes. The same pattern as `extraction.call` and `verify.request` from P1-11.
+
+The **strategy of always preprocessing once and cropping from the same bytes** is what keeps the resolution honest. If preprocessing happened before the crop, the bottom 40% would be the bottom 40% of a 1568px-capped image — which is what we want. If the crop ran on the raw input, the bottom 40% would be the bottom 40% of a 12-megapixel phone photo — which would either blow the API token budget or get downscaled by the provider's own ingestion. Cropping from the preprocessed buffer means the re-read sees exactly the resolution the provider intends, with no surprise downscaling.
+
+The **mock fixtures `sample-reread-rescue-001` and `sample-reread-fails-001`** are the structural test surface. Without them, the re-read path would only be exercised when a future engineer happens to feed a low-legibility fixture. Naming them and seeding them in the mock means the path is covered in CI, and the demo can show the rescue case as a visible feature. A future review fixture set will include real degraded photographs that exercise the path end-to-end; the mock fixtures are the unit-test surface.
+
+**Next:** P3-3 — Error-handling pass. The re-read path already establishes the "graceful degradation as a structured result" discipline; P3-3 extends it across every other failure mode (provider 429, malformed body, image decode failure, batch-item failure) and ensures every expected bad input becomes an actionable result with no stack trace.
+
+---
+
 ## 2026-06-15 — P3-1 Batch intake — Phase 3 begins
 
 **Branch:** `feat/batch`

@@ -22,6 +22,8 @@ import type {
   ExtractionResponse,
   FaceExtraction,
   VisionProvider,
+  WarningRereadInput,
+  WarningRereadResponse,
 } from "./types";
 
 /**
@@ -53,6 +55,20 @@ const WARNING_ABSENT: WarningFlags = {
   allCaps: false,
   boldConfident: "no",
   legibility: "good",
+};
+
+/**
+ * First-pass warning that came back low-legibility (P3-2). The warning
+ * is detected on the face (presence: true) but the model could not
+ * confidently transcribe it — extraction sees `government_warning: ""`
+ * and `legibility: "low"`. The extraction service is meant to trigger
+ * a re-read on this exact signal.
+ */
+const WARNING_LOW_LEG: WarningFlags = {
+  presence: true,
+  allCaps: false,
+  boldConfident: "uncertain",
+  legibility: "low",
 };
 
 /**
@@ -293,6 +309,100 @@ const FIXTURES: Record<string, ExtractionResponse> = {
       ),
     ],
   },
+
+  // -------------------------------------------------------------------------
+  // P3-2 re-read fixtures (D7 — targeted high-res re-read of the warning)
+  // -------------------------------------------------------------------------
+  //
+  // Pair with the rereadWarning map below:
+  //   - sample-reread-rescue-001 → first pass low-leg + empty warning text;
+  //                                re-read returns the canonical warning
+  //                                with legibility: "good". The merged
+  //                                response should carry the rescued text.
+  //   - sample-reread-fails-001  → first pass low-leg + empty warning text;
+  //                                re-read ALSO returns low-leg + empty
+  //                                text. The merge keeps the first pass and
+  //                                the application lands in the FR-16 lane.
+
+  "sample-reread-rescue-001": {
+    faces: [
+      face("front", {
+        brand_name: "RIVER BEND",
+        class_type: "TABLE WINE",
+        alcohol_content: "13% ALC/VOL",
+        net_contents: "750 ML",
+        country_of_origin: "USA",
+      }),
+      face(
+        "back",
+        {
+          brand_name: "RIVER BEND",
+          producer_name: "RIVER BEND WINERY",
+          producer_address: "12 RIVER RD, SONOMA CA",
+          government_warning: "",
+        },
+        WARNING_LOW_LEG,
+      ),
+    ],
+  },
+
+  "sample-reread-fails-001": {
+    faces: [
+      face("front", {
+        brand_name: "RIVER BEND",
+        class_type: "TABLE WINE",
+        alcohol_content: "13% ALC/VOL",
+        net_contents: "750 ML",
+        country_of_origin: "USA",
+      }),
+      face(
+        "back",
+        {
+          brand_name: "RIVER BEND",
+          producer_name: "RIVER BEND WINERY",
+          producer_address: "12 RIVER RD, SONOMA CA",
+          government_warning: "",
+        },
+        WARNING_LOW_LEG,
+      ),
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// rereadWarning fixtures (P3-2)
+// ---------------------------------------------------------------------------
+//
+// The mock `rereadWarning` returns a deterministic response keyed by the
+// applicationId on the input. Two opt-in branches:
+//
+//   - "sample-reread-fails-001" → the targeted re-read ALSO returns low
+//                                  legibility + empty text. Exercises the
+//                                  "re-read can't rescue" branch — the
+//                                  service keeps the first-pass result and
+//                                  the triage classifier sends the
+//                                  application down FR-16's "needs a
+//                                  better image" lane.
+//   - every other id            → canonical warning, legibility: "good".
+//                                  This is the happy-path rescue case that
+//                                  pairs with sample-reread-rescue-001 and
+//                                  is also the right default for any
+//                                  ad-hoc test that sends a low-legibility
+//                                  first-pass response through.
+const REREAD_FIXTURES: Record<string, WarningRereadResponse> = {
+  "sample-reread-fails-001": {
+    warningText: "",
+    legibility: "low",
+    allCaps: false,
+    boldConfident: "no",
+  },
+};
+
+const DEFAULT_RESCUE_REREAD: WarningRereadResponse = {
+  warningText: CANONICAL_WARNING,
+  legibility: "good",
+  allCaps: true,
+  boldConfident: "yes",
 };
 
 /**
@@ -332,5 +442,21 @@ export class MockVisionProvider implements VisionProvider {
       return Promise.resolve(canned);
     }
     return Promise.resolve(unknownIdFallback(input.applicationId));
+  }
+
+  /**
+   * Mock second pass for the targeted warning re-read (P3-2). Returns the
+   * canonical warning at good legibility for most fixtures so the
+   * "re-read rescued the warning" happy path is exercised in tests; one
+   * specific fixture id (`sample-reread-fails-001`) returns a still-low
+   * response so the "re-read also failed" branch is also covered. See
+   * `REREAD_FIXTURES` above.
+   */
+  rereadWarning(input: WarningRereadInput): Promise<WarningRereadResponse> {
+    const canned = REREAD_FIXTURES[input.applicationId];
+    if (canned) {
+      return Promise.resolve(canned);
+    }
+    return Promise.resolve(DEFAULT_RESCUE_REREAD);
   }
 }
