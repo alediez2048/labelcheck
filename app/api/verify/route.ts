@@ -304,7 +304,16 @@ export async function POST(req: Request): Promise<NextResponse> {
   } catch (err) {
     outcome = "error";
     status = 500;
-    throw err;
+    // Surface the underlying error so production debugging works
+    // without a tracing backend wired up. PII is not present here —
+    // the matcher / extractor never put applicant identifiers into
+    // exception messages (D4 + observability.md).
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    return NextResponse.json(
+      { error: message, stack: stack?.split("\n").slice(0, 12) },
+      { status: 500 },
+    );
   } finally {
     logRequestSpan({ applicationId, outcome, lane, startedAt, status });
   }
