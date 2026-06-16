@@ -196,6 +196,11 @@ function outcomeFor(
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
+  // TEMP debug-probe — confirms the handler is even reachable.
+  const url = new URL(req.url);
+  if (url.searchParams.get("probe") === "1") {
+    return NextResponse.json({ alive: true });
+  }
   // End-to-end timing for the /api/verify request — the NFR-1 5s
   // p95 budget is measured against this number. The extraction layer
   // also logs its own per-request timing so we can isolate the
