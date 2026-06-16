@@ -183,3 +183,47 @@ pnpm add openai
 # (brute force is fine for a prototype-sized corpus; hnswlib is the bridge to pgvector at scale):
 # pnpm add hnswlib-node
 ```
+
+---
+
+## Outcome — done 2026-06-15
+
+**Branch:** `feat/knowledge-base`
+**Status:** Done — 324 tests pass + 1 skipped (+12 new); lint + build clean.
+**Workflow:** Sixth parallel-agent build. Agent A: data layer + lib + tests + seed fixture. Agent B: upload UI + API routes. Contract-first dispatch.
+
+**What landed:**
+- `types/kb.ts` — full type set mirroring `knowledge_base` from schema.md.
+- `lib/kb/{store,parse,chunk,embed,search,ingest}.ts` — pipeline + interfaces.
+- `fixtures/kb/sample-warning-guidance.md` — seed help doc (NOT the verbatim warning text — that's the Configuration store's job).
+- `tests/lib/kb/{chunk,search,ingest}.test.ts` — 12 new tests.
+- `app/api/kb/{upload,sources}/route.ts` — POST + GET.
+- `components/kb/{UploadDropzone,SourcesList}.tsx`.
+- `app/(admin)/knowledge-base/page.tsx` — replaces the P2-5 placeholder. Polls every 800ms.
+- `.gitignore` — `.data/` added.
+
+**Runtime bug fixed during smoke:** `pdf-parse@2.4.5` static import loads `pdfjs-dist@5.4.296` at module load → fails under Next 15.5 RSC webpack with `"Object.defineProperty called on non-object"`. Even Markdown uploads broke. Fix: `await import("pdf-parse")` inside the PDF branch only. Documented inline.
+
+**Verified end-to-end:** upload MD → 202 `{sourceFilename, version:1}` → poll shows `ready, v1, 1 chunk`. Re-upload bumps to v2; the v1 row lives in `history[]` with `effectiveTo` set.
+
+**Deviations:**
+- Lazy `pdf-parse` import (above).
+- `lib/kb/store.ts` ships `getStore()` factory rather than the contract's named `listSources()` / `getSource()` exports. Agent B's route handler adapted; functionally equivalent.
+- Mock-only embedder by default (deterministic FNV-1a hash → 384-dim unit vector). Production swap (Voyage AI / OpenAI) documented at the seam.
+- The "Replace with new version" UX is the simplest possible: clicking Replace scrolls to the dropzone with a caption; the actual version bump is server-side via filename match in `ingestUpload`.
+
+### Why
+
+P4-1 opens Phase 4 with the corpus the assistant in P4-2 is allowed to cite from — and only from. The Knowledge base / Configuration store distinction (CONTEXT.md) is structural: KB holds help articles; config holds regulatory rules. The verbatim 27 CFR § 16.21 text stays in `config/warning.json`; the KB has guidance ABOUT the warning check.
+
+The **`KnowledgeBaseStore` interface as production seam** is the discipline that lets pgvector drop in without touching the route layer. The prototype's in-memory + file-backed store IS the structural smoke; the contract maps one-for-one onto pgvector queries.
+
+The **`setImmediate` background ingest** is the right shape for "off the request path". A real queue (BullMQ, Inngest) lands in production; the prototype's setImmediate is the structural equivalent. The upload returns 202 immediately; the UI polls for status transitions.
+
+The **versioning rule** — re-upload bumps version, sets prior `effective_to`, keeps prior chunks for audit — is the structural enforcement of "the assistant's trace ties back to the version that was retrieved at the time" (observability.md Component B). Overwriting on re-upload would make P5-1's traces lie.
+
+The **mock embedder with deterministic hash-derived vectors** is the right scope. A real embedder costs money on every chunk + every query; the prototype doesn't want that on every CI run. Same text → same vector is what `tests/lib/kb/search.test.ts` asserts. P4-2's retrieval surface reads the same mock by default; a real embedder ships when the reviewer wants to demo semantic quality (one env-var flip).
+
+The **lazy `pdf-parse` import** is load-bearing for the route's resilience. Static import broke even Markdown uploads. The lazy import means PDF's known Next.js bundling pitfalls are paid only by PDF uploads.
+
+The **content of `sample-warning-guidance.md`** matters as much as the pipeline. The doc is ABOUT the warning check, not the warning itself. If the canonical text lived in the KB, an admin upload could silently change the matching engine's behaviour — exactly what CONTEXT.md says shouldn't happen.
