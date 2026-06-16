@@ -132,12 +132,14 @@ export async function runVerification(
     const t = await timed(() => extract(extractable));
     extraction = t.result;
     extractMs = t.durationMs;
-  } catch {
-    // Don't emit `verify.timing` on the thrown branch — the route
-    // handler's `verify.request` line already records the end-to-end
-    // cost and the failure outcome. A partial-stage timing line here
-    // would be more noise than signal.
-    return toDegradedResult(input.applicationId, internalError());
+  } catch (err) {
+    // TEMP debug: bubble the underlying error message into the
+    // degraded result so production failures don't look like silent
+    // "stuck in review". Trim to one line; no stack, no PII.
+    const message = err instanceof Error ? err.message : String(err);
+    const internal = internalError();
+    internal.message = `Extraction error: ${message.slice(0, 200)}`;
+    return toDegradedResult(input.applicationId, internal);
   }
 
   // 3a. Short-circuit on a degraded extraction (D10 — timeout or
