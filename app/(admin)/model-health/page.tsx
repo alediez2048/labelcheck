@@ -363,7 +363,7 @@ export default function ModelHealthPage(): React.ReactElement {
             className="rounded-panel border border-line bg-surface p-5 shadow-panel"
           >
             <h2 id="roadmap-heading" className="text-base font-semibold text-ink">
-              What's next
+              What&apos;s next
             </h2>
             <p className="mt-0.5 text-xs text-muted">
               Not yet automated. Production posture for the FedRAMP migration.
