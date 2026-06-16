@@ -259,7 +259,13 @@ const SYNTHETIC_FIXTURE_META: Readonly<
 let SYNTHETIC_JPEG: Buffer | null = null;
 async function getSyntheticJpeg(): Promise<Buffer> {
   if (SYNTHETIC_JPEG) return SYNTHETIC_JPEG;
-  const sharp = (await import("sharp")).default;
+  const sharpMod = (await import("sharp")) as unknown as
+    | (typeof import("sharp"))["default"]
+    | { default: (typeof import("sharp"))["default"] };
+  const sharp =
+    typeof sharpMod === "function"
+      ? sharpMod
+      : (sharpMod as { default: (typeof import("sharp"))["default"] }).default;
   SYNTHETIC_JPEG = await sharp({
     create: {
       width: 200,

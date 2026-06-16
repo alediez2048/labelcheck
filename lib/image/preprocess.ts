@@ -29,7 +29,18 @@ type SharpFactory = (typeof import("sharp"))["default"];
 let sharpModule: SharpFactory | null = null;
 async function getSharp(): Promise<SharpFactory> {
   if (sharpModule) return sharpModule;
-  sharpModule = (await import("sharp")).default;
+  // CJS / ESM interop: depending on whether webpack treats `sharp` as
+  // external or not, the dynamic import returns either `{ default: fn }`
+  // (esm-wrapper shape) or the function itself (passthrough). Handle
+  // both by probing both shapes.
+  const mod = (await import("sharp")) as unknown as
+    | (typeof import("sharp"))["default"]
+    | { default: (typeof import("sharp"))["default"] };
+  const candidate =
+    typeof mod === "function"
+      ? mod
+      : (mod as { default: (typeof import("sharp"))["default"] }).default;
+  sharpModule = candidate;
   return sharpModule;
 }
 

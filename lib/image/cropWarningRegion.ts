@@ -27,13 +27,20 @@
  * never logged).
  */
 
-// sharp is imported lazily so the module-load phase never touches
-// sharp's native bindings on Vercel.
+// sharp is imported lazily; see lib/image/preprocess.ts for the
+// CJS/ESM interop reasoning. Both shapes ({ default: fn } and fn
+// directly) are accepted.
 type SharpFactory = (typeof import("sharp"))["default"];
 let sharpModule: SharpFactory | null = null;
 async function getSharp(): Promise<SharpFactory> {
   if (sharpModule) return sharpModule;
-  sharpModule = (await import("sharp")).default;
+  const mod = (await import("sharp")) as unknown as
+    | (typeof import("sharp"))["default"]
+    | { default: (typeof import("sharp"))["default"] };
+  sharpModule =
+    typeof mod === "function"
+      ? mod
+      : (mod as { default: (typeof import("sharp"))["default"] }).default;
   return sharpModule;
 }
 
