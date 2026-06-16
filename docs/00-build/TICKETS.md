@@ -286,10 +286,10 @@ Description: prove and improve AI quality rather than assume it, the backbone th
 - Acceptance: [x] runs the golden set per model behind the adapter (`pnpm bakeoff --providers=<id,id,...>` iterates `lib/provider/registry.ts` entries through the P5-2 eval harness); [x] reports accuracy/latency/cost (per-provider `report.json` + `report.md`, plus top-level `comparison.{json,md}` with metric grid); [x] recommends a default and an in-boundary candidate (framing rule enforced in `lib/eval/bakeoff/comparison.ts`: lead slot reserved for `inBoundary === "via-azure-government"` + `securityReview === "approved"`; air-gapped-fallback slot prefers olmOCR; Chinese-origin candidates NEVER lead regardless of metrics).
 - Refs: techstack Model selection; observability Open Items.
 
-### P5-5 — CI eval gate
+### P5-5 — CI eval gate ✅ done 2026-06-16
 - Depends: P5-2 · Branch: feat/eval-gate · Est: 2h
 - Goal: a prompt/model/threshold change must not regress the golden set.
-- Acceptance: [ ] eval runs in CI; [ ] a regression fails the build.
+- Acceptance: [x] eval runs in CI (`.github/workflows/ci.yml` runs `pnpm eval --gate` after the guardrail step on every push and PR, with `EVAL_PROVIDER=mock` for determinism; the gate report uploads as an artifact `if: always()` so failures still ship the diff); [x] a regression fails the build (`lib/eval/gate/compare.ts` enforces `0.0` headline tolerance on the false-negative rate plus per-metric tolerances from committed `eval-baseline.json`; golden-set hash mismatch forces a deliberate re-baseline via `docs/EVAL-BASELINE.md`).
 - Refs: observability Improvement Cycle.
 
 Phase 5 exit: eval runs produce the metrics; agent corrections accumulate as an eval set; a change that regresses the golden set fails CI.

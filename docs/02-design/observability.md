@@ -89,7 +89,7 @@ Observability is only useful if it closes a loop. The cadence:
 
 1. Capture: every verification and every assistant turn is traced; agent corrections and chat feedback are logged as labeled signals.
 2. Measure: scheduled eval runs over the golden sets and the accumulated real-world examples produce the metrics above.
-3. Gate: a change to a prompt, a model, a threshold, or the retrieval setup must not regress the golden set. Eval runs act as a CI gate, the same way unit tests gate code (this is why the matching logic is testable by design, D4).
+3. Gate: a change to a prompt, a model, a threshold, or the retrieval setup must not regress the golden set. Eval runs act as a CI gate, the same way unit tests gate code (this is why the matching logic is testable by design, D4). **Live as of P5-5**: `pnpm eval --gate` runs on every PR against the committed `eval-baseline.json`; the headline false-negative rate carries a `+0.0` tolerance, and a regression on it (or any other tracked metric outside its tolerance) fails the build. See `docs/EVAL-BASELINE.md` for the re-baselining contract.
 4. Alert: drift and guardrail breaches page the owner.
 5. Improve: systematic errors feed threshold tuning, prompt changes, retrieval fixes, and the data for a future in-boundary or fine-tuned model.
 

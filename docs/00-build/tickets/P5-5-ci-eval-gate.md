@@ -184,3 +184,37 @@ The eval harness now gates the build. A prompt, model, or threshold change that 
 ```
 (none — the gate is pure TypeScript over the existing eval harness)
 ```
+
+---
+
+## Outcome (2026-06-16)
+
+**Branch:** `feat/eval-gate` · **Status:** Done — Phase 5 complete
+
+Single-agent build. Sequential work: baseline schema → comparator → markdown writer → `--gate` flag → CI step → docs.
+
+**Landed:**
+
+- `eval-baseline.json` (repo root) — seeded from a fresh mock + golden-set run. `version: 1`, `created_at`, `golden_set_version` = SHA-256 of `tests/golden/index.ts`, full metric snapshot (`falseNegativeRate.rate=0`, `laneConfusion.overall=1`, three warning-check accuracies, ECE, full `perField` table, p95), tolerances (FN-rate `0.0`, lane/warning sub-checks `0.01`, ECE `0.02`, `latencyP95BudgetMs: 5000`).
+- `lib/eval/gate/baseline.ts` — zod schema + `loadBaseline`, `writeBaseline`, `computeGoldenSetVersion`.
+- `lib/eval/gate/compare.ts` — `compareToBaseline(report, baseline, currentGoldenSetVersion): GateResult`. Order: golden-set version mismatch fails fast; headline FN-rate any-positive-delta-beyond-tolerance fails; per-metric regressions outside tolerance fail; within-tolerance noise captured separately; improvements listed.
+- `lib/eval/gate/report.ts` — `buildGateMarkdown(result, baseline, report)`. Sections: PASS/FAIL → headline metric → out-of-tolerance regressions → within-tolerance regressions → improvements → baseline metadata. Version-mismatch path renders a remediation pointer to `docs/EVAL-BASELINE.md`.
+- `scripts/eval.ts` — `--gate` flag. Runs mock + golden, loads baseline, compares, writes `gate-result.md`. Pass: `[gate] PASS — headline FN-rate …`, exit 0. Fail: structured `[gate] FAIL — N metric(s) outside tolerance` block naming each failing metric (baseline → run → delta → tolerance), exit 1. `--gate` collides with `--providers=`.
+- `package.json` — `"eval:gate": "tsx scripts/eval.ts --gate"`.
+- `.github/workflows/ci.yml` — `Eval gate (P5-5)` step after the existing `pnpm test:guardrails` (`EVAL_PROVIDER: mock`); `Upload eval gate report` artifact step with `if: always()`.
+- `docs/EVAL-BASELINE.md` — published. What the baseline is, the headline metric and tolerances, when to re-baseline, the commit-message convention (`eval-baseline: re-baseline after <reason>`), the advisory `--dataset=corrections` run.
+- `docs/02-design/observability.md` — single-line "live as of P5-5" note in the Improvement Cycle / Gate section.
+- `tests/eval/gate/compare.test.ts` — 9 unit tests pinning the headline-tolerance behaviour, within-tolerance handling, version-mismatch fail-fast, and the all-improved path.
+- `tests/eval/gate/baseline.test.ts` — 4 tests on the zod schema + golden-set-version stability.
+
+**Verification:** `pnpm lint` clean. `pnpm build` clean. `pnpm test` 453 passing (+13). `pnpm eval --gate` passes on the committed baseline: `[gate] PASS — headline FN-rate 0.0% (baseline 0.0%, tolerance +0)`.
+
+**Deviations from spec:**
+
+- p95 latency is treated as a hard ceiling (`current > latencyP95BudgetMs`) rather than a delta-vs-baseline + tolerance. NFR-1 frames p95 as an absolute budget and the spec field is literally named `latencyP95BudgetMs` — both pointed at the absolute interpretation. Documented in `docs/EVAL-BASELINE.md`.
+- Advisory `--dataset=corrections` CI step NOT wired. The corpus is gitignored, so a fresh CI checkout has zero records — the step would no-op every time. The run remains invokable locally and is documented; wiring it as a CI step belongs in P6 once the corpus moves to a governed store (P6-2).
+- Golden-set version is the SHA-256 of `tests/golden/index.ts` directly rather than a separate `tests/golden/manifest.json`. The `GOLDEN_SET` array IS the manifest; hashing it detects every meaningful change without a second file to keep in sync.
+
+### Why
+
+P5-5 closes Phase 5's Improvement Cycle: P5-1 instrumented, P5-2 measured, P5-3 labelled with agent corrections, P5-4 picked the model, and P5-5 enforces the bar. Without the gate, every other piece is descriptive — a number on a report. With it, the eval harness becomes a contract: a prompt change, a model swap, a threshold tune, or a matching-logic edit cannot regress the headline metric and merge. The headline tolerance is exactly `0.0` because the headline metric is missed real mismatches — a single new false-negative is exactly the failure mode the system exists to prevent, and softening to `0.001` "for noise" would silently allow that failure mode to leak in. The golden-set version embedded in the baseline forces re-baselining to be a deliberate, conversation-having act. The artifact upload `if: always()` ships the structured diff for review without forcing a re-run locally.
