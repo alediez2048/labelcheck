@@ -4,6 +4,41 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-16 — P5-5 CI eval gate (Phase 5 complete)
+
+**Branch:** `feat/eval-gate`
+**Status:** Done
+
+**Workflow note:** Single-agent build. Sequential work: baseline schema → comparator → markdown writer → `--gate` flag → CI step → docs. The headline tolerance is the load-bearing decision (exact `0.0` — a single new leaked false-negative fails the build) and is encoded both in `eval-baseline.json` and pinned by unit tests.
+
+**What landed:**
+
+- `eval-baseline.json` (repo root) — committed baseline. Seeded from a fresh `pnpm eval` run on mock + golden set: `falseNegativeRate.rate=0`, `laneConfusion.overall=1`, `warningCheck.{presence,verbatim,allCaps}.accuracy≈0.8889`, `calibration.ece≈0.1111`, `latency.p95=7.53ms`. Includes `version: 1`, `created_at`, `golden_set_version` (SHA-256 of `tests/golden/index.ts`), full `perField` snapshot, and tolerances: FN-rate `0.0`, lane/warning sub-checks `0.01`, ECE `0.02`, `latencyP95BudgetMs: 5000`.
+- `lib/eval/gate/baseline.ts` — zod schema for `EvalBaseline`. `loadBaseline(path)`, `writeBaseline(path, baseline)`, `computeGoldenSetVersion()` (SHA-256 of `tests/golden/index.ts`). Missing `golden_set_version` is rejected by the schema.
+- `lib/eval/gate/compare.ts` — `compareToBaseline(report, baseline, currentGoldenSetVersion): GateResult`. Order: golden-set version mismatch → fail-fast with `goldenSetVersionMismatch: true` (no other metrics evaluated). Headline (FN-rate): any positive delta beyond tolerance fails the gate. Other metrics: lane accuracy, three warning-check accuracies, ECE, and p95 latency (treated as a hard ceiling vs `latencyP95BudgetMs`, not a delta). Within-tolerance noise is captured in `regressionsWithinTolerance` and does not flip `passed: false`. Improvements are listed when metrics move the right way.
+- `lib/eval/gate/report.ts` — `buildGateMarkdown(result, baseline, report)`. Sections: top-line PASS/FAIL → headline metric (baseline vs run vs delta vs tolerance) → regressions (out of tolerance) → regressions within tolerance → improvements → baseline metadata. Version-mismatch path renders a remediation pointer to `docs/EVAL-BASELINE.md`.
+- `scripts/eval.ts` — `--gate` parsing. When set: runs mock + golden set, hashes the golden set, loads `eval-baseline.json` from the repo root, compares, writes `eval-reports/<ts>/gate-result.md` next to the existing `report.{json,md}`. Pass logs `[gate] PASS — headline FN-rate <x>% (baseline <y>%, tolerance <z>)` and exits 0. Fail logs a structured `[gate] FAIL — N metric(s) outside tolerance` block naming each failing metric (baseline → run → delta → tolerance) and exits 1. `--gate` collides explicitly with `--providers=` (gate is mock-only).
+- `package.json` — added `"eval:gate": "tsx scripts/eval.ts --gate"` for local convenience.
+- `.github/workflows/ci.yml` — added `Eval gate (P5-5)` step after the existing `pnpm test:guardrails`, with `EVAL_PROVIDER: mock`. Added `Upload eval gate report` artifact step with `if: always()` so a failed gate still ships the diff for review.
+- `docs/EVAL-BASELINE.md` — what the baseline is, why it lives in the repo, the headline metric and tolerances, when to re-baseline (golden-set expansion, stakeholder-approved threshold change, bake-off-approved model swap), the commit-message convention (`eval-baseline: re-baseline after <reason>`), the advisory `--dataset=corrections` run.
+- `docs/02-design/observability.md` — single-line "live as of P5-5" note inside the Improvement Cycle / Gate section pointing at `docs/EVAL-BASELINE.md`.
+- `tests/eval/gate/compare.test.ts` — 9 unit tests covering: headline regression (+1 leaked case → fail); headline equal → pass; headline improvement → pass + improvement listed; lane accuracy down 0.005 with tol 0.01 → pass + within-tolerance entry; lane accuracy down 0.02 → fail; ECE up 0.03 with tol 0.02 → fail; p95 over 5000ms → fail; golden-set version mismatch → fail with no other metrics evaluated; all-improved run → pass with every improvement listed.
+- `tests/eval/gate/baseline.test.ts` — 4 tests covering: schema rejects missing `golden_set_version`; valid baseline round-trips; `computeGoldenSetVersion` is stable for the same input; hash changes when `tests/golden/index.ts` changes.
+
+**Verification:** `pnpm lint` clean. `pnpm build` clean. `pnpm test` — 453 passing (+13 from gate tests; was 440). `pnpm eval --gate` — passes on the committed baseline with `[gate] PASS — headline FN-rate 0.0% (baseline 0.0%, tolerance +0)`.
+
+**Deviations from spec:**
+
+- p95 latency is treated as a hard ceiling (`current > latencyP95BudgetMs`) rather than a delta-vs-baseline + tolerance. NFR-1 frames p95 as an absolute budget (≤ 5s), and the spec's tolerance field is literally named `latencyP95BudgetMs` — both pointed at the absolute interpretation. Documented in `docs/EVAL-BASELINE.md`.
+- The "advisory `--dataset=corrections`" CI step was NOT wired as a separate workflow step. Rationale: the corpus is gitignored, so on a fresh CI checkout there are zero records and the step would no-op every time. The advisory run is documented in `docs/EVAL-BASELINE.md` and remains invokable via `pnpm eval --dataset=corrections`; wiring it as a CI step belongs in P6 once the corpus moves to a governed store (P6-2).
+- Golden-set version is the SHA-256 of `tests/golden/index.ts` directly rather than a separately maintained `tests/golden/manifest.json`. The `GOLDEN_SET` array in that file IS the manifest; hashing it detects every meaningful change (new probes, renamed ids, fixture tweaks) without a second file to keep in sync. Documented in `docs/EVAL-BASELINE.md`.
+
+### Why
+
+P5-5 is the close-out of the Phase 5 Improvement Cycle: P5-1 instrumented the runs, P5-2 measured them, P5-3 captured agent corrections as ground truth, P5-4 picked the model, and P5-5 enforces the bar. Without the gate, every other piece is descriptive — a number on a report. With it, the eval harness becomes a contract: a prompt change, a model swap, a threshold tune, or a matching-logic edit cannot regress the headline metric and merge. The headline tolerance is exactly `0.0` because the headline metric is missed real mismatches — a single new false-negative is exactly the failure mode the system exists to prevent, and softening the tolerance to `0.001` "for noise" would silently allow that failure mode to leak in. The golden-set version embedded in the baseline forces re-baselining to be a deliberate, conversation-having act (the commit-message convention + `docs/EVAL-BASELINE.md` enforce the human side). The artifact upload `if: always()` exists so a failing gate ships the structured diff for review without forcing a re-run locally. Phase 5 exit: traces capture, evals measure, corrections label, the bake-off picks, the gate enforces — every later change ships safely.
+
+---
+
 ## 2026-06-16 — P5-4 Model bake-off
 
 **Branch:** `feat/bakeoff`

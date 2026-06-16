@@ -50,3 +50,21 @@ jobs:
         # `pnpm test`, but a separate step makes the pass/fail signal
         # visible in CI logs (observability.md Component B: pass/fail).
         run: pnpm test:guardrails
+
+      - name: Eval gate (P5-5)
+        # Runs the offline eval against the mock adapter on the golden
+        # set and compares to `eval-baseline.json`. A regression on the
+        # headline metric (false-negative rate) or any other metric
+        # outside the configured tolerance fails the build. The mock is
+        # deterministic so the regression signal is meaningful in CI
+        # (observability.md — The Improvement Cycle, Gate).
+        run: pnpm eval --gate
+        env:
+          EVAL_PROVIDER: mock
+
+      - name: Upload eval gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-gate-report
+          path: eval-reports/

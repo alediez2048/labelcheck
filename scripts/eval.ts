@@ -30,6 +30,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { readCorpusRecords } from "@/lib/feedback/corpus";
+import {
+  computeGoldenSetVersion,
+  loadBaseline,
+} from "@/lib/eval/gate/baseline";
+import { compareToBaseline } from "@/lib/eval/gate/compare";
+import { buildGateMarkdown } from "@/lib/eval/gate/report";
 import { computeCalibration } from "@/lib/eval/metrics/calibration";
 import { computeFalseNegativeRate } from "@/lib/eval/metrics/falseNegativeRate";
 import { computeLaneConfusion } from "@/lib/eval/metrics/laneConfusion";
@@ -71,6 +77,10 @@ function parseDataset(argv: ReadonlyArray<string>): Dataset {
   return "golden";
 }
 
+function parseGate(argv: ReadonlyArray<string>): boolean {
+  return argv.includes("--gate");
+}
+
 async function loadRuns(
   dataset: Dataset,
 ): Promise<{ runs: CaseRun[]; provider: EvalReport["provider"] }> {
@@ -85,12 +95,18 @@ async function loadRuns(
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+  const gate = parseGate(argv);
   // --providers=<csv> delegates to the bake-off harness. A single provider
   // still goes through this delegation so the report shape is consistent
   // (the bake-off writes per-provider reports into `eval-reports/bakeoff-<ts>/`).
   // The single-provider, no-flag path keeps the legacy `eval-reports/<ts>/`
   // single-report layout.
   const providers = parseProviders(argv);
+  if (gate && providers && providers.length > 0) {
+    throw new Error(
+      "--gate cannot be combined with --providers. The gate runs against the golden set on the mock adapter; bake-off comparisons are a separate harness mode.",
+    );
+  }
   if (providers && providers.length > 0) {
     const { rootDir, recommendationText, results } = await runBakeoff(providers);
     // eslint-disable-next-line no-console
@@ -120,7 +136,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  const dataset = parseDataset(argv);
+  // The gate is a golden-set + mock-only mode. CI runs against the mock
+  // for determinism (NFR-3 / A21); live calls happen out-of-band.
+  const dataset: Dataset = gate ? "golden" : parseDataset(argv);
   const runStartedAt = new Date().toISOString();
   const { runs, provider } = await loadRuns(dataset);
 
@@ -182,6 +200,70 @@ async function main(): Promise<void> {
   }
   // eslint-disable-next-line no-console
   console.log(`Report: ${reportDir}`);
+
+  if (gate) {
+    await runGate(report, reportDir);
+  }
+}
+
+async function runGate(report: EvalReport, reportDir: string): Promise<void> {
+  const repoRoot = process.cwd();
+  const baselinePath = path.join(repoRoot, "eval-baseline.json");
+  const goldenIndexPath = path.join(repoRoot, "tests", "golden", "index.ts");
+
+  const baseline = await loadBaseline(baselinePath);
+  const currentGoldenSetVersion = await computeGoldenSetVersion(goldenIndexPath);
+  const result = compareToBaseline(report, baseline, currentGoldenSetVersion);
+  const markdown = buildGateMarkdown(result, baseline, report);
+  await writeFile(path.join(reportDir, "gate-result.md"), markdown, "utf-8");
+
+  // eslint-disable-next-line no-console
+  console.log("");
+
+  if (result.goldenSetVersionMismatch) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[gate] FAIL — golden-set version mismatch. baseline=${result.baselineGoldenSetVersion.slice(0, 12)}… current=${result.currentGoldenSetVersion.slice(0, 12)}…`,
+    );
+    // eslint-disable-next-line no-console
+    console.error(
+      "See docs/EVAL-BASELINE.md (When to re-baseline) and use the `eval-baseline: re-baseline after <reason>` commit-message convention.",
+    );
+    // eslint-disable-next-line no-console
+    console.error(`Gate report: ${path.join(reportDir, "gate-result.md")}`);
+    process.exit(1);
+  }
+
+  const baselineFnPct = (
+    baseline.metrics.falseNegativeRate.rate * 100
+  ).toFixed(1);
+  const currentFnPct = (report.falseNegativeRate.rate * 100).toFixed(1);
+  const headlineTolerance = baseline.tolerances.falseNegativeRate;
+
+  if (result.passed) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[gate] PASS — headline FN-rate ${currentFnPct}% (baseline ${baselineFnPct}%, tolerance +${headlineTolerance})`,
+    );
+    // eslint-disable-next-line no-console
+    console.log(`Gate report: ${path.join(reportDir, "gate-result.md")}`);
+    return;
+  }
+
+  // eslint-disable-next-line no-console
+  console.error(
+    `[gate] FAIL — ${result.regressions.length} metric(s) outside tolerance`,
+  );
+  for (const r of result.regressions) {
+    const delta = r.delta >= 0 ? `+${r.delta.toFixed(4)}` : r.delta.toFixed(4);
+    // eslint-disable-next-line no-console
+    console.error(
+      `  - ${r.metric}: baseline=${r.baseline.toFixed(4)} run=${r.current.toFixed(4)} delta=${delta} tolerance=${r.tolerance}`,
+    );
+  }
+  // eslint-disable-next-line no-console
+  console.error(`Gate report: ${path.join(reportDir, "gate-result.md")}`);
+  process.exit(1);
 }
 
 main().catch((err: unknown) => {
