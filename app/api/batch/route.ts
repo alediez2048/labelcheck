@@ -25,7 +25,10 @@
  */
 
 import { NextResponse } from "next/server";
-import sharp from "sharp";
+// sharp is imported lazily inside getSyntheticJpeg() so the route's
+// cold-start never touches the native binding. The synthetic-batch
+// path is the only consumer; the real-upload path uses the browser-
+// rendered PNG directly.
 import { z } from "zod";
 
 import batchConfig from "@/config/batch.json";
@@ -256,6 +259,7 @@ const SYNTHETIC_FIXTURE_META: Readonly<
 let SYNTHETIC_JPEG: Buffer | null = null;
 async function getSyntheticJpeg(): Promise<Buffer> {
   if (SYNTHETIC_JPEG) return SYNTHETIC_JPEG;
+  const sharp = (await import("sharp")).default;
   SYNTHETIC_JPEG = await sharp({
     create: {
       width: 200,

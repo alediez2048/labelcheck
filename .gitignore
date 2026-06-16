@@ -57,3 +57,4 @@ eval-reports/
 # committed source — the file-backed store is the prototype; P6-2
 # moves the corpus into the governed datastore.
 eval-data/
+.vercel

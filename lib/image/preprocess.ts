@@ -19,7 +19,19 @@
  * different cap, the change is a config edit, not a code change.
  */
 
-import sharp from "sharp";
+/**
+ * sharp is imported lazily so the module-load phase never touches
+ * sharp's native bindings. On Vercel's serverless runtime the bundler
+ * was sometimes dropping the linux-x64 binary; a lazy import lets the
+ * function cold-start successfully and resolve sharp on first use.
+ */
+type SharpFactory = (typeof import("sharp"))["default"];
+let sharpModule: SharpFactory | null = null;
+async function getSharp(): Promise<SharpFactory> {
+  if (sharpModule) return sharpModule;
+  sharpModule = (await import("sharp")).default;
+  return sharpModule;
+}
 
 const DEFAULT_MAX_LONG_EDGE = 1568;
 
@@ -50,8 +62,9 @@ function resolveMaxEdge(): number {
  * Read input metadata up front so the logger has the pre-rotation
  * dimensions. Throws our clean error on corrupt bytes.
  */
-async function readInputMetadata(bytes: Buffer): Promise<sharp.Metadata> {
+async function readInputMetadata(bytes: Buffer) {
   try {
+    const sharp = await getSharp();
     return await sharp(bytes, { failOn: "error" }).metadata();
   } catch {
     throw new Error("Image could not be decoded");
@@ -83,6 +96,7 @@ export async function preprocessImage(
   //                                pass through unchanged if at or below.
   //                                Together these two options express D7
   //                                exactly: "shrink iff oversized; never grow."
+  const sharp = await getSharp();
   let outBuf: Buffer;
   try {
     outBuf = await sharp(bytes, { failOn: "error" })
