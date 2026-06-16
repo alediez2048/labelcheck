@@ -172,15 +172,15 @@ describe("classify — review lane (AC-6, near-miss, bold-uncertain)", () => {
     expect(result.lane).toBe("review");
   });
 
-  it("not_found field → review", () => {
+  it("not_found field (BLOCKING) → review", () => {
     const result = classify({
       fieldResults: [
         field({ field: "brand_name", verdict: "match", confidence: 1.0 }),
         field({
-          field: "producer_address",
+          field: "alcohol_content",
           verdict: "not_found",
           confidence: 0.5,
-          reason: "Producer address not found on any label face",
+          reason: "Alcohol content not found on any label face",
         }),
         field({ field: "government_warning", verdict: "match", confidence: 1.0 }),
       ],
@@ -189,19 +189,38 @@ describe("classify — review lane (AC-6, near-miss, bold-uncertain)", () => {
     expect(result.lane).toBe("review");
   });
 
-  it("near-miss mismatch (mismatch below threshold) → review, NOT mismatch", () => {
+  it("near-miss mismatch on a BLOCKING field (mismatch below threshold) → review, NOT mismatch", () => {
     const result = classify({
       fieldResults: [
         field({
-          field: "class_type",
+          field: "alcohol_content",
           verdict: "mismatch",
           confidence: 0.55, // below threshold
-          reason: "Class/type near-miss mismatch",
+          reason: "Alcohol content near-miss mismatch",
         }),
       ],
       confidentThreshold: THRESHOLD,
     });
     expect(result.lane).toBe("review");
+  });
+
+  it("non-blocking field mismatch (e.g. producer_address) → does NOT push lane", () => {
+    const result = classify({
+      fieldResults: [
+        field({ field: "brand_name", verdict: "match", confidence: 1.0 }),
+        field({ field: "alcohol_content", verdict: "match", confidence: 1.0 }),
+        field({ field: "government_warning", verdict: "match", confidence: 1.0 }),
+        // Non-blocking field with mismatch — must NOT escalate.
+        field({
+          field: "producer_address",
+          verdict: "mismatch",
+          confidence: 0.95,
+          reason: "Address missing on label",
+        }),
+      ],
+      confidentThreshold: THRESHOLD,
+    });
+    expect(result.lane).toBe("match");
   });
 });
 

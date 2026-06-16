@@ -153,7 +153,7 @@ export default function QueueReviewDetailPage(): React.ReactElement {
           <UnreadableBanner flags={verification.flags} />
         )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]">
         <AsSubmittedView
           applicationId={application.applicationId}
           beverageType={application.beverageType}

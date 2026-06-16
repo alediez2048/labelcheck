@@ -81,19 +81,19 @@ export function AsSubmittedView({
       {faces.length > 0 && (
         <div className="mt-4 border-t border-slate-100 pt-3">
           <h3 className="text-sm font-medium text-slate-700">Label faces</h3>
-          <ul className="mt-2 flex flex-wrap gap-3">
+          <ul className="mt-2 flex flex-col gap-3">
             {faces.map((f) => (
               <li
                 key={f.kind}
-                className="flex flex-col items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-2"
+                className="flex flex-col gap-1 overflow-hidden rounded-md border border-slate-200 bg-slate-100"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={f.previewUrl}
                   alt={`${FACE_LABELS[f.kind]} face submitted with this application`}
-                  className="h-32 w-32 rounded object-cover"
+                  className="block h-auto w-full object-contain"
                 />
-                <span className="text-xs font-medium text-slate-600">
+                <span className="border-t border-slate-200 bg-white px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-600">
                   {FACE_LABELS[f.kind]}
                 </span>
               </li>

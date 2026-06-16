@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LabelCheck — TTB Label Verification (Mockup)</title>
+<style>
+  :root{
+    --bg:#f1f5f9; --surface:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --brand:#2563eb; --brand-ink:#1e40af; --brand-soft:#eff6ff;
+    --match:#15803d; --match-soft:#f0fdf4; --match-line:#bbf7d0;
+    --mismatch:#b91c1c; --mismatch-soft:#fef2f2; --mismatch-line:#fecaca;
+    --review:#b45309; --review-soft:#fffbeb; --review-line:#fde68a;
+    --radius:14px; --shadow:0 1px 2px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.5;display:flex}
+  button{font-family:inherit;cursor:pointer}
+
+  .sidebar{width:236px;flex:0 0 236px;background:var(--surface);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;padding:18px 14px;min-height:100vh;position:sticky;top:0}
+  .brand{display:flex;align-items:center;gap:10px;padding:8px 10px 18px}
+  .brand .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#1e40af);
+    display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px}
+  .brand b{font-size:17px;display:block;line-height:1.1}
+  .brand small{color:var(--muted);font-size:12px}
+  .nav{display:flex;flex-direction:column;gap:4px}
+  .nav .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;padding:14px 12px 4px;font-weight:700}
+  .nav button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;background:transparent;
+    color:#334155;padding:11px 12px;border-radius:10px;font-size:15px;font-weight:600;min-height:44px}
+  .nav button .ic{width:18px;text-align:center}
+  .nav button:hover{background:#f8fafc}
+  .nav button.active{background:var(--brand-soft);color:var(--brand-ink)}
+  .nav .count{margin-left:auto;background:#e2e8f0;color:#475569;border-radius:999px;font-size:12px;padding:1px 9px;font-weight:700}
+  .nav button.active .count{background:#dbeafe;color:var(--brand-ink)}
+  .sidebar .spacer{flex:1}
+  .agent{display:flex;align-items:center;gap:10px;padding:10px;border-top:1px solid var(--line)}
+  .agent .av{width:34px;height:34px;border-radius:50%;background:#dbeafe;color:#1e40af;display:grid;place-items:center;font-weight:700}
+  .agent small{color:var(--muted);font-size:12px;display:block}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{min-height:64px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-between;padding:12px 28px;position:sticky;top:0;z-index:5;gap:16px}
+  .topbar h1{font-size:18px;margin:0}
+  .topbar .lede{color:var(--muted);font-size:13px;margin-top:2px}
+  .content{padding:24px 28px 60px;max-width:1160px;width:100%;margin:0 auto}
+  .view{display:none}.view.active{display:block}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:700;border:1px solid;white-space:nowrap}
+  .pill.match{background:var(--match-soft);color:var(--match);border-color:var(--match-line)}
+  .pill.mismatch{background:var(--mismatch-soft);color:var(--mismatch);border-color:var(--mismatch-line)}
+  .pill.review{background:var(--review-soft);color:var(--review);border-color:var(--review-line)}
+  .pill.queue{background:#f1f5f9;color:#475569;border-color:#e2e8f0}
+  .pill.approved{background:var(--match-soft);color:var(--match);border-color:var(--match-line)}
+  .pill.rejected{background:var(--mismatch-soft);color:var(--mismatch);border-color:var(--mismatch-line)}
+  .pill.correction{background:var(--review-soft);color:var(--review);border-color:var(--review-line)}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--line);background:var(--surface);
+    color:var(--ink);padding:12px 18px;border-radius:11px;font-size:15px;font-weight:700;min-height:46px}
+  .btn:hover{border-color:#cbd5e1}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}.btn.primary:hover{background:#1d4ed8}
+  .btn.good{background:var(--match);border-color:var(--match);color:#fff}
+  .btn.danger{background:#fff;border-color:var(--mismatch-line);color:var(--mismatch)}
+  .btn.lg{font-size:16px;padding:14px 22px;min-height:54px}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--brand-ink);padding-left:6px}
+  .btn.sm{padding:8px 14px;min-height:40px;font-size:13px}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .panel > h3{font-size:14px;margin:0;padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .panel > h3 .muted{font-weight:500;font-size:12px;margin-left:auto}
+
+  /* ---- operations: funnel ---- */
+  .funnel{display:flex;align-items:stretch;gap:8px;margin-bottom:20px}
+  .fstage{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+  .fstage .l{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+  .fstage .n{font-size:30px;font-weight:800;color:var(--ink);letter-spacing:-.02em;margin-top:1px}
+  .fstage .s{font-size:12px;color:var(--muted)}
+  .fstage.green .n{color:var(--match)} .fstage.split .n{color:var(--ink)}
+  .farrow{display:flex;align-items:center;color:#cbd5e1;font-size:24px;font-weight:800}
+  .splitchips{display:flex;gap:6px;margin-top:6px}
+  .splitchips .pill{font-size:11px;padding:2px 8px}
+
+  .opsgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+  .prow{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--line)}
+  .prow:last-child{border-bottom:0}
+  .prow .nm{min-width:0;flex:0 0 auto}
+  .prow .nm b{font-size:13.5px;display:block}
+  .prow .nm small{color:var(--muted);font-size:11.5px}
+  .prow .spacer{flex:1}
+  .thumb{width:26px;height:33px;border-radius:5px;background:#e2e8f0;display:grid;place-items:center;color:#94a3b8;font-size:9px;flex:0 0 auto}
+
+  .drow{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--line)}
+  .drow:last-child{border-bottom:0}
+  .drow .who{display:flex;align-items:center;gap:9px;width:150px;flex:0 0 auto}
+  .drow .who .av{width:26px;height:26px;border-radius:50%;background:#e2e8f0;color:#475569;display:grid;place-items:center;font-size:11px;font-weight:700}
+  .drow .track{flex:1;height:12px;background:#eef2f7;border-radius:999px;overflow:hidden}
+  .drow .fill{height:100%;background:var(--brand);border-radius:999px}
+  .drow .ct{width:30px;text-align:right;font-weight:700;color:#475569;font-size:14px}
+  .poolrow{background:#fff7ed;border-bottom:1px solid var(--review-line)}
+  .poolrow .who{width:auto}
+  .feedrow{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line)}
+  .feedrow:last-child{border-bottom:0}
+  .dest{font-size:13px;color:#334155;font-weight:600}
+
+  /* ---- queue ---- */
+  .claimbar{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 18px;margin-bottom:18px}
+  .claimbar .spacer{flex:1}
+  .sec-h{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+  .sec-h h2{font-size:15px;margin:0;text-transform:uppercase;letter-spacing:.04em;color:#475569}.sec-h .spacer{flex:1}
+  .list{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:24px}
+  .item{display:flex;align-items:center;gap:14px;padding:15px 18px;border-bottom:1px solid var(--line);width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-top:0}
+  .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}
+  .thumbs{display:flex;gap:3px;flex:0 0 auto}
+  .item .nm{min-width:0}.item .nm b{display:block;font-size:15px}.item .nm small{color:var(--muted);font-size:13px}
+  .item .issue{font-size:13px;color:#334155}.item .spacer{flex:1}.item .chev{color:#94a3b8;font-size:18px}
+  .item.flagged{border-left:4px solid var(--mismatch)}.item.flag-review{border-left:4px solid var(--review)}
+  .caughtup{text-align:center;padding:50px 20px;color:var(--muted)}.caughtup .big{font-size:40px}
+
+  /* ---- review ---- */
+  .rev-top{display:flex;align-items:center;gap:14px;margin-bottom:16px}.rev-top .spacer{flex:1}
+  .rev-prog{font-size:13px;color:var(--muted);font-weight:600}
+  .lane{display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:var(--radius);border:1px solid;margin-bottom:18px}
+  .lane .badge{width:50px;height:50px;border-radius:12px;display:grid;place-items:center;font-size:26px;color:#fff;flex:0 0 auto}
+  .lane h2{margin:0;font-size:19px}.lane p{margin:3px 0 0;font-size:14px}
+  .lane.match{background:var(--match-soft);border-color:var(--match-line)}.lane.match .badge{background:var(--match)}.lane.match h2{color:var(--match)}
+  .lane.mismatch{background:var(--mismatch-soft);border-color:var(--mismatch-line)}.lane.mismatch .badge{background:var(--mismatch)}.lane.mismatch h2{color:var(--mismatch)}
+  .lane.review{background:var(--review-soft);border-color:var(--review-line)}.lane.review .badge{background:var(--review)}.lane.review h2{color:var(--review)}
+  .rev-grid{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start}
+  .panel h3.sub{font-size:13px}
+  .faces{display:flex;gap:8px;margin-bottom:14px}
+  .face{flex:1;aspect-ratio:3/4;border-radius:8px;background:linear-gradient(135deg,#e0e7ff,#dbeafe);display:grid;place-items:center;color:#64748b;font-size:11px;border:1px solid var(--line)}
+  .face.blur{background:repeating-linear-gradient(45deg,#e2e8f0,#e2e8f0 6px,#cbd5e1 6px,#cbd5e1 12px);color:#475569}
+  .kv{font-size:13px;margin-bottom:9px}.kv .k{color:var(--muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em}.kv .v{font-weight:600}
+  table.fields{width:100%;border-collapse:collapse}
+  table.fields th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;padding:11px 14px;border-bottom:1px solid var(--line)}
+  table.fields td{padding:12px 14px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}
+  table.fields tr:last-child td{border-bottom:0}
+  table.fields .fname{font-weight:700}
+  .val.bad{color:var(--mismatch);font-weight:700}
+  .row-flag{background:var(--mismatch-soft)}.row-review{background:var(--review-soft)}
+  .decide{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
+
+  /* ---- shared tables / filters ---- */
+  table.tbl{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+  table.tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;padding:12px 16px;border-bottom:1px solid var(--line);background:#f8fafc}
+  table.tbl td{padding:13px 16px;border-bottom:1px solid var(--line);font-size:14px}
+  table.tbl tr:last-child td{border-bottom:0}
+  table.tbl tbody tr:hover{background:#f8fafc}
+  .who2{display:inline-flex;align-items:center;gap:8px}
+  .who2 .av{width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:#475569;display:grid;place-items:center;font-size:11px;font-weight:700}
+  .ratebars{display:flex;height:10px;width:130px;border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .ratebars i{display:block;height:100%}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+  .filters input,.filters select{padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff;min-height:42px}
+  .filters input{min-width:230px}
+
+  /* ---- analytics ---- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+  .kpi .l{color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .kpi .n{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:4px}
+  .kpi .s{font-size:12px;margin-top:4px;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-bottom:18px}
+  .grid2b{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+  .vol{display:flex;align-items:flex-end;gap:10px;height:170px;padding:8px 4px 0}
+  .vol .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .vol .bar{width:100%;max-width:34px;background:linear-gradient(180deg,#60a5fa,#2563eb);border-radius:6px 6px 0 0}
+  .vol .cl{font-size:11px;color:var(--muted)}
+  .donutwrap{display:flex;align-items:center;gap:18px}
+  .legend{display:flex;flex-direction:column;gap:10px;font-size:14px}
+  .legend .row{display:flex;align-items:center;gap:9px}
+  .legend .sw{width:12px;height:12px;border-radius:3px}
+  .legend b{margin-left:auto}
+  .hbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;font-size:14px}
+  .hbar .lab{width:150px;flex:0 0 auto;color:#334155}
+  .hbar .track{flex:1;height:12px;background:#eef2f7;border-radius:999px;overflow:hidden}
+  .hbar .fill{height:100%;border-radius:999px;background:var(--brand)}
+  .hbar .val{width:52px;text-align:right;font-weight:700;color:#475569}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{border:0;background:#fff;padding:9px 14px;font-size:13px;font-weight:700;color:#475569}
+  .seg button.active{background:#0f172a;color:#fff}
+  .roleswitch{display:flex;align-items:center;gap:8px;padding:2px 8px 12px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+  .roleswitch .rs-l{font-size:10.5px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .seg2{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-left:auto}
+  .seg2 button{border:0;background:#fff;padding:6px 12px;font-size:12.5px;font-weight:700;color:#475569}
+  .seg2 button.active{background:var(--brand);color:#fff}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#0f172a;color:#fff;padding:13px 20px;border-radius:12px;font-weight:600;opacity:0;transition:.25s;z-index:60}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .note{font-size:12px;color:var(--muted)}.muted{color:var(--muted)}
+  /* ---- assistant ---- */
+  .fab{position:fixed;right:24px;bottom:24px;width:58px;height:58px;border-radius:50%;background:var(--brand);color:#fff;border:0;box-shadow:0 8px 24px rgba(37,99,235,.4);font-size:24px;display:grid;place-items:center;z-index:70}
+  .fab:hover{background:#1d4ed8}
+  .chat{position:fixed;right:24px;bottom:92px;width:370px;max-width:calc(100vw - 48px);height:520px;max-height:calc(100vh - 130px);background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 50px rgba(15,23,42,.28);display:none;flex-direction:column;overflow:hidden;z-index:70}
+  .chat.open{display:flex}
+  .chat .ch{display:flex;align-items:center;gap:10px;padding:13px 16px;background:var(--brand);color:#fff}
+  .chat .ch b{font-size:15px;display:block}.chat .ch small{opacity:.85;font-size:11px}
+  .chat .ch .x{margin-left:auto;background:transparent;border:0;color:#fff;font-size:18px}
+  .chat .cbody{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;background:#f8fafc}
+  .msg{max-width:85%;padding:10px 13px;border-radius:13px;font-size:13px;line-height:1.45}
+  .msg.a{background:#fff;border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px;color:var(--ink)}
+  .msg.u{background:var(--brand);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+  .qreplies{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 8px;background:#f8fafc}
+  .qreplies button{border:1px solid #dbeafe;background:#fff;color:var(--brand-ink);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600}
+  .assist-note{font-size:10px;color:var(--muted);text-align:center;padding:0 14px 8px;background:#f8fafc}
+  .chat .inp{display:flex;gap:8px;padding:11px 12px;border-top:1px solid var(--line);background:#fff}
+  .chat .inp input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px}
+  .chat .inp button{border:0;background:var(--brand);color:#fff;border-radius:10px;padding:0 15px;font-weight:700}
+  /* ---- knowledge base ---- */
+  .kbdrop{border:2px dashed #cbd5e1;border-radius:14px;background:#fafcff;padding:24px;text-align:center;margin-bottom:18px}
+  .kbdrop .ic{font-size:28px}
+  .kbdrop b{display:block;margin-top:8px;font-size:15px}
+  .kbstats{display:flex;gap:24px;margin:0 0 16px;font-size:13px;color:var(--muted)}
+  .kbstats b{color:var(--ink)}
+  .pill.indexed{background:var(--match-soft);color:var(--match);border-color:var(--match-line)}
+  .pill.proc{background:var(--review-soft);color:var(--review);border-color:var(--review-line)}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2,.grid2b,.opsgrid{grid-template-columns:1fr}.rev-grid{grid-template-columns:1fr}.funnel{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand"><div class="logo">L</div><div><b>LabelCheck</b><small>TTB Label Compliance</small></div></div>
+  <div class="roleswitch"><span class="rs-l">Viewing as</span><div class="seg2"><button id="role-admin" class="active" onclick="setRole('admin')">Admin</button><button id="role-agent" onclick="setRole('agent')">Agent</button></div></div>
+  <nav class="nav" id="nav" aria-label="Primary"></nav>
+  <div class="spacer"></div>
+  <div class="agent" id="identity"></div>
+</aside>
+
+<div class="main">
+  <header class="topbar">
+    <div><h1 id="ptitle">Operations</h1><div class="lede" id="lede"></div></div>
+    <div id="topaction"></div>
+  </header>
+  <div class="content">
+
+    <!-- OPERATIONS -->
+    <section id="view-ops" class="view active">
+      <div class="funnel" id="funnel"></div>
+      <div class="opsgrid">
+        <div class="panel">
+          <h3>Shared approval pool <span class="muted">clean matches · final approval</span></h3>
+          <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--line);background:var(--match-soft)">
+            <div><b style="color:var(--match);font-size:16px">420 passed every check</b><div class="note" style="color:#3f6212">Any agent can clear them together.</div></div>
+            <div style="flex:1"></div>
+            <button class="btn good" onclick="toast('420 matched applications approved')">Approve all 420</button>
+          </div>
+          <div id="poollist"></div>
+        </div>
+        <div class="panel">
+          <h3>Review distribution <span class="muted">180 exceptions across the team</span></h3>
+          <div id="distlist"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Live intake <span class="muted">most recent applications</span></h3>
+        <div id="feedlist"></div>
+      </div>
+      <p class="note" style="margin-top:14px">Every application is auto-verified on arrival. Matches go to the shared approval pool; mismatch and review applications enter a shared pool that agents pull from (a supervisor can hand-assign). Only the exceptions are routed.</p>
+    </section>
+
+    <!-- MY QUEUE -->
+    <section id="view-queue" class="view">
+      <div class="claimbar">
+        <div><b>5 applications you pulled from the shared review pool</b><div class="note">24 still waiting in the pool. Pull the next when you finish your current ones.</div></div>
+        <div class="spacer"></div>
+        <button class="btn primary" onclick="toast('Next item pulled from the shared pool')">Get next from pool</button>
+      </div>
+      <div class="sec-h"><h2>Your claimed exceptions</h2><span class="muted">problems first</span></div>
+      <div class="list" id="queue-body"></div>
+    </section>
+
+    <!-- REVIEW -->
+    <section id="view-review" class="view">
+      <div class="rev-top"><button class="btn ghost" onclick="go('queue')">← Back to queue</button><div class="spacer"></div><div class="rev-prog" id="revprog"></div></div>
+      <div id="review-body"></div>
+    </section>
+
+    <!-- ALL APPLICATIONS -->
+    <section id="view-apps" class="view">
+      <div class="filters">
+        <input id="q" placeholder="Search brand or TTB ID…" oninput="renderApps()">
+        <select id="f-status" onchange="renderApps()">
+          <option value="">All statuses</option><option value="approved">Approved (COLA issued)</option><option value="correction">Needs correction</option><option value="rejected">Rejected</option><option value="queue">In queue</option>
+        </select>
+        <select id="f-range" onchange="renderApps()">
+          <option value="">All time</option><option value="today">Today</option><option value="week">This week</option><option value="month">This month</option>
+        </select>
+        <select id="f-agent" onchange="renderApps()"><option value="">All agents</option></select>
+        <span class="note" id="apps-count"></span>
+      </div>
+      <table class="tbl" id="apps-table"></table>
+    </section>
+
+    <!-- KNOWLEDGE BASE (admin) -->
+    <section id="view-kb" class="view"><div id="kb-body"></div></section>
+
+    <!-- ANALYTICS -->
+    <section id="view-analytics" class="view">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div class="muted" id="an-sub">Label Compliance Division · this week</div>
+        <div class="seg"><button id="rg-week" class="active" onclick="setRange('week')">This week</button><button id="rg-month" onclick="setRange('month')">This month</button></div>
+      </div>
+      <div class="kpis" id="an-kpis"></div>
+      <div class="grid2">
+        <div class="panel"><h3>Applications processed <span class="muted">last 8 weeks</span></h3><div style="padding:18px"><div class="vol" id="vol"></div></div></div>
+        <div class="panel"><h3>Triage breakdown <span class="muted">AI lanes, not dispositions</span></h3><div style="padding:18px"><div class="donutwrap"><div id="donut"></div><div class="legend" id="donut-legend"></div></div></div></div>
+      </div>
+      <div class="grid2b">
+        <div class="panel"><h3>Top mismatch reasons <span class="muted">share of flagged</span></h3><div style="padding:18px" id="reasons"></div></div>
+        <div class="panel"><h3>Throughput by agent <span class="muted">this week</span></h3><div style="padding:18px" id="throughput"></div></div>
+      </div>
+    </section>
+
+    <!-- TEAM -->
+    <section id="view-team" class="view">
+      <p class="muted" style="margin-top:0">Per-member performance this period. Live routing of today's exceptions is on the Operations view. Rate bars show match / mismatch / review split.</p>
+      <table class="tbl" id="team-table"></table>
+    </section>
+
+    <!-- MY STATS (agent) -->
+    <section id="view-mystats" class="view">
+      <div class="kpis" id="ms-kpis"></div>
+      <div class="grid2b">
+        <div class="panel"><h3>Your outcome split <span class="muted">applications you handled</span></h3><div style="padding:18px" id="ms-split"></div></div>
+        <div class="panel"><h3>Recent decisions <span class="muted">your latest</span></h3><div id="ms-recent"></div></div>
+      </div>
+    </section>
+
+    <!-- PROFILE (agent) -->
+    <section id="view-profile" class="view">
+      <div id="profile-body"></div>
+    </section>
+
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<button class="fab" id="fab" onclick="toggleChat()" aria-label="Open assistant">&#128172;</button>
+<div class="chat" id="chat">
+  <div class="ch"><div>&#128172;</div><div><b>Assistant</b><small>answers · onboarding · summaries</small></div><button class="x" onclick="toggleChat()" aria-label="Close">&#10005;</button></div>
+  <div class="cbody" id="chat-body"></div>
+  <div class="qreplies" id="qreplies"></div>
+  <div class="assist-note">Read-only helper. It explains and summarizes; it never approves or changes records.</div>
+  <div class="inp"><input id="chat-in" placeholder="Ask a question…" onkeydown="if(event.key==='Enter')sendChat()"><button onclick="sendChat()">Send</button></div>
+</div>
+
+<script>
+const ICON={match:'✓',mismatch:'✕',review:'?'};
+const LANEC={match:'#15803d',mismatch:'#b91c1c',review:'#b45309'};
+function pill(kind,label){const L=label||({match:'Match',mismatch:'Mismatch',review:'Review',approved:'Approved',rejected:'Rejected',correction:'Needs correction',queue:'In queue'})[kind];const ic={match:'✓ ',mismatch:'✕ ',review:'? ',approved:'✓ ',rejected:'✕ ',correction:'↩ ',queue:''}[kind]||'';return `<span class="pill ${kind}">${ic}${L}</span>`;}
+
+/* ---------- today's intake totals ---------- */
+const TODAY={received:600,verified:600,match:420,mismatch:130,review:50,avg:'3.4s'};
+const EXC=TODAY.mismatch+TODAY.review;
+const DIST=[["Jenny Park",28,"Spirits"],["Dave Morrison",31,"Wine"],["Marcus Lee",26,"Malt"],["Ana Ruiz",30,"Wine"],["Tom Becker",22,"Spirits"],["Priya Nair",19,"Malt"]];
+const POOL_WAITING=EXC-DIST.reduce((a,b)=>a+b[1],0);
+const POOL_SAMPLE=[["Old Tom Distillery","Bourbon · 750 mL","2 faces"],["Silver Branch Gin","Gin · 750 mL","2 faces"],["Maple Hollow Cream","Liqueur · 750 mL","3 faces"],["Juniper Coast Gin","Gin · 750 mL","2 faces"]];
+const FEED=[
+  ["Old Tom Distillery","Distilled Spirits","match","Auto-cleared → approval pool"],
+  ["Harbor Mist Vodka","Distilled Spirits","mismatch","→ review pool"],
+  ["North Point Pinot","Wine","match","Auto-cleared → approval pool"],
+  ["Cedar Ridge Reserve","Distilled Spirits","mismatch","→ Marcus Lee"],
+  ["Pages 1907 Lager","Malt Beverage","review","→ review pool"],
+  ["Silver Branch Gin","Distilled Spirits","match","Auto-cleared → approval pool"],
+];
+
+/* ---------- agent's claimed exceptions (detailed) ---------- */
+const APPS=[
+ {id:'HM-26-0810', brand:'Harbor Mist Vodka', type:'Vodka', applicant:'Harbor Mist Spirits', faces:2, lane:'mismatch', issue:'Alcohol content: form 40% vs label 45%',
+  fields:[['Brand name','Harbor Mist Vodka','HARBOR MIST VODKA','match','Match'],['Class / type','Vodka','Vodka','match','Match'],['Alcohol content','40% Alc./Vol. (80 Proof)','45% ALC./VOL. (90 PROOF)','mismatch','Mismatch'],['Net contents','1 L','1 L','match','Match'],['Bottler / producer','Harbor Mist Spirits, Astoria, OR','Harbor Mist · Astoria, OR','match','Match'],['Government warning','Required, verbatim','Back face · verbatim · CAPS ✓ · bold ✓','match','Match']]},
+ {id:'CR-26-0655', brand:'Cedar Ridge Reserve', type:'Rye Whiskey', applicant:'Cedar Ridge Distillery', faces:2, lane:'mismatch', issue:'Government warning heading not in all caps',
+  fields:[['Brand name','Cedar Ridge Reserve','CEDAR RIDGE RESERVE','match','Match'],['Class / type','Rye Whiskey','Straight Rye Whiskey','match','Match'],['Alcohol content','46% Alc./Vol. (92 Proof)','46% ALC./VOL.','match','Match'],['Net contents','750 mL','750 ML','match','Match'],['Bottler / producer','Cedar Ridge, Swisher, IA','Cedar Ridge · Swisher, IA','match','Match'],['Government warning','GOVERNMENT WARNING: (all caps, bold)','"Government Warning:" — title case','mismatch','Mismatch']]},
+ {id:'CP-26-1402', brand:'Coastal Pale Ale', type:'Malt Beverage', applicant:'Coastal Brewing Co.', faces:1, lane:'mismatch', issue:'Net contents: form 12 fl oz vs label 16 fl oz',
+  fields:[['Brand name','Coastal Pale Ale','COASTAL PALE ALE','match','Match'],['Class / type','Malt Beverage','Ale','match','Match'],['Alcohol content','5.6% Alc./Vol.','5.6% ALC./VOL.','match','Match'],['Net contents','12 FL OZ','16 FL OZ','mismatch','Mismatch'],['Bottler / producer','Coastal Brewing Co., San Diego, CA','Coastal Brewing · San Diego, CA','match','Match'],['Government warning','Required, verbatim','Front face · verbatim · CAPS ✓ · bold ✓','match','Match']]},
+ {id:'PG-26-0298', brand:'Pages 1907 Lager', type:'Malt Beverage', applicant:'Pages Brewing', faces:1, lane:'review', issue:'Image too blurry to read — request a better photo', blur:true,
+  fields:[['Brand name','Pages 1907 Lager','PAGES 1907… (low confidence)','review','Low confidence'],['Class / type','Malt Beverage','— not readable —','review','Not found'],['Alcohol content','5.2% Alc./Vol.','— not readable —','review','Not found'],['Net contents','355 mL','355 ML','match','Match'],['Bottler / producer','Pages Brewing, Indianapolis, IN','— glare on label —','review','Low confidence'],['Government warning','Required, verbatim','Region too blurry to verify','review','Low confidence']]},
+ {id:'DM-26-0744', brand:'Dunmore Single Malt', type:'Whisky', applicant:'Dun More Distillery', faces:2, lane:'review', issue:'Brand near-miss — "Dunmore" vs "Dun More"',
+  fields:[['Brand name','Dunmore Single Malt','DUN MORE SINGLE MALT','review','Near match'],['Class / type','Single Malt Whisky','Single Malt Whisky','match','Match'],['Alcohol content','43% Alc./Vol. (86 Proof)','43% ALC./VOL.','match','Match'],['Net contents','700 mL','700 ML','match','Match'],['Bottler / producer','Dun More Distillery, Scotland','Dun More · Scotland','match','Match'],['Government warning','Required, verbatim','Back face · verbatim · CAPS ✓ · bold ✓','match','Match']]},
+];
+
+/* ---------- application record (history) ---------- */
+const AGENTS=['Jenny Park','Dave Morrison','Marcus Lee','Ana Ruiz','Tom Becker'];
+const HIST=[
+ {id:'HM-26-0810',brand:'Harbor Mist Vodka',type:'Distilled Spirits',applicant:'Harbor Mist Spirits',agent:'Jenny Park',status:'queue',when:'Today',range:'today'},
+ {id:'CR-26-0655',brand:'Cedar Ridge Reserve',type:'Distilled Spirits',applicant:'Cedar Ridge Distillery',agent:'Jenny Park',status:'queue',when:'Today',range:'today'},
+ {id:'PG-26-0298',brand:'Pages 1907 Lager',type:'Malt Beverage',applicant:'Pages Brewing',agent:'Jenny Park',status:'queue',when:'Today',range:'today'},
+ {id:'WB-26-0612',brand:'Wheatland Bock',type:'Malt Beverage',applicant:'Wheatland Brewing',agent:'Dave Morrison',status:'approved',when:'Today',range:'today'},
+ {id:'NP-26-0540',brand:'North Point Pinot',type:'Wine',applicant:'North Point Cellars',agent:'Ana Ruiz',status:'approved',when:'Today',range:'today'},
+ {id:'GL-26-0498',brand:'Gable Lane Rosé',type:'Wine',applicant:'Gable Lane Winery',agent:'Marcus Lee',status:'rejected',when:'Yesterday',range:'week'},
+ {id:'SV-26-0455',brand:'Stillwater Vodka',type:'Distilled Spirits',applicant:'Stillwater Co.',agent:'Tom Becker',status:'approved',when:'Yesterday',range:'week'},
+ {id:'BR-26-0421',brand:'Birchwood Reserve',type:'Distilled Spirits',applicant:'Birchwood Distillers',agent:'Jenny Park',status:'approved',when:'Yesterday',range:'week'},
+ {id:'CM-26-0388',brand:'Cape Maris Lager',type:'Malt Beverage',applicant:'Cape Maris Brewing',agent:'Dave Morrison',status:'correction',when:'2 days ago',range:'week'},
+ {id:'VH-26-0370',brand:'Valley High Cabernet',type:'Wine',applicant:'Valley High Estate',agent:'Ana Ruiz',status:'approved',when:'2 days ago',range:'week'},
+ {id:'OK-26-0344',brand:'Oakum Gin',type:'Distilled Spirits',applicant:'Oakum Spirits',agent:'Marcus Lee',status:'approved',when:'3 days ago',range:'week'},
+ {id:'RP-26-0301',brand:'Red Pier IPA',type:'Malt Beverage',applicant:'Red Pier Brewing',agent:'Tom Becker',status:'rejected',when:'4 days ago',range:'week'},
+ {id:'LM-26-0288',brand:'Lone Mesa Tequila',type:'Distilled Spirits',applicant:'Lone Mesa Imports',agent:'Jenny Park',status:'approved',when:'Last week',range:'month'},
+ {id:'HW-26-0255',brand:'Hollow Wind Mezcal',type:'Distilled Spirits',applicant:'Hollow Wind Imports',agent:'Ana Ruiz',status:'approved',when:'Last week',range:'month'},
+ {id:'TF-26-0233',brand:'Thornfield Stout',type:'Malt Beverage',applicant:'Thornfield Brewing',agent:'Dave Morrison',status:'approved',when:'Last week',range:'month'},
+ {id:'AM-26-0210',brand:'Amber Mill Chardonnay',type:'Wine',applicant:'Amber Mill Vineyards',agent:'Marcus Lee',status:'correction',when:'Last week',range:'month'},
+ {id:'PV-26-0150',brand:'Pinewood Vodka',type:'Distilled Spirits',applicant:'Pinewood Spirits',agent:'Jenny Park',status:'rejected',when:'2 weeks ago',range:'month'},
+ {id:'GR-26-0121',brand:'Grayson Reserve',type:'Distilled Spirits',applicant:'Grayson Distillery',agent:'Ana Ruiz',status:'approved',when:'3 weeks ago',range:'month'},
+ {id:'BC-26-0099',brand:'Blue Creek Cider',type:'Wine',applicant:'Blue Creek Orchard',agent:'Dave Morrison',status:'approved',when:'3 weeks ago',range:'month'},
+ {id:'MR-26-0070',brand:'Marrow Rye',type:'Distilled Spirits',applicant:'Marrow Distilling',agent:'Marcus Lee',status:'approved',when:'4 weeks ago',range:'month'},
+];
+
+/* ---------- analytics + team ---------- */
+const RANGE={
+ week:{processed:'2,940',match:71,mismatch:18,review:11,avg:'3.4 min',saved:'290 hrs',sub:'this week'},
+ month:{processed:'12,480',match:70,mismatch:19,review:11,avg:'3.5 min',saved:'1,240 hrs',sub:'this month'},
+};
+let range='week';
+const VOL=[2700,2860,2610,2990,3120,2780,3040,2940];
+const REASONS=[['Alcohol content',31],['Government warning',24],['Net contents',17],['Brand name',12],['Producer / address',9],['Country of origin',7]];
+const TEAM=[
+ {name:'Jenny Park',role:'Agent',spec:'Distilled spirits',week:64,month:268,match:70,mismatch:19,review:11,avg:'3.2 min'},
+ {name:'Dave Morrison',role:'Senior Agent',spec:'Wine',week:58,month:241,match:74,mismatch:16,review:10,avg:'4.1 min'},
+ {name:'Marcus Lee',role:'Agent',spec:'Malt beverage',week:61,month:255,match:69,mismatch:20,review:11,avg:'3.5 min'},
+ {name:'Ana Ruiz',role:'Agent',spec:'Wine',week:66,month:279,match:72,mismatch:18,review:10,avg:'3.0 min'},
+ {name:'Tom Becker',role:'Agent',spec:'Distilled spirits',week:52,month:228,match:71,mismatch:18,review:11,avg:'3.8 min'},
+];
+const initials=n=>n.split(' ').map(s=>s[0]).join('');
+
+/* ================= OPERATIONS ================= */
+function renderOps(){
+  document.getElementById('funnel').innerHTML=`
+    <div class="fstage"><div class="l">Received today</div><div class="n">${TODAY.received}</div><div class="s">via COLAs Online</div></div>
+    <div class="farrow">→</div>
+    <div class="fstage"><div class="l">Auto-verified</div><div class="n">${TODAY.verified}</div><div class="s">avg ${TODAY.avg} each</div></div>
+    <div class="farrow">→</div>
+    <div class="fstage green"><div class="l">Ready to approve</div><div class="n">${TODAY.match}</div><div class="s">clean matches · shared pool</div></div>
+    <div class="farrow">→</div>
+    <div class="fstage split"><div class="l">Needs review</div><div class="n">${EXC}</div><div class="splitchips">${pill('mismatch',TODAY.mismatch+' mismatch')}${pill('review',TODAY.review+' review')}</div></div>`;
+
+  document.getElementById('poollist').innerHTML=POOL_SAMPLE.map(([nm,meta,f])=>`
+    <div class="prow"><div class="thumb">▢</div><div class="nm"><b>${nm}</b><small>${meta}</small></div><div class="spacer"></div>${pill('match','Match')}<span class="muted" style="font-size:12px">${f}</span></div>`).join('')
+    +`<div class="prow"><span class="muted" style="font-size:13px">+ ${TODAY.match-POOL_SAMPLE.length} more clean applications</span></div>`;
+
+  const maxd=Math.max(...DIST.map(d=>d[1]));
+  let dl=`<div class="drow poolrow"><div class="who"><span class="pill review">? pool</span></div><div class="nm" style="flex:1"><b>${POOL_WAITING} waiting to be pulled</b><small>Wine 9 · Spirits 11 · Malt 4 — routed to matching specialists</small></div><button class="btn sm" onclick="toast('Routed next items to available specialists')">Distribute</button></div>`;
+  dl+=DIST.map(([nm,ct,sp])=>`<div class="drow"><div class="who" style="width:168px"><span class="av">${initials(nm)}</span><span style="line-height:1.12">${nm}<br><span class="muted" style="font-size:10.5px">${sp}</span></span></div><div class="track"><div class="fill" style="width:${(ct/maxd*100).toFixed(0)}%"></div></div><div class="ct">${ct}</div></div>`).join('');
+  document.getElementById('distlist').innerHTML=dl;
+
+  document.getElementById('feedlist').innerHTML=FEED.map(([nm,ty,k,dest])=>{
+    const arrow = dest.startsWith('Auto')?'':'';
+    return `<div class="feedrow"><div class="thumb">▢</div><div class="nm"><b style="font-size:13.5px">${nm}</b><small style="color:var(--muted);font-size:11.5px"> · ${ty}</small></div><div class="spacer"></div>${pill(k)}<span class="dest">${dest}</span></div>`;
+  }).join('');
+}
+
+/* ================= MY QUEUE ================= */
+function renderQueue(){
+  document.getElementById('queue-body').innerHTML=APPS.map(itemRow).join('');
+  const nq=document.getElementById('navq'); if(nq) nq.textContent=APPS.length;
+}
+function itemRow(a){
+  const cls=a.lane==='mismatch'?'flagged':'flag-review';
+  return `<button class="item ${cls}" onclick="openReview('${a.id}')">
+    <div class="thumbs">${'<div class=thumb>▢</div>'.repeat(Math.min(a.faces,3))}</div>
+    <div class="nm"><b>${a.brand}</b><small>${a.type} · ${a.id}</small></div>
+    <div class="spacer"></div>
+    <div class="issue">${a.issue}</div>
+    ${pill(a.lane)}<div class="chev">›</div></button>`;
+}
+
+/* ================= REVIEW ================= */
+let reviewList=[], reviewIdx=0;
+function openReview(id){reviewList=APPS.map(a=>a.id);reviewIdx=reviewList.indexOf(id);if(reviewIdx<0)reviewIdx=0;renderReview();go('review');}
+function renderReview(){
+  const a=APPS.find(x=>x.id===reviewList[reviewIdx]);const total=reviewList.length;
+  document.getElementById('revprog').textContent=`Reviewing ${reviewIdx+1} of ${total} claimed`;
+  const blurb=a.lane==='mismatch'?'A field on the label does not match the application. Decide how to proceed.':'The tool is not confident here. Take a closer look and decide.';
+  const title=a.lane==='mismatch'?('Mismatch — '+a.issue.split(':')[0]):'Needs your review';
+  let rows=a.fields.map(f=>{const v=f[3],rc=v==='mismatch'?'row-flag':(v==='review'?'row-review':''),vc=v==='mismatch'?'val bad':'val';return `<tr class="${rc}"><td class="fname">${f[0]}</td><td>${f[1]}</td><td class="${vc}">${f[2]}</td><td>${pill(v,f[4])}</td></tr>`;}).join('');
+  const faceLabels=['front','back','neck'];const faceHtml=Array.from({length:Math.min(a.faces,3)},(_,i)=>`<div class="face">${faceLabels[i]}</div>`).join('');
+  const faces=a.blur?`<div class="faces"><div class="face blur">front · blurry</div></div>`:`<div class="faces">${faceHtml}</div>`;
+  let decideBtns;
+  if(a.lane==='mismatch')decideBtns=`<button class="btn primary" onclick="decide('Returned for correction · 30-day window')">Return for correction</button><button class="btn good" onclick="decide('Approved · COLA issued')">Approve</button>`;
+  else decideBtns=`<button class="btn primary" onclick="decide('Returned for correction · better image requested')">Return for correction</button><button class="btn good" onclick="decide('Approved · COLA issued')">Approve</button>`;
+  const outcomeNote=`<div class="note" style="margin-top:10px">Return for correction sends it back to the applicant with a 30-day window; corrected resubmissions get queue priority. Approve issues the COLA — use it when the AI flagged something that is actually fine, or once the issue is resolved. There is no manual reject: a returned application that isn’t corrected within 30 days is auto-rejected.</div>`;
+  document.getElementById('review-body').innerHTML=`
+    <div class="lane ${a.lane}"><div class="badge">${ICON[a.lane]}</div><div><h2>${title}</h2><p>${blurb}</p></div></div>
+    <div class="rev-grid">
+      <div class="panel"><h3 class="sub">As submitted</h3><div style="padding:16px">${faces}
+        <div class="kv"><span class="k">Applicant</span><span class="v">${a.applicant}</span></div>
+        <div class="kv"><span class="k">Brand</span><span class="v">${a.brand}</span></div>
+        <div class="kv"><span class="k">Class / type</span><span class="v">${a.type}</span></div>
+        <div class="kv"><span class="k">TTB ID</span><span class="v">${a.id}</span></div>
+        <div class="note">Form + label faces as received via COLAs Online.</div></div></div>
+      <div class="panel"><h3 class="sub">Application vs label</h3>
+        <table class="fields"><thead><tr><th>Field</th><th>On the application</th><th>On the label</th><th>Verdict</th></tr></thead><tbody>${rows}</tbody></table>
+        <div style="padding:0 16px 16px"><div class="decide">${decideBtns}</div>${outcomeNote}</div></div>
+    </div>`;
+}
+function decide(msg){toast(msg);if(reviewIdx<reviewList.length-1){reviewIdx++;renderReview();window.scrollTo(0,0);}else renderCaughtUp();}
+function renderCaughtUp(){document.getElementById('revprog').textContent='';document.getElementById('review-body').innerHTML=`<div class="caughtup"><div class="big">✓</div><h2>You're all caught up</h2><p>Every claimed application is resolved. Pull the next batch from the shared pool when you're ready.</p><button class="btn primary lg" onclick="go('queue')">Back to queue</button></div>`;}
+
+/* ================= ALL APPLICATIONS ================= */
+function initApps(){const s=document.getElementById('f-agent');s.innerHTML='<option value="">All agents</option>'+AGENTS.map(a=>`<option>${a}</option>`).join('');}
+function renderApps(){
+  const q=(document.getElementById('q').value||'').toLowerCase();
+  const st=document.getElementById('f-status').value, rg=document.getElementById('f-range').value, ag=document.getElementById('f-agent').value;
+  const order={today:0,week:1,month:2};
+  const rows=HIST.filter(h=>(!q||h.brand.toLowerCase().includes(q)||h.id.toLowerCase().includes(q))&&(!st||h.status===st)&&(!ag||h.agent===ag)&&(!rg||order[h.range]<=order[rg]));
+  document.getElementById('apps-count').textContent=`${rows.length} applications`;
+  const body=rows.map(h=>`<tr><td><b>${h.brand}</b><div class="muted" style="font-size:12px">${h.id}</div></td><td>${h.type}</td><td>${h.applicant}</td><td><span class="who2"><span class="av">${initials(h.agent)}</span>${h.agent}</span></td><td>${pill(h.status)}</td><td class="muted">${h.when}</td></tr>`).join('');
+  document.getElementById('apps-table').innerHTML=`<thead><tr><th>Application</th><th>Type</th><th>Applicant</th><th>Assigned to</th><th>Status</th><th>Received</th></tr></thead><tbody>${body||'<tr><td colspan=6 class=muted style="padding:24px;text-align:center">No applications match these filters.</td></tr>'}</tbody>`;
+}
+
+/* ================= ANALYTICS ================= */
+function donut(segs){const r=54,c=2*Math.PI*r,total=segs.reduce((s,x)=>s+x.v,0);let off=0;const circ=segs.map(s=>{const len=c*s.v/total;const el=`<circle r="${r}" cx="70" cy="70" fill="none" stroke="${s.color}" stroke-width="22" stroke-dasharray="${len.toFixed(2)} ${(c-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 70 70)"/>`;off+=len;return el;}).join('');return `<svg viewBox="0 0 140 140" width="150" height="150">${circ}<text x="70" y="66" text-anchor="middle" font-size="22" font-weight="800" fill="#0f172a">${segs[0].v}%</text><text x="70" y="84" text-anchor="middle" font-size="11" fill="#64748b">match</text></svg>`;}
+function setRange(r){range=r;document.getElementById('rg-week').classList.toggle('active',r==='week');document.getElementById('rg-month').classList.toggle('active',r==='month');renderAnalytics();}
+function renderAnalytics(){
+  const d=RANGE[range];
+  document.getElementById('an-sub').textContent='Label Compliance Division · '+d.sub;
+  document.getElementById('an-kpis').innerHTML=`
+    <div class="kpi"><div class="l">Processed</div><div class="n">${d.processed}</div><div class="s">${d.sub}</div></div>
+    <div class="kpi"><div class="l">Match rate</div><div class="n" style="color:var(--match)">${d.match}%</div><div class="s">auto-cleared or bulk-confirmed</div></div>
+    <div class="kpi"><div class="l">Mismatch / review</div><div class="n" style="color:var(--mismatch)">${d.mismatch+d.review}%</div><div class="s">${d.mismatch}% mismatch · ${d.review}% review</div></div>
+    <div class="kpi"><div class="l">Avg handling time</div><div class="n">${d.avg}</div><div class="s">est. ${d.saved} saved</div></div>`;
+  const max=Math.max(...VOL);
+  document.getElementById('vol').innerHTML=VOL.map((v,i)=>`<div class="col"><div class="bar" style="height:${(v/max*100).toFixed(1)}%"></div><div class="cl">W${i+1}</div></div>`).join('');
+  const segs=[{v:d.match,color:LANEC.match,label:'Match'},{v:d.mismatch,color:LANEC.mismatch,label:'Mismatch'},{v:d.review,color:LANEC.review,label:'Review'}];
+  document.getElementById('donut').innerHTML=donut(segs);
+  document.getElementById('donut-legend').innerHTML=segs.map(s=>`<div class="row"><span class="sw" style="background:${s.color}"></span>${s.label}<b>${s.v}%</b></div>`).join('');
+  const rmax=Math.max(...REASONS.map(r=>r[1]));
+  document.getElementById('reasons').innerHTML=REASONS.map(r=>`<div class="hbar"><div class="lab">${r[0]}</div><div class="track"><div class="fill" style="width:${(r[1]/rmax*100).toFixed(0)}%;background:var(--mismatch)"></div></div><div class="val">${r[1]}%</div></div>`).join('');
+  const tmax=Math.max(...TEAM.map(t=>t.week));
+  document.getElementById('throughput').innerHTML=TEAM.map(t=>`<div class="hbar"><div class="lab">${t.name}</div><div class="track"><div class="fill" style="width:${(t.week/tmax*100).toFixed(0)}%"></div></div><div class="val">${t.week}</div></div>`).join('');
+}
+
+/* ================= TEAM ================= */
+function renderTeam(){
+  const body=TEAM.map(t=>`<tr>
+    <td><span class="who2"><span class="av">${initials(t.name)}</span><b>${t.name}</b></span><div class="muted" style="font-size:12px;margin-left:32px">${t.role}</div></td>
+    <td><span class="pill queue">${t.spec}</span> <button class="btn sm" style="margin-left:6px" onclick="toast('Reassign specialization')">Edit</button></td>
+    <td>${t.week}</td><td>${t.month}</td>
+    <td><div class="ratebars"><i style="width:${t.match}%;background:var(--match)"></i><i style="width:${t.mismatch}%;background:var(--mismatch)"></i><i style="width:${t.review}%;background:var(--review)"></i></div>
+        <div class="muted" style="font-size:12px;margin-top:4px">${t.match}% · ${t.mismatch}% · ${t.review}%</div></td>
+    <td>${t.avg}</td></tr>`).join('');
+  document.getElementById('team-table').innerHTML=`<thead><tr><th>Agent</th><th>Specialization</th><th>This week</th><th>This month</th><th>Match / Mismatch / Review</th><th>Avg time</th></tr></thead><tbody>${body}</tbody>`;
+}
+
+/* ================= KNOWLEDGE BASE (admin) ================= */
+const KB=[
+ ["TTB Beverage Alcohol Manual (BAM)","Reference · spirits",142,"indexed","2 days ago"],
+ ["Government Warning rule — 27 CFR 16.21","Rules · warning",18,"indexed","1 week ago"],
+ ["Net contents & fill standards","Rules · net contents",26,"indexed","1 week ago"],
+ ["Agent onboarding guide","Onboarding",31,"indexed","3 days ago"],
+ ["Catching warning defects — best practices","Best practices",12,"indexed","Today"],
+ ["Country-of-origin requirements","Rules · origin",14,"indexed","2 weeks ago"],
+ ["ABV tolerance reference (by type)","Reference · ABV",9,"proc","Just now"],
+];
+function renderKB(){
+  const docs=KB.length, chunks=KB.reduce((a,b)=>a+(b[2]||0),0);
+  document.getElementById('kb-body').innerHTML=`
+    <div class="kbdrop"><div class="ic">⬆</div><b>Drag documents here, or browse</b><div class="note" style="margin-top:4px">PDF, DOCX, Markdown, or TXT — chunked, embedded, and indexed for the assistant</div><div style="margin-top:14px"><button class="btn primary" onclick="kbUpload()">Upload documents</button></div></div>
+    <div class="kbstats"><span><b>${docs}</b> documents</span><span><b>${chunks}</b> chunks indexed</span><span>grounding the assistant · last updated <b>today</b></span></div>
+    <table class="tbl"><thead><tr><th>Document</th><th>Topic</th><th>Chunks</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>${KB.map(d=>`<tr>
+      <td><b>${d[0]}</b></td><td class="muted">${d[1]}</td><td>${d[2]||'—'}</td>
+      <td>${d[3]==='indexed'?'<span class="pill indexed">✓ Indexed</span>':'<span class="pill proc">⟳ Processing</span>'}</td>
+      <td class="muted">${d[4]}</td>
+      <td style="text-align:right"><button class="btn sm" onclick="toast('Re-indexing…')">Re-index</button></td></tr>`).join('')}</tbody></table>
+    <p class="note" style="margin-top:14px">The assistant answers only from these sources, so what you add here is what it can cite. Content is versioned and every change is auditable (schema.md knowledge_base).</p>`;
+}
+function kbUpload(){
+  KB.unshift(["vendor-label-guidance.pdf","Pending review",0,"proc","Just now"]);
+  renderKB(); toast('Uploaded · indexing started');
+  setTimeout(()=>{KB[0][2]=21;KB[0][3]='indexed';KB[0][1]='Reference';KB[0][4]='Just now';const v=document.getElementById('view-kb');if(v&&v.classList.contains('active'))renderKB();toast('vendor-label-guidance.pdf indexed');},1600);
+}
+
+/* ================= MY STATS (agent) ================= */
+function renderMyStats(){
+  const t=TEAM[0];
+  document.getElementById('ms-kpis').innerHTML=`
+    <div class="kpi"><div class="l">Completed this week</div><div class="n">${t.week}</div><div class="s">applications</div></div>
+    <div class="kpi"><div class="l">Completed this month</div><div class="n">${t.month}</div><div class="s">applications</div></div>
+    <div class="kpi"><div class="l">Your match rate</div><div class="n" style="color:var(--match)">${t.match}%</div><div class="s">cleared without a flag</div></div>
+    <div class="kpi"><div class="l">Avg handling time</div><div class="n">${t.avg}</div><div class="s">per application</div></div>`;
+  document.getElementById('ms-split').innerHTML=`
+    <div class="ratebars" style="width:100%;height:16px"><i style="width:${t.match}%;background:var(--match)"></i><i style="width:${t.mismatch}%;background:var(--mismatch)"></i><i style="width:${t.review}%;background:var(--review)"></i></div>
+    <div style="display:flex;gap:20px;margin-top:14px;font-size:13.5px">
+      <span><b style="color:var(--match)">${t.match}%</b> match</span><span><b style="color:var(--mismatch)">${t.mismatch}%</b> mismatch</span><span><b style="color:var(--review)">${t.review}%</b> review</span></div>
+    <p class="note" style="margin-top:14px">Roughly in line with the division average (71 / 18 / 11).</p>`;
+  const mine=HIST.filter(h=>h.agent==='Jenny Park').slice(0,5);
+  document.getElementById('ms-recent').innerHTML=mine.map(h=>`<div class="feedrow"><div class="nm"><b style="font-size:13.5px">${h.brand}</b><small style="color:var(--muted)"> · ${h.id}</small></div><div class="spacer"></div>${pill(h.status)}<span class="muted" style="font-size:12px">${h.when}</span></div>`).join('');
+}
+/* ================= PROFILE (agent) ================= */
+function renderProfile(){
+  document.getElementById('profile-body').innerHTML=`
+   <div class="opsgrid">
+    <div class="panel"><h3>Profile</h3><div style="padding:18px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px"><div style="width:54px;height:54px;border-radius:50%;background:#dbeafe;color:#1e40af;display:grid;place-items:center;font-weight:700;font-size:20px">JP</div><div><b style="font-size:17px">Jenny Park</b><div class="muted">Compliance Agent · Label Compliance Division</div></div></div>
+      <div class="kv"><span class="k">Specialization</span><span class="v"><span class="pill queue">Distilled spirits</span> <span class="muted" style="font-size:11px">· assigned by your supervisor</span></span></div>
+      <div class="kv"><span class="k">Email</span><span class="v">jpark@ttb.gov</span></div>
+      <div class="kv"><span class="k">Team</span><span class="v">Spirits & Imports</span></div>
+      <div class="kv"><span class="k">Member since</span><span class="v">October 2024</span></div>
+    </div></div>
+    <div class="panel"><h3>Availability & routing</h3><div style="padding:18px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px"><span class="pill match">✓ Available</span><span class="muted" style="font-size:13px">receiving work from the shared pool</span></div>
+      <p class="note">When you set yourself out of office, the pool stops routing new exceptions to you and your claimed items can be reassigned (routing model, systemsdesign D15).</p>
+      <div style="margin-top:14px"><button class="btn sm" onclick="toast('You are now out of office — routing paused')">Set out of office</button></div>
+      <div class="kv" style="margin-top:18px"><span class="k">Specialization</span><span class="v">Distilled spirits · imports</span></div>
+      <div class="kv"><span class="k">Notifications</span><span class="v">Email on reassignment</span></div>
+    </div></div>
+   </div>`;
+}
+
+/* ================= NAV + ROLES ================= */
+const NAVDEF={
+ admin:{home:'ops',who:['SC','Sarah Chen','Division Supervisor'],groups:[['Oversight',[['ops','◎','Operations'],['apps','▣','All Applications']]],['Insights',[['analytics','◔','Analytics'],['team','▦','Team']]],['Assistant',[['kb','◫','Knowledge Base']]]]},
+ agent:{home:'queue',who:['JP','Jenny Park','Compliance Agent'],groups:[['Work',[['queue','▤','My Queue','navq'],['mystats','◔','My Stats']]],['Account',[['profile','◐','Profile']]]]},
+};
+let ROLE='admin';
+function renderNav(){
+  const d=NAVDEF[ROLE];
+  document.getElementById('nav').innerHTML=d.groups.map(([g,items])=>`<div class="grp">${g}</div>`+items.map(it=>`<button data-view="${it[0]}"><span class="ic">${it[1]}</span> ${it[2]}${it[3]?` <span class="count" id="${it[3]}"></span>`:''}</button>`).join('')).join('');
+  document.getElementById('identity').innerHTML=`<div class="av">${d.who[0]}</div><div><b style="font-size:14px">${d.who[1]}</b><small>${d.who[2]}</small></div>`;
+  document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.view)));
+}
+function setRole(r){ROLE=r;document.getElementById('role-admin').classList.toggle('active',r==='admin');document.getElementById('role-agent').classList.toggle('active',r==='agent');renderNav();renderQueue();go(NAVDEF[r].home);}
+
+const TITLES={ops:'Operations',queue:'My Queue',apps:'All Applications',analytics:'Analytics',team:'Team',review:'Review application',mystats:'My Stats',profile:'Profile',kb:'Knowledge Base'};
+const LEDE={ops:'Today’s intake, auto-verified and routed',queue:'Exceptions you’ve pulled from the shared pool',apps:'The full record of every application received',analytics:'Division throughput and outcomes',team:'Your team this period',mystats:'Your performance this period',profile:'Your account and availability',kb:'Documents that ground the assistant'};
+function go(v){
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.getElementById('ptitle').textContent=TITLES[v];
+  const lede=document.getElementById('lede');lede.textContent=LEDE[v]||'';lede.style.display=LEDE[v]?'block':'none';
+  document.getElementById('topaction').innerHTML=(v==='ops')?`<button class="btn good" onclick="toast('420 matched applications approved')">Approve all 420 clean</button>`:'';
+  if(v==='ops')renderOps();
+  if(v==='queue')renderQueue();
+  if(v==='apps')renderApps();
+  if(v==='analytics')renderAnalytics();
+  if(v==='team')renderTeam();
+  if(v==='mystats')renderMyStats();
+  if(v==='profile')renderProfile();
+  if(v==='kb')renderKB();
+  window.scrollTo(0,0);
+}
+let tt;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200);}
+
+/* ================= ASSISTANT (read-only) ================= */
+let chatStarted=false;
+function toggleChat(){const c=document.getElementById('chat');c.classList.toggle('open');if(c.classList.contains('open')&&!chatStarted){chatStarted=true;greetChat();}}
+function greetChat(){
+  const name=ROLE==='admin'?'Sarah':'Jenny';
+  addMsg('a',`Hi ${name} 👋 I can summarize your numbers, explain how verification and triage work, or share best practices. What would you like?`);
+  renderQuick();
+}
+function renderQuick(){
+  const q=ROLE==='admin'?['Summarize the division','How does triage work?','Warning best practices']:['Summarize my week','How does triage work?','Warning best practices'];
+  document.getElementById('qreplies').innerHTML=q.map(t=>`<button onclick="sendChat('${t}')">${t}</button>`).join('');
+}
+function addMsg(who,html){const b=document.getElementById('chat-body');const d=document.createElement('div');d.className='msg '+who;d.innerHTML=html;b.appendChild(d);b.scrollTop=b.scrollHeight;}
+function sendChat(text){const inp=document.getElementById('chat-in');const t=(text||inp.value||'').trim();if(!t)return;inp.value='';addMsg('u',t);setTimeout(()=>addMsg('a',answerChat(t)),260);}
+function answerChat(t){
+  const q=t.toLowerCase();
+  if(/(summar|how am i|my week|division|stats|doing|numbers)/.test(q))
+    return ROLE==='admin'
+     ? 'Division this week: <b>2,940</b> applications processed. 71% matched, 18% mismatch, 11% review. Avg handling 3.4 min, an estimated <b>290 hours saved</b>. Right now <b>24 exceptions</b> are waiting in the shared pool.'
+     : 'This week you’ve completed <b>64</b> applications: 70% cleared as matches, 19% mismatch, 11% needed review, averaging <b>3.2 min</b> each — right in line with the division average.';
+  if(/(warning|caps|bold)/.test(q)) return 'The government warning fails most often for: a heading not in ALL CAPS (e.g. “Government Warning” in title case), altered wording, or a missing warning. It usually sits on the back face, so the tool checks every face. Bold can’t always be confirmed from a photo, so borderline cases come to you for review.';
+  if(/(triage|lane|how does|how do|work)/.test(q)) return 'Every application is auto-verified on arrival and sorted into three lanes: <b>match</b> (every field agrees — bulk-approve), <b>mismatch</b> (a field disagrees — flagged with the exact field), and <b>review</b> (low confidence or a near-miss — sent to a person). You spend time only on the last two.';
+  if(/(onboard|get started|new|begin|help|how to)/.test(q)) return 'Welcome! Three things: 1) your queue holds the exceptions routed to you, 2) open one to see the application versus the label side by side, 3) decide — Approve, or Return for correction. Want me to point you to a sample?';
+  if(/(disposition|approve|reject|correction|decide)/.test(q)) return 'Two decisions: <b>Approve</b> issues the COLA (use it when the AI flagged something that’s actually fine, or once resolved), and <b>Return for correction</b> sends it back with a 30-day window (corrected resubmissions get priority). There’s no manual reject — a return that isn’t fixed within 30 days is auto-rejected.';
+  return 'I can help with a summary of your numbers, how verification and triage work, the disposition options, and best practices for tricky checks like the government warning. Try a suggestion below, or just ask.';
+}
+
+setRole('admin');
+</script>
+</body>
+</html>

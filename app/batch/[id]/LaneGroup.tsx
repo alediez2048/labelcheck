@@ -181,27 +181,27 @@ function LaneItemRow({ item }: { item: BatchItem }): React.ReactElement {
             </span>
           </span>
         </summary>
-        <div className="border-t border-slate-200 bg-white p-3">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="border-t border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Label image sent to the model
               </p>
               {item.faces && item.faces.length > 0 ? (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {item.faces.map((face, idx) => (
                     <figure
                       key={idx}
-                      className="overflow-hidden rounded-md border border-slate-200 bg-slate-50"
+                      className="overflow-hidden rounded-md border border-slate-200 bg-slate-100"
                     >
                       <img
                         src={faceToDataUrl(face)}
                         alt={`${face.kind} face of ${item.brand}`}
-                        className="block w-full"
+                        className="block h-auto w-full"
                         loading="lazy"
                       />
-                      <figcaption className="border-t border-slate-200 bg-white px-2 py-1 text-[11px] uppercase tracking-wide text-slate-500">
-                        {face.kind}
+                      <figcaption className="border-t border-slate-200 bg-white px-3 py-1.5 text-[11px] uppercase tracking-wide text-slate-500">
+                        {face.kind} — what the model analyzed
                       </figcaption>
                     </figure>
                   ))}

@@ -21,11 +21,6 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   government_warning: "Government warning",
 };
 
-const FACE_LABELS: Readonly<Record<string, string>> = {
-  front: "Front",
-  back: "Back",
-  neck: "Neck",
-};
 
 const VERDICT_TREATMENTS: Readonly<
   Record<
@@ -72,20 +67,24 @@ export function FieldTable({
     );
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+    <div className="w-full">
+      <table className="w-full table-fixed border-collapse text-sm">
         <caption className="sr-only">
           Per-field comparison of the application form against the
           transcribed label text.
         </caption>
+        <colgroup>
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "34%" }} />
+          <col style={{ width: "34%" }} />
+          <col style={{ width: "14%" }} />
+        </colgroup>
         <thead>
           <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
             <th scope="col" className="py-2 pr-3">Field</th>
             <th scope="col" className="py-2 pr-3">Form value</th>
             <th scope="col" className="py-2 pr-3">Label read</th>
-            <th scope="col" className="py-2 pr-3">Face</th>
             <th scope="col" className="py-2 pr-3">Verdict</th>
-            <th scope="col" className="py-2 pr-3">Confidence</th>
           </tr>
         </thead>
         <tbody>
@@ -96,32 +95,24 @@ export function FieldTable({
                 key={f.field}
                 className={`border-b border-slate-100 ${t.rowClass}`}
               >
-                <th scope="row" className="py-3 pr-3 text-left font-medium text-slate-800">
+                <th scope="row" className="py-3 pr-3 text-left align-top font-medium text-slate-800">
                   {FIELD_LABELS[f.field] ?? f.field}
                 </th>
-                <td className="py-3 pr-3 text-slate-700">
+                <td className="py-3 pr-3 align-top text-slate-700 break-words">
                   {f.formValue || <span className="text-slate-400">—</span>}
                 </td>
-                <td className="py-3 pr-3 text-slate-700">
+                <td className="py-3 pr-3 align-top text-slate-700 break-words">
                   {f.extractedValue ?? (
                     <span className="text-slate-400">—</span>
                   )}
                 </td>
-                <td className="py-3 pr-3 text-slate-700">
-                  {f.sourceFace
-                    ? FACE_LABELS[f.sourceFace] ?? f.sourceFace
-                    : "—"}
-                </td>
-                <td className="py-3 pr-3">
+                <td className="py-3 pr-3 align-top">
                   <span
                     className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${t.chipClass}`}
                   >
                     <span aria-hidden="true">{t.icon}</span>
                     <span>{t.label}</span>
                   </span>
-                </td>
-                <td className="py-3 pr-3 font-mono text-slate-700">
-                  {(f.confidence * 100).toFixed(0)}%
                 </td>
               </tr>
             );
