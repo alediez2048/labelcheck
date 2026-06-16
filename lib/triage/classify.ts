@@ -70,6 +70,8 @@ export type ClassifyInput = {
 const LANE_BLOCKING_FIELDS: ReadonlySet<string> = new Set([
   "brand_name",
   "alcohol_content",
+  "class_type",
+  "net_contents",
 ]);
 
 export function classify(input: ClassifyInput): TriageResult {
