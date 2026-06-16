@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { runVerification } from "@/lib/verify/runVerification";
+import { getWarningConfig } from "@/lib/config";
 
 export async function POST(): Promise<NextResponse> {
   return NextResponse.json({
     alive: true,
     route: "verify2",
-    hasRunVerification: typeof runVerification === "function",
+    warningOk: typeof getWarningConfig === "function",
   });
 }
