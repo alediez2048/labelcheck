@@ -51,3 +51,9 @@ memory/
 # the runner writes timestamped JSON + Markdown under eval-reports/;
 # keep the directory out of the repo so the working tree stays clean.
 eval-reports/
+
+# Agent-correction feedback corpus (P5-3). The JSONL files under
+# eval-data/agent-corrections/ are captured ground-truth signal, not
+# committed source — the file-backed store is the prototype; P6-2
+# moves the corpus into the governed datastore.
+eval-data/

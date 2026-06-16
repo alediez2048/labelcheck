@@ -182,7 +182,13 @@ export type LatencyReport = {
  */
 export type EvalReport = {
   runStartedAt: string;
-  provider: "mock" | "live";
+  /**
+   * Dataset / provider tag for the report. `mock` and `live` flag a
+   * golden-set run on the mock or live vision provider; `corrections`
+   * flags an `eval --dataset=corrections` run over the accumulated
+   * agent-correction corpus (P5-3).
+   */
+  provider: "mock" | "live" | "corrections";
   caseCount: number;
   /** Headline metric — printed first in the Markdown. */
   falseNegativeRate: FalseNegativeReport;

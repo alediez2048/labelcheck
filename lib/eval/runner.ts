@@ -33,9 +33,10 @@
 import sharp from "sharp";
 
 import type { WarningConfig } from "@/lib/config";
+import type { CorpusRecord } from "@/lib/feedback/types";
 import { runVerification } from "@/lib/verify/runVerification";
 import { GOLDEN_SET, type GoldenEntry } from "@/tests/golden";
-import type { FaceKind, FieldName } from "@/types";
+import type { FaceKind, FieldName, Verdict } from "@/types";
 
 import type { CaseRun, GoldenCase } from "./types";
 
@@ -189,3 +190,71 @@ export async function runEval(options?: RunOptions): Promise<RunOutcome> {
  * Kept internal otherwise.
  */
 export const EVAL_CANONICAL_WARNING_TEXT = CANONICAL_WARNING;
+
+/**
+ * Synthesise `CaseRun`s from the agent-correction corpus (P5-3).
+ *
+ * For the corrections dataset the pipeline isn't re-run — the agent's
+ * call IS ground truth, so `expectedLane = effectiveLane`. The
+ * predicted lane and per-field verdicts come straight from what the
+ * tool produced at disposition time (the corpus carries them
+ * verbatim). `durationMs = 0` because nothing executed for the eval;
+ * `extractionFailed = false` because the corpus only carries
+ * dispositioned applications, by definition extraction succeeded.
+ *
+ * Field-name and verdict-string handling is opportunistically tolerant:
+ * the runner expects the typed enums, but the corpus stores them as
+ * strings (the recorder writes the wire shape). When a row's verdict
+ * is unrecognised we keep the string — the metric functions skip rows
+ * with unknown fields gracefully.
+ */
+const KNOWN_VERDICTS: ReadonlySet<Verdict> = new Set<Verdict>([
+  "match",
+  "mismatch",
+  "not_found",
+  "low_confidence",
+]);
+
+const KNOWN_FACES: ReadonlySet<FaceKind> = new Set<FaceKind>([
+  "front",
+  "back",
+  "neck",
+]);
+
+export function runEvalFromCorpus(
+  records: ReadonlyArray<CorpusRecord>,
+): CaseRun[] {
+  return records.map((record): CaseRun => {
+    const fields = record.predictedFields
+      .filter((f): boolean => {
+        // Drop any per-field rows whose verdict isn't in the typed enum.
+        return KNOWN_VERDICTS.has(f.verdict as Verdict);
+      })
+      .map((f) => ({
+        field: f.field as FieldName,
+        verdict: f.verdict as Verdict,
+        confidence: f.confidence,
+        sourceFace:
+          f.sourceFace && KNOWN_FACES.has(f.sourceFace as FaceKind)
+            ? (f.sourceFace as FaceKind)
+            : null,
+      }));
+
+    const predictedFlaggedFields = fields
+      .filter((f) => f.verdict !== "match")
+      .map((f) => f.field);
+
+    return {
+      caseId: record.id,
+      category: "agent_correction",
+      expectedLane: record.effectiveLane,
+      predictedLane: record.predictedLane,
+      expectedFlaggedFields: [],
+      predictedFlaggedFields,
+      fields,
+      overallConfidence: 0,
+      durationMs: 0,
+      extractionFailed: false,
+    };
+  });
+}

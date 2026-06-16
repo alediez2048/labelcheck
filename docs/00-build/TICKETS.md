@@ -274,10 +274,10 @@ Description: prove and improve AI quality rather than assume it, the backbone th
 - Acceptance: [x] `pnpm eval` runs end-to-end and writes timestamped reports to `eval-reports/<ISO>/{report.json,report.md}` (gitignored); [x] all six metric families produced — per-field P/R/F1, 3×3 lane confusion, false-negative rate, warning-check sub-metrics (presence/verbatim/ALL CAPS), 10-bucket calibration with ECE, latency distribution with budget breaches; [x] false-negative rate is the headline (printed first in stdout AND first section in `report.md`); [x] calibration curve outputs 10 buckets + ECE number; [x] provider-agnostic via `EVAL_PROVIDER` env (defaults to mock); [x] no PII in the report; [x] **smoke-verified on mock**: 0/7 = 0.0% false-negative rate, 100% overall lane accuracy (2/2 match, 6/6 mismatch, 1/1 review), ECE 0.1111, p50/p95/max 2/10/10ms (well under 5000ms budget).
 - Refs: observability.md.
 
-### P5-3 — Agent-correction feedback loop
+### P5-3 — Agent-correction feedback loop ✅ done 2026-06-16
 - Depends: P2-1, P5-1 · Branch: feat/feedback-loop · Est: 3h
 - Goal: capture every disposition that overrides a lane as labeled ground truth; track tool-versus-agent agreement.
-- Acceptance: [ ] overrides logged as labeled examples; [ ] agreement rate tracked; [ ] disagreements sampled for review.
+- Acceptance: [x] every disposition writes a `CorpusRecord` to `eval-data/agent-corrections/<ISO date>.jsonl` (gitignored — captured signal, not source); record carries `applicationIdHash` (sha256:<8 hex>) + brand verbatim + `predictedLane` + `effectiveLane` + `overrideKind` + `predictedFields[]` + optional `returnReasonFields[]` + `confirmation: pending`; [x] override detection in code (pure functions in `lib/feedback/{effectiveLane,override}.ts`); [x] agreement rate computed and surfaced (`GET /api/feedback/agreement` returns rolling + all-time + per-beverage-type breakdown; `<AgreementRateWidget />` polls every 10s on the Operations page); [x] disagreements sampled via `lib/feedback/sampler.ts` (env-tunable ratio/cap) and surfaced via `/disagreement-queue` admin route with Confirm/Reject buttons; [x] `pnpm eval --dataset=corrections` runs the same metric harness over the captured corpus; [x] recorder failures NEVER block disposition writes (try/catch + span event); [x] no applicant PII in the corpus.
 - Refs: observability.md.
 
 ### P5-4 — Model bake-off

@@ -33,6 +33,8 @@ import { setSpecialization as setSpecializationPure } from "@/lib/router/setSpec
 import { RouterError, type DistributeSummary } from "@/lib/router/types";
 import type { BeverageType, DispositionRecord } from "@/types";
 
+import { postFeedbackRecord } from "./feedbackHook";
+
 import { claimNext as claimNextPure, type ClaimResult } from "./claimNext";
 import {
   recordDisposition as recordDispositionPure,
@@ -145,9 +147,24 @@ export function QueueProvider({
 
   const recordDisposition = useCallback(
     (input: DispositionInput): DispositionResult["record"] | null => {
+      // Capture the source application BEFORE the pure mutation drops it
+      // from the active list — the feedback recorder needs the predicted
+      // lane and per-field verdicts that lived on the queue row.
+      const source = state.applications.find(
+        (a) => a.applicationId === input.applicationId,
+      );
       const result = recordDispositionPure(state, input);
       if (!result) return null;
       setState(result.state);
+      // Fire-and-forget feedback-loop write (P5-3). The disposition
+      // MUST NOT be blocked by this — the gotcha is explicit. Catch
+      // every error and swallow; the recorder side logs a span event.
+      if (source) {
+        void postFeedbackRecord({
+          application: source,
+          record: result.record,
+        });
+      }
       return result.record;
     },
     [state],
@@ -173,6 +190,8 @@ export function QueueProvider({
     let next = state;
     const records: DispositionRecord[] = [];
     for (const id of matchIds) {
+      // Snapshot the source row BEFORE the pure mutation drops it.
+      const source = next.applications.find((a) => a.applicationId === id);
       const result = recordDispositionPure(next, {
         applicationId: id,
         disposition: "approve",
@@ -181,6 +200,13 @@ export function QueueProvider({
       if (result) {
         next = result.state;
         records.push(result.record);
+        // Fire-and-forget feedback-loop write per the P5-3 wiring.
+        if (source) {
+          void postFeedbackRecord({
+            application: source,
+            record: result.record,
+          });
+        }
       }
     }
     setState(next);

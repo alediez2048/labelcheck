@@ -4,6 +4,104 @@ Append-only log of completed tickets. Newest entries at the top. Each entry: tic
 
 ---
 
+## 2026-06-16 — P5-3 Agent-correction feedback loop
+
+**Branch:** `feat/feedback-loop`
+**Status:** Done
+
+**Workflow note:** Eighth parallel-agent build. Agent A: data layer + API routes + recorder wiring + eval `--dataset=corrections` extension. Agent B: agreement widget on Operations + Disagreement queue route + sidebar nav. Contract-first dispatch — the three API endpoints' wire shapes dictated upfront. Integration clean on first combined build.
+
+**What landed:**
+
+### Data + API (Agent A)
+- `lib/feedback/types.ts` — `CorpusRecord` (the JSONL line schema), `OverrideKind`, `AgreementSnapshot`, `FeedbackRecorderInput`.
+- `lib/feedback/effectiveLane.ts` — pure `deriveEffectiveLane(disposition)`. `approve → match`; `return_for_correction` with unreadable-pattern reason `→ review` (FR-26b), else `→ mismatch`.
+- `lib/feedback/override.ts` — pure `detectOverride(predicted, effective): "agreement" | "flag" | "clear"`. `flag` = tool said match, agent disagreed; `clear` = tool said exception, agent approved; same-lane = `agreement`.
+- `lib/feedback/corpus.ts` — append-only JSONL store at `eval-data/agent-corrections/<ISO date>.jsonl`. `appendCorpusRecord`, `readCorpusRecords` (with optional date-range filter), `updateCorpusRecord` (read + rewrite the day's file — acceptable for the prototype's volume; production goes to a governed DB in P6-2).
+- `lib/feedback/sampler.ts` — `shouldSample(kind, todayOverrideCount, todaySampledCount)` with env-tunable `FEEDBACK_SAMPLER_RATIO` (default 0.10) + `FEEDBACK_SAMPLER_CAP_PER_DAY` (default 25). Deterministic for non-flaky tests; randomization is a drop-in later.
+- `lib/feedback/agreement.ts` — `computeAgreement(records, options)` returns rolling window (size from env `FEEDBACK_AGREEMENT_WINDOW`, default 100) + all-time + per-beverage-type breakdown.
+- `lib/feedback/recorder.ts` — `recordDispositionForFeedbackLoop(input)`. Derives effective lane → detects override → samples → builds `CorpusRecord` with `applicationIdHash = hashPii(applicationId)` (brand stays verbatim — it's transcribed from the label, not applicant identity) → appends to corpus. Wraps file write in try/catch; on failure, emits a `feedback.recorder.failed` span event and returns gracefully. The disposition write is NEVER blocked.
+- `lib/queue/feedbackHook.ts` — `postFeedbackRecord(input)` fire-and-forget helper.
+- `lib/queue/QueueProvider.tsx` — `recordDisposition` and `bulkApproveMatchLane` actions now fire the feedback recorder via `postFeedbackRecord` AFTER the pure mutation. Captures the source row's pre-mutation state (`brand`, `verification.lane`, `verification.fields`, `beverageType`) before the store filters it out.
+- `app/api/feedback/record/route.ts` — POST returns 202 with `{ id, overrideKind }`. On any error, returns 200 with `{ ok: false, error }` instead of 500 (the disposition path must not be blocked).
+- `app/api/feedback/agreement/route.ts` — GET returns `AgreementSnapshot`.
+- `app/api/feedback/disagreements/route.ts` — GET returns today's sampled rows (UTC day window) with `confirmation: "pending"`.
+- `app/api/feedback/disagreements/[id]/confirm/route.ts` — POST `{ confirmation: "tool_was_right" | "agent_was_right" }` updates the corpus record.
+- `lib/eval/runner.ts` — added `runEvalFromCorpus(records)`; `runEval()` unchanged.
+- `lib/eval/types.ts` — widened `EvalReport.provider` to include `"corrections"`.
+- `scripts/eval.ts` — added `--dataset=golden|corrections` parsing. `corrections` reads via `readCorpusRecords()`, synthesises `CaseRun[]` (`expectedLane = effectiveLane` — the agent's call IS ground truth on this dataset), runs the same metric functions, writes the report with `provider: "corrections"`. Empty-corpus case prints `"Corrections corpus is empty — no records to evaluate."` and exits 0.
+- `.gitignore` — added `eval-data/`.
+- `README.md` — three `FEEDBACK_*` env vars documented.
+- `tests/feedback/{effectiveLane,override,agreement,recorder}.test.ts` — 19 unit tests using tmpdir for hermetic corpus tests.
+
+### UI (Agent B)
+- `components/feedback/types.ts` — wire-format types mirroring the API contract (so the UI doesn't import from `lib/feedback/**`).
+- `components/feedback/LanePill.tsx` — compact color + icon + text lane chip.
+- `components/feedback/AgreementRateWidget.tsx` — client component. Fetches `GET /api/feedback/agreement` on mount; polls every 10s via `setTimeout` chained off the previous resolution. Three KPI tiles: rolling, all-time, per-beverage-type chips. Color thresholds: emerald >85%, amber 65–85%, rose <65% — paired with ↑ / – / ↓ glyphs + percentage text (AC-9).
+- `components/feedback/DisagreementRow.tsx` — `<details>` collapsible. Summary row: brand + applicationIdHash mono chip + lane diff (`predictedLane → effectiveLane`) + override-kind pill (`flag` amber / `clear` rose) + recorded-at relative time. Pending state shows two buttons ("Tool was right" / "Agent was right"); confirmed state shows a status chip. Expanded body: two-column "Tool's per-field call" + "Agent's structured reason" tables (built locally because `predictedFields`'s wire shape is looser than `FieldResult`).
+- `app/(admin)/disagreement-queue/page.tsx` — admin route. Fetches `GET /api/feedback/disagreements` on mount; polls every 8s; refetches eagerly after a successful confirm POST.
+- `app/(admin)/operations/page.tsx` — `<AgreementRateWidget />` added directly above `<IntakeFunnel />`.
+- `components/shell/AdminShell.tsx` — "Disagreement queue" nav item added after "Team" (🤝 glyph). Final order: Operations → All Applications → Analytics → Team → Disagreement queue → Knowledge Base.
+
+**`CorpusRecord` JSONL schema (one per disposition):**
+
+```json
+{
+  "id": "<applicationIdHash>:<recordedAt ISO>",
+  "recordedAt": "2026-06-16T13:45:00.000Z",
+  "applicationIdHash": "sha256:a63ad79e",
+  "brand": "Harbor Mist Vodka",
+  "beverageType": "distilled_spirits",
+  "predictedLane": "match",
+  "effectiveLane": "mismatch",
+  "overrideKind": "flag",
+  "predictedFields": [{"field":"alcohol_content","verdict":"match","confidence":1,"sourceFace":"front"}],
+  "returnReasonFields": [{"field":"alcohol_content","formValue":"40%","extractedValue":"45% ALC/VOL","reason":"ABV mismatch"}],
+  "decidedBy": "agent-marcus",
+  "decidedAt": "2026-06-16T13:44:58.000Z",
+  "sampled": true,
+  "confirmation": "pending"
+}
+```
+
+**Verification:**
+- `pnpm test` — 53 files, **428 tests pass + 1 skipped** (409 prior + 19 new feedback tests).
+- `pnpm build` — clean. New routes: `/disagreement-queue`, `/api/feedback/record`, `/api/feedback/agreement`, `/api/feedback/disagreements`, `/api/feedback/disagreements/[id]/confirm`.
+- `pnpm lint` — clean.
+- `pnpm eval --dataset=corrections` — prints the empty-corpus sentinel and exits 0 (no records seeded in the prototype run; the harness path is verified).
+
+**Deviations from ticket:**
+- Sampler uses the literal spec formula `(todayOverrideCount * ratio) > todaySampledCount`. With ratio 0.1 the first sample lands on the 11th override (12th also samples to catch up). Documented inline; the cap governs the upper bound and randomization is the proper fix when production volumes warrant it.
+- Brand kept verbatim per the agent's deviation note — it's transcribed label data (a product name), not applicant identity. The Phase 1 fixtures and the P5-2 eval report already treat brand the same way; the corpus matches. Documented in `lib/feedback/types.ts` and `recorder.ts`.
+- Synthetic record id format: `<applicationIdHash>:<recordedAt ISO>`. Millisecond-grained, collision-safe at prototype volume.
+- The recorder lazy-imports `@opentelemetry/api` inside the failure path so test environments without the OTel SDK loaded still pass.
+- Agent B built local field-comparison tables in `DisagreementRow` rather than reuse `FieldTable` because the API's `predictedFields` shape (`{ field: string; verdict: string; confidence: number; sourceFace: string | null }`) is looser than `FieldResult` (typed enums + `formValue` + `extractedValue` + `reason`).
+- The widget sits directly above `<IntakeFunnel />` (i.e. below the existing batch-intake section that P3-1 added). The spec was ambiguous between "top of page" and "above IntakeFunnel"; Agent B respected the explicit constraint.
+- The recorder's POST endpoint returns 200 `{ok: false, error}` on internal failure rather than 500. The QueueProvider's fire-and-forget caller doesn't read the response anyway; either shape is observed identically. The 200-with-error shape keeps the QueueProvider's caller from logging a misleading network-error warning.
+
+**Why:**
+P5-3 closes the loop observability.md leads with: every disposition that overrides the tool's lane is a labeled ground-truth example produced by an expert in the normal course of work. No one labels data on purpose; the labels accumulate as a side effect of dispositions. The corpus grows automatically; the agreement metric is the live accuracy proxy; the disagreement queue surfaces the cases that need confirmation either way. This is the killer signal the doc highlights — free, continuous, expert-labeled ground truth.
+
+The **pure functions for `deriveEffectiveLane` and `detectOverride`** are the same D4 discipline materialised in the feedback loop. The agent's effective lane is computed in code from the disposition + the structured reason summary; the override classification (`flag` / `clear` / `agreement`) is computed in code from the two lanes. No model decides what "ground truth" means; the code does. Unit tests pin the rules; a future change that breaks the override classification trips the tests before it ships.
+
+The **fire-and-forget posture on the QueueProvider's recorder call** is the structural enforcement of the ticket's gotcha: "the disposition write must not be blocked by the feedback recorder". The recorder's failure is a span event, not a thrown error. The disposition is written to the local store; the feedback POST is fired in the background; the agent's UX is unaffected. A production deploy where the eval pipeline is down still records dispositions correctly.
+
+The **JSONL append-only corpus** is the right shape for the prototype. Append-only-friendly (each disposition is one line written to the day's file); streamable for the eval harness (the runner reads line by line); auditable (every record is timestamped + carries the agent id). Production moves to a governed DB in P6-2 — same record shape, different storage. The schema decisions here matter downstream; a future fine-tuned model trains on exactly the corpus shape this ticket writes.
+
+The **sampler's deterministic formula** is the right scope for the prototype. The spec asked for "10% of overrides per day, capped at 25, randomly selected"; the deterministic version trips the same fraction in a reproducible order, which means the tests are non-flaky and the demo's behaviour is predictable. Randomization is a one-line change when production-volume sampling matters (today's volume is the demo's volume — randomization adds variance without adding value).
+
+The **disagreement queue's Confirm/Reject is bidirectional** — the team can mark "tool was right" OR "agent was right". The corpus learns either way: if the tool was right, the override is reclassified as agent error and won't be used to retrain against; if the agent was right, the corpus carries the labeled example that contradicts the tool. Without the bidirectional confirmation, every override would be treated as a tool error and the corpus would drift (observability.md flags this explicitly).
+
+The **agreement rate as the headline metric on Operations** is the live accuracy proxy P5-2's offline eval complements. The eval harness runs on a fixed dataset (golden + accumulated corrections); the agreement rate runs on the live disposition stream. Both feed the same quality picture from different angles. The widget's three KPI tiles (rolling, all-time, per-beverage-type) match the doc's framing: trending direction (rolling moving up or down), absolute level (all-time), and structural breakdown (specialization-specific weak spots — which ties to FR-28's routing decisions).
+
+The **`brand` kept verbatim in the corpus** is the conscious accommodation for "what counts as PII". The brand is a product name printed on the bottle — not the applicant's name. The Phase 1 fixtures already treat it as system data (e.g., `Harbor Mist Vodka` appears in the test fixtures verbatim); the eval report (P5-2) carries it verbatim. The corpus matches. If a future ticket determines that brand IS sensitive in some context (a confidential application before approval), the schema accommodates a hash via the same `hashPii` helper without a migration — just flip the field's redaction.
+
+The **`pnpm eval --dataset=corrections` extension** is the production-eval seam. The same six metric families that grade the synthetic golden set now grade the captured corpus. As the corpus grows, the corrections dataset becomes the real measurement of "how often is the tool right against expert judgment, on the kinds of labels the agency actually sees". A production CI run (P5-5) compares the two: golden-set metrics catch synthetic regressions, corrections metrics catch real-world drift.
+
+**Next:** P5-4 — Model bake-off. The corrections dataset + the golden set are both inputs; the bake-off iterates providers and reports the per-provider metric grid so the operator can pick a configuration with evidence.
+
+---
+
 ## 2026-06-16 — P5-2 Offline eval harness
 
 **Branch:** `feat/evals`

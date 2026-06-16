@@ -35,6 +35,7 @@ const NAV: ReadonlyArray<NavItem> = [
   { href: "/applications", label: "All Applications", icon: "▤" },
   { href: "/analytics", label: "Analytics", icon: "◔" },
   { href: "/team", label: "Team", icon: "◍" },
+  { href: "/disagreement-queue", label: "Disagreement queue", icon: "🤝" },
   { href: "/knowledge-base", label: "Knowledge Base", icon: "❑" },
 ];
 
