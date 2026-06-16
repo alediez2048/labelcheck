@@ -19,6 +19,7 @@
 import { useRouter } from "next/navigation";
 import React, { useEffect } from "react";
 
+import { ChatPanel } from "@/components/assistant/ChatPanel";
 import { AgentShell } from "@/components/shell/AgentShell";
 import { useQueue } from "@/lib/queue/QueueProvider";
 
@@ -42,5 +43,10 @@ export default function AgentGroupLayout({
     return null;
   }
 
-  return <AgentShell>{children}</AgentShell>;
+  return (
+    <AgentShell>
+      {children}
+      <ChatPanel />
+    </AgentShell>
+  );
 }
