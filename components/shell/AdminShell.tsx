@@ -1,35 +1,70 @@
 /**
  * AdminShell — sidebar + main area for the Admin route group.
  *
- * Styled against `docs/03-ui/mockup.html`: 236px sidebar with a
- * gradient brand block, grouped nav with uppercase group labels, and
- * a signed-in identity block pinned at the bottom (RoleSwitcher).
+ * Three top-level nav groups, each collapsible to its sub-items.
+ * The group containing the current path is open on first render; the
+ * operator can collapse/expand other groups by clicking the header.
+ * Styled against `docs/03-ui/mockup.html`.
  */
 
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React from "react";
+import React, { useMemo, useState } from "react";
 
 import { RoleSwitcher } from "./RoleSwitcher";
 
 type NavItem = {
   href: string;
   label: string;
-  icon: string;
 };
 
-const NAV: ReadonlyArray<NavItem> = [
-  { href: "/operations", label: "Operations", icon: "◧" },
-  { href: "/applications", label: "All Applications", icon: "▤" },
-  { href: "/analytics", label: "Analytics", icon: "◔" },
-  { href: "/team", label: "Team", icon: "◍" },
-  { href: "/match-review", label: "Match review", icon: "✓" },
-  { href: "/disagreement-queue", label: "Disagreement queue", icon: "⇄" },
-  { href: "/model-health", label: "Model health", icon: "◈" },
-  { href: "/knowledge-base", label: "Knowledge Base", icon: "❑" },
+type NavGroup = {
+  id: string;
+  label: string;
+  icon: string;
+  items: ReadonlyArray<NavItem>;
+};
+
+const GROUPS: ReadonlyArray<NavGroup> = [
+  {
+    id: "workspace",
+    label: "Workspace",
+    icon: "◧",
+    items: [
+      { href: "/operations", label: "Operations" },
+      { href: "/match-review", label: "Match review" },
+      { href: "/disagreement-queue", label: "Disagreement queue" },
+    ],
+  },
+  {
+    id: "insights",
+    label: "Insights",
+    icon: "◔",
+    items: [
+      { href: "/applications", label: "All Applications" },
+      { href: "/analytics", label: "Analytics" },
+      { href: "/team", label: "Team" },
+    ],
+  },
+  {
+    id: "system",
+    label: "System",
+    icon: "◈",
+    items: [
+      { href: "/model-health", label: "Model health" },
+      { href: "/knowledge-base", label: "Knowledge Base" },
+      { href: "/presentation", label: "Presentation" },
+    ],
+  },
 ];
+
+function isItemActive(itemHref: string, pathname: string | null): boolean {
+  if (pathname === null) return false;
+  if (pathname === itemHref) return true;
+  return pathname.startsWith(`${itemHref}/`);
+}
 
 export function AdminShell({
   children,
@@ -37,6 +72,28 @@ export function AdminShell({
   children: React.ReactNode;
 }): React.ReactElement {
   const pathname = usePathname();
+
+  const activeGroupId = useMemo(() => {
+    for (const g of GROUPS) {
+      if (g.items.some((it) => isItemActive(it.href, pathname))) return g.id;
+    }
+    return GROUPS[0]?.id;
+  }, [pathname]);
+
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (activeGroupId) initial.add(activeGroupId);
+    return initial;
+  });
+
+  function toggleGroup(id: string): void {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
@@ -61,57 +118,60 @@ export function AdminShell({
         </Link>
 
         <nav aria-label="Admin sections" className="lg:flex-1">
-          <p className="hidden px-3 pb-1 pt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 lg:block">
-            Oversight
-          </p>
-          <ul className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
-            {NAV.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                pathname?.startsWith(`${item.href}/`) === true;
+          <ul className="flex flex-col gap-1">
+            {GROUPS.map((group) => {
+              const open = openGroups.has(group.id);
+              const groupHasActive = group.items.some((it) =>
+                isItemActive(it.href, pathname),
+              );
               return (
-                <li key={item.href} className="shrink-0 lg:shrink">
-                  <Link
-                    href={item.href}
-                    aria-current={isActive ? "page" : undefined}
-                    className={`flex min-h-[44px] items-center gap-3 whitespace-nowrap rounded-[10px] px-3 py-2.5 text-[15px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand/40 ${
-                      isActive
+                <li key={group.id} className="flex flex-col">
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => toggleGroup(group.id)}
+                    className={`flex min-h-[44px] items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[15px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand/40 ${
+                      groupHasActive
                         ? "bg-brand-soft text-brand-ink"
-                        : "text-slate-600 hover:bg-slate-50"
+                        : "text-slate-700 hover:bg-slate-50"
                     }`}
                   >
                     <span aria-hidden="true" className="w-[18px] text-center">
-                      {item.icon}
+                      {group.icon}
                     </span>
-                    <span>{item.label}</span>
-                  </Link>
+                    <span className="flex-1">{group.label}</span>
+                    <span
+                      aria-hidden="true"
+                      className={`text-[10px] text-muted transition-transform ${open ? "rotate-180" : ""}`}
+                    >
+                      ▾
+                    </span>
+                  </button>
+                  {open && (
+                    <ul className="ml-3 mt-1 flex flex-col gap-0.5 border-l border-line pl-3">
+                      {group.items.map((item) => {
+                        const isActive = isItemActive(item.href, pathname);
+                        return (
+                          <li key={item.href}>
+                            <Link
+                              href={item.href}
+                              aria-current={isActive ? "page" : undefined}
+                              className={`flex min-h-[36px] items-center rounded-[8px] px-3 py-1.5 text-[13.5px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand/40 ${
+                                isActive
+                                  ? "bg-brand-soft text-brand-ink"
+                                  : "text-slate-600 hover:bg-slate-50"
+                              }`}
+                            >
+                              {item.label}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </li>
               );
             })}
-          </ul>
-
-          <p className="mt-4 hidden px-3 pb-1 pt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 lg:block">
-            Resources
-          </p>
-          <ul className="flex flex-col gap-1">
-            <li>
-              <Link
-                href="/presentation"
-                aria-current={
-                  pathname === "/presentation" ? "page" : undefined
-                }
-                className={`flex min-h-[44px] items-center gap-3 whitespace-nowrap rounded-[10px] px-3 py-2.5 text-[15px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand/40 ${
-                  pathname === "/presentation"
-                    ? "bg-brand-soft text-brand-ink"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <span aria-hidden="true" className="w-[18px] text-center">
-                  ⧉
-                </span>
-                <span>Presentation</span>
-              </Link>
-            </li>
           </ul>
         </nav>
 
