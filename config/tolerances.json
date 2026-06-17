@@ -36,7 +36,7 @@
     "threshold": 0.7,
     "legibilityFactors": {
       "good": 1.0,
-      "low": 0.5
+      "low": 1.0
     },
     "notFoundConfidence": 0.5,
     "lowConfidenceVerdict": 0.4,
