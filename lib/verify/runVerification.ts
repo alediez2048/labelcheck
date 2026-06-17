@@ -29,6 +29,7 @@ import {
 } from "@/lib/errors/types";
 import { extract, type ExtractableApplication } from "@/lib/extraction/service";
 import { matchApplication } from "@/lib/matching/match";
+import { semanticClassMatch } from "@/lib/matching/semanticClass";
 import type { SampleForm } from "@/fixtures/samples";
 import type {
   BeverageType,
@@ -208,7 +209,7 @@ export async function runVerification(
   //    request. `buildSuccessResult` internally calls `classify(...)` —
   //    we time it as one composite "triage" stage because the synchronous
   //    classify is cheap and splitting it would invite double-counting.
-  const { result: fieldResults, durationMs: matchMs } = await timed(
+  const { result: rawFieldResults, durationMs: matchMs } = await timed(
     async () =>
       matchApplication({
         beverageType: input.beverageType,
@@ -216,6 +217,30 @@ export async function runVerification(
         extraction,
         ...(input.warningConfig ? { warningConfig: input.warningConfig } : {}),
       }),
+  );
+
+  // Semantic class/type fallback. The deterministic matcher trips
+  // on varietal-vs-broad-category cases ("GRÜNER VELTLINER" label,
+  // "TABLE WHITE WINE" form) which is correct from a Levenshtein
+  // standpoint but wrong from a TTB compliance standpoint. When the
+  // class field is mismatch, ask Claude whether the two strings
+  // describe the same class. The result is cached so a repeated
+  // pair doesn't re-pay the round trip.
+  const fieldResults = await Promise.all(
+    rawFieldResults.map(async (f) => {
+      if (f.field !== "class_type") return f;
+      if (f.verdict !== "mismatch") return f;
+      if (!f.extractedValue || !f.formValue) return f;
+      const isMatch = await semanticClassMatch(f.formValue, f.extractedValue);
+      if (!isMatch) return f;
+      return {
+        ...f,
+        verdict: "match" as const,
+        reason: `Class / type matches semantically (label "${f.extractedValue}" is the same TTB class as form "${f.formValue}")`,
+        margin: 1,
+        confidence: 1,
+      };
+    }),
   );
 
   // P5-1: emit per-field events on the active verification span. The

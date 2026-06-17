@@ -112,25 +112,6 @@ export function AdminShell({
                 <span>Presentation</span>
               </Link>
             </li>
-            <li>
-              <a
-                href="/mockup.html"
-                target="_blank"
-                rel="noreferrer"
-                className="flex min-h-[44px] items-center gap-3 whitespace-nowrap rounded-[10px] px-3 py-2.5 text-[15px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand/40"
-              >
-                <span aria-hidden="true" className="w-[18px] text-center">
-                  ◫
-                </span>
-                <span>Original mockup</span>
-                <span
-                  aria-label="opens in new tab"
-                  className="ml-auto text-[11px] font-medium text-muted"
-                >
-                  ↗
-                </span>
-              </a>
-            </li>
           </ul>
         </nav>
 
