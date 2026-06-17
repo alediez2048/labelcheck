@@ -72,7 +72,6 @@ const LANE_BLOCKING_FIELDS: ReadonlySet<string> = new Set([
   "alcohol_content",
   "class_type",
   "net_contents",
-  "government_warning",
 ]);
 
 export function classify(input: ClassifyInput): TriageResult {
