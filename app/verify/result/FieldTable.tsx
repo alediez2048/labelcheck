@@ -90,6 +90,13 @@ export function FieldTable({
         <tbody>
           {fields.map((f) => {
             const t = VERDICT_TREATMENTS[f.verdict];
+            // Government warning is a presence-only check — relabel the
+            // pill so reviewers don't read "Match" and assume verbatim
+            // wording. "Present" reads correctly for the actual check.
+            const verdictLabel =
+              f.field === "government_warning" && f.verdict === "match"
+                ? "Present"
+                : t.label;
             return (
               <tr
                 key={f.field}
@@ -111,7 +118,7 @@ export function FieldTable({
                     className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${t.chipClass}`}
                   >
                     <span aria-hidden="true">{t.icon}</span>
-                    <span>{t.label}</span>
+                    <span>{verdictLabel}</span>
                   </span>
                 </td>
               </tr>
