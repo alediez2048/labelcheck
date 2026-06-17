@@ -76,24 +76,54 @@ export function matchFuzzy(input: FuzzyInput): MatchResult {
     };
   }
 
-  // Substring containment — if every word from the form appears in the
-  // label's value, treat it as a match. Brand names get padded on
-  // labels with class/type / region / producer descriptors, so a form
-  // value of "OLD CEDAR" should still match a label that reads
-  // "OLD CEDAR DISTILLERY KENTUCKY STRAIGHT BOURBON".
+  // Bidirectional word-containment check.
+  //
+  // Direction 1 — form ⊆ label: covers brand-name padding ("OLD CEDAR"
+  // form vs "OLD CEDAR DISTILLERY KENTUCKY STRAIGHT BOURBON" label).
+  // Direction 2 — label ⊆ form: covers legal-name vs trade-name
+  // ("CASCADE WINERY, CASCADE WINERY, INC." form vs "Cascade Winery"
+  // label — the "INC" in the form is the corporate-name suffix that
+  // labels routinely omit).
+  //
+  // Either direction with at least 2 shared words is enough to call
+  // it a match; one-word overlap is too loose (would match
+  // "WINERY" ↔ "ALMA WINERY" by accident).
   const formWords = formNorm.split(/\s+/).filter((w) => w.length > 0);
   const extWords = extNorm.split(/\s+/).filter((w) => w.length > 0);
+  const formWordSet = new Set(formWords);
   const extWordSet = new Set(extWords);
+  const minSubsetWords = 2;
+  const formSubsetOfLabel =
+    formWords.length >= minSubsetWords &&
+    formWords.every((w) => extWordSet.has(w));
+  const labelSubsetOfForm =
+    extWords.length >= minSubsetWords &&
+    extWords.every((w) => formWordSet.has(w));
+  if (formSubsetOfLabel || labelSubsetOfForm) {
+    return {
+      field: input.field,
+      formValue: input.formValue,
+      extractedValue: input.extracted.value,
+      verdict: "match",
+      reason: formSubsetOfLabel
+        ? `${input.fieldLabel} matches (form words found on label)`
+        : `${input.fieldLabel} matches (label words found in form)`,
+      margin: 1,
+      sourceFace: input.extracted.face,
+    };
+  }
+  // Single-word form value: relax to the original one-direction check.
   if (
-    formWords.length > 0 &&
-    formWords.every((w) => extWordSet.has(w))
+    formWords.length === 1 &&
+    formWords[0] &&
+    extWordSet.has(formWords[0])
   ) {
     return {
       field: input.field,
       formValue: input.formValue,
       extractedValue: input.extracted.value,
       verdict: "match",
-      reason: `${input.fieldLabel} matches (form words found on label)`,
+      reason: `${input.fieldLabel} matches (form word found on label)`,
       margin: 1,
       sourceFace: input.extracted.face,
     };
