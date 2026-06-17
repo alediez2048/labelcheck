@@ -42,6 +42,12 @@ export type AggregateReviewSnapshot = {
    * (low confidence overall).
    */
   flaggedInMatch: ReadonlyArray<QueueApplication>;
+  /**
+   * Every match-lane application, sorted by `overallConfidence`
+   * ascending (weakest first). The supervisor expects to see every
+   * one before bulk-approve, not just the bottom quartile.
+   */
+  allMatches: ReadonlyArray<QueueApplication>;
 };
 
 export function selectAggregateReview(
@@ -74,5 +80,6 @@ export function selectAggregateReview(
     delta,
     bottomQuartile,
     flaggedInMatch,
+    allMatches: sortedAsc,
   };
 }
