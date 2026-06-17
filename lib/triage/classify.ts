@@ -152,9 +152,16 @@ export function classify(input: ClassifyInput): TriageResult {
  * before reaching this function in practice.
  */
 function minConfidence(results: ReadonlyArray<FieldResult>): number {
-  if (results.length === 0) return 1;
+  // Only blocking fields drive the overall confidence. A non-blocking
+  // field like country_of_origin returning "not found" at 0.5 used to
+  // drag the whole verdict down to 50%, even when every blocking
+  // field matched at 1.0. The overall number is the supervisor's
+  // glance signal — it has to reflect the lane-decision inputs only.
+  const blocking = results.filter((r) => LANE_BLOCKING_FIELDS.has(r.field));
+  const sample = blocking.length > 0 ? blocking : results;
+  if (sample.length === 0) return 1;
   let m = 1;
-  for (const r of results) {
+  for (const r of sample) {
     if (r.confidence < m) m = r.confidence;
   }
   return m;
