@@ -140,41 +140,57 @@ export async function processPdf(
   }
   const page1Text = combinedText;
 
-  // --- pass 2: rank pages 2..N by image-op count and render the top 1-3.
-  //     The label artwork lives on the page with the most image draws —
-  //     not always page 2 (some COLAs have a form continuation there).
-  //     Page 1 is always form, so we skip it. If the PDF has only 1
-  //     page, that single page is the label render.
+  // --- pass 2: render pages 2..N and rank by the LARGEST embedded image
+  //     area, not by paintImageXObject COUNT. Counterexample we hit on
+  //     11322001000260.pdf (HOWLING MOON): page 2 has 2 image ops (a 14x16
+  //     header icon + a null/decode-failed JPEG), page 3 has 1 image op
+  //     but it's the 975x1030 actual label. Counting ops puts page 2 first
+  //     and the label disappears. Multiplying by resolved image area puts
+  //     page 3 first.
+  //
+  //     We must render BEFORE inspecting page.objs — pdfjs resolves image
+  //     objects during rendering. Reading them off the operator list
+  //     before render() returns "isn't resolved yet" errors.
+  //
+  //     For 1-page PDFs we still just render page 1 (the canonical
+  //     "label embedded with form" case).
   const PAINT_IMG_OP = 85; // OPS.paintImageXObject
-  const pageScores: Array<{ pageIndex: number; imageOps: number }> = [];
-  if (doc.numPages === 1) {
-    pageScores.push({ pageIndex: 1, imageOps: 0 });
-  } else {
-    for (let i = 2; i <= doc.numPages; i++) {
-      try {
-        const page = await doc.getPage(i);
-        const ops = await page.getOperatorList();
-        const imageOps = ops.fnArray.filter((fn) => fn === PAINT_IMG_OP).length;
-        pageScores.push({ pageIndex: i, imageOps });
-      } catch {
-        // Ignore malformed pages; keep the others.
-      }
-    }
-    // Sort by image-op count desc so the most-likely-label page wins.
-    pageScores.sort((a, b) => b.imageOps - a.imageOps);
-  }
+  const candidateIndices: number[] =
+    doc.numPages === 1 ? [1] : Array.from({ length: doc.numPages - 1 }, (_, i) => i + 2);
 
-  const candidates = pageScores.slice(0, 3);
-  const rendered: RenderedPng[] = [];
-  for (const c of candidates) {
+  type Scored = { pageIndex: number; png: RenderedPng; maxImageArea: number };
+  const scored: Scored[] = [];
+  for (const pageIndex of candidateIndices) {
     try {
-      const p = c.pageIndex === 1 ? page1 : await doc.getPage(c.pageIndex);
+      const p = pageIndex === 1 ? page1 : await doc.getPage(pageIndex);
       const png = await renderPageToPng(p, targetLongEdge);
-      rendered.push(png);
+      const ops = await p.getOperatorList();
+      let maxImageArea = 0;
+      for (let i = 0; i < ops.fnArray.length; i++) {
+        if (ops.fnArray[i] !== PAINT_IMG_OP) continue;
+        const args = ops.argsArray[i];
+        const name = Array.isArray(args) ? args[0] : args;
+        if (typeof name !== "string") continue;
+        try {
+          const img = p.objs.get(name) as { width?: number; height?: number } | null;
+          if (img && typeof img.width === "number" && typeof img.height === "number") {
+            const area = img.width * img.height;
+            if (area > maxImageArea) maxImageArea = area;
+          }
+        } catch {
+          // unresolved or null — skip
+        }
+      }
+      scored.push({ pageIndex, png, maxImageArea });
     } catch {
       // Skip render failures rather than aborting the whole upload.
     }
   }
+
+  // Sort by max image area desc; the page hosting the largest embedded
+  // image is overwhelmingly the label page.
+  scored.sort((a, b) => b.maxImageArea - a.maxImageArea);
+  const rendered: RenderedPng[] = scored.slice(0, 3).map((s) => s.png);
 
   const pageCount = doc.numPages;
   await doc.cleanup();
