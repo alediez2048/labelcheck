@@ -118,12 +118,22 @@ export async function processPdf(
   const pdfjs = await loadPdfJs();
   const doc = await pdfjs.getDocument({ data: pdfBytes }).promise;
 
-  // --- pass 1: page-1 text
+  // --- pass 1: form text from EVERY page combined. Multi-page TTB
+  //     COLAs put fields like CLASS/TYPE DESCRIPTION on page 2;
+  //     reading only page 1 misses them. The regex parser is anchor-
+  //     based and not sensitive to noise from concatenated pages.
   const page1 = await doc.getPage(1);
-  const content = await page1.getTextContent();
-  const page1Text = content.items
+  let combinedText = (await page1.getTextContent()).items
     .map((it) => ("str" in it ? it.str : ""))
     .join(" ");
+  for (let i = 2; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const text = (await page.getTextContent()).items
+      .map((it) => ("str" in it ? it.str : ""))
+      .join(" ");
+    combinedText += " " + text;
+  }
+  const page1Text = combinedText;
 
   // --- pass 2: render label page
   const labelIndex = pickLabelPageIndex(doc.numPages);
