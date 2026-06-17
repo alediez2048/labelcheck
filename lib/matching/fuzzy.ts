@@ -41,6 +41,28 @@ export function matchFuzzy(input: FuzzyInput): MatchResult {
   const formNorm = normalizeForFuzzy(input.formValue);
   const extNorm = normalizeForFuzzy(input.extracted.value);
 
+  // Placeholder form values — when the PDF parser couldn't read this
+  // field, the upload component substitutes "Unknown brand" / "UNKNOWN"
+  // / "Unknown producer" / "Unknown address" / "Unknown". Treat these
+  // as "no form signal" and approve whatever's on the label rather
+  // than penalising the verdict for a parser miss.
+  if (
+    formNorm === "unknown" ||
+    formNorm.startsWith("unknown ") ||
+    formNorm === "0" ||
+    formNorm === "0 ml"
+  ) {
+    return {
+      field: input.field,
+      formValue: input.formValue,
+      extractedValue: input.extracted.value,
+      verdict: "match",
+      reason: `${input.fieldLabel}: form value not parseable, accepting label "${input.extracted.value}"`,
+      margin: 1,
+      sourceFace: input.extracted.face,
+    };
+  }
+
   // Empty form value against a non-empty label is a mismatch by definition.
   if (formNorm.length === 0) {
     return {

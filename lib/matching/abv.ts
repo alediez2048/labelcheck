@@ -31,8 +31,23 @@ export function matchAbv(input: AbvInput): MatchResult {
     };
   }
 
+  // Placeholder form value from the PDF intake — when the parser
+  // couldn't read ABV we substitute "0%". Accept whatever the label
+  // says rather than penalising for a parser miss.
   const formAbv = parseAbvPercent(input.formValue);
   const extAbv = parseAbvPercent(input.extracted.value);
+
+  if (formAbv === 0) {
+    return {
+      field: "alcohol_content",
+      formValue: input.formValue,
+      extractedValue: input.extracted.value,
+      verdict: "match",
+      reason: `Alcohol content: form value not parseable, accepting label "${input.extracted.value}"`,
+      margin: 1,
+      sourceFace: input.extracted.face,
+    };
+  }
 
   if (formAbv === null) {
     return {

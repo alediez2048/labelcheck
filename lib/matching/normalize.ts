@@ -65,7 +65,9 @@ export function parseNetContents(s: string): NetContents | null {
   //   transition that fails between a digit and a letter.
   if (/fl\.?\s*oz\.?|fluid\s*ounces?/.test(cleaned)) return { value, unit: "fl_oz" };
   if (/(?<![a-z])ml(?![a-z])|milliliters?|millilitres?/.test(cleaned)) return { value, unit: "ml" };
-  if (/(?<![a-z\d])l(?![a-z])|liters?|litres?/.test(cleaned)) return { value, unit: "l" };
+  // Allow digits in the lookbehind: "1.0L" should read as 1.0 liters.
+  // (Previously excluded digits, which broke "1.0L" but worked for "1 L".)
+  if (/(?<![a-z])l(?![a-z])|liters?|litres?/.test(cleaned)) return { value, unit: "l" };
   return null;
 }
 

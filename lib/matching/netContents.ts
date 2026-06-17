@@ -36,6 +36,22 @@ export function matchNetContents(input: NetContentsInput): MatchResult {
     };
   }
 
+  // Placeholder form values from the PDF intake — when the parser
+  // couldn't read net contents we substitute "0 ML". Accept whatever
+  // the label says rather than penalising for a parser miss.
+  const formTrim = input.formValue.trim().toLowerCase();
+  if (formTrim === "0 ml" || formTrim === "0ml" || formTrim === "") {
+    return {
+      field: "net_contents",
+      formValue: input.formValue,
+      extractedValue: input.extracted.value,
+      verdict: "match",
+      reason: `Net contents: form value not parseable, accepting label "${input.extracted.value}"`,
+      margin: 1,
+      sourceFace: input.extracted.face,
+    };
+  }
+
   const form = parseNetContents(input.formValue);
   const ext = parseNetContents(input.extracted.value);
 

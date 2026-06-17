@@ -48,8 +48,12 @@ const ANCHORS: ReadonlyArray<Anchor> = [
     field: "classType",
     patterns: [
       // "CLASS/TYPE DESCRIPTION TABLE RED WINE EXPIRATION DATE..."
+      // We do NOT fall back to "TYPE OF PRODUCT" because that line on
+      // TTB Form 5100.31 is a checkbox row that text-extracts as the
+      // literal list ("WINE DISTILLED SPIRITS MALT BEVERAGE"). When the
+      // description field is missing, leave class blank — the matcher
+      // treats UNKNOWN as "trust the label" instead of mismatching.
       /CLASS\/TYPE(?:\s+DESCRIPTION)?\s+(.+?)(?=\s+(?:EXPIRATION|AFFIX|IMAGE TYPE|ACTUAL DIMENSIONS|QUALIFICATIONS|STATUS|TTB F|PART|PHONE|FAX)|\s+\d{1,2}[a-z]?\.\s+[A-Z])/i,
-      /TYPE OF PRODUCT\s*(?:\(Required\))?\s+(.+?)(?=\s+\d{1,2}[a-z]?\.\s+[A-Z]|\s+(?:BRAND NAME|FANCIFUL))/i,
     ],
   },
   {
