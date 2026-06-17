@@ -40,6 +40,8 @@ type ApplicationPayload = {
   beverageType: ReturnType<typeof beverageFromClass>;
   form: SampleForm;
   labelPngBase64: string;
+  /** Additional candidate label renders (back / neck) to help the model. */
+  extraLabelPngs: ReadonlyArray<string>;
 };
 
 async function fileToArrayBuffer(file: File): Promise<ArrayBuffer> {
@@ -136,6 +138,11 @@ export function UploadPdfButton(): React.ReactElement {
               bytes: payload.labelPngBase64,
               mime: "image/png",
             },
+            ...payload.extraLabelPngs.slice(0, 2).map((b, i) => ({
+              kind: (i === 0 ? "back" : "neck") as "back" | "neck",
+              bytes: b,
+              mime: "image/png" as const,
+            })),
           ],
         }),
       });
@@ -220,6 +227,7 @@ export function UploadPdfButton(): React.ReactElement {
           beverageType,
           form,
           labelPngBase64: labelPng.base64,
+          extraLabelPngs: processed.extraLabelPngs.map((p) => p.base64),
         });
 
         setProgress((p) =>

@@ -42,15 +42,20 @@ async function loadPdfJs(): Promise<NonNullable<typeof loadedPdfJs>> {
   return loadedPdfJs;
 }
 
+type RenderedPng = {
+  base64: string;
+  mime: "image/png";
+  width: number;
+  height: number;
+};
+
 export type ProcessedPdf = {
   pageCount: number;
   page1Text: string;
-  labelPng: {
-    base64: string;
-    mime: "image/png";
-    width: number;
-    height: number;
-  };
+  /** Primary label render. */
+  labelPng: RenderedPng;
+  /** Up to two additional candidate label renders, ordered by image-op count desc. */
+  extraLabelPngs: ReadonlyArray<RenderedPng>;
 };
 
 /**
@@ -135,13 +140,52 @@ export async function processPdf(
   }
   const page1Text = combinedText;
 
-  // --- pass 2: render label page
-  const labelIndex = pickLabelPageIndex(doc.numPages);
-  const labelPage =
-    labelIndex === 1 ? page1 : await doc.getPage(labelIndex);
-  const labelPng = await renderPageToPng(labelPage, targetLongEdge);
+  // --- pass 2: rank pages 2..N by image-op count and render the top 1-3.
+  //     The label artwork lives on the page with the most image draws —
+  //     not always page 2 (some COLAs have a form continuation there).
+  //     Page 1 is always form, so we skip it. If the PDF has only 1
+  //     page, that single page is the label render.
+  const PAINT_IMG_OP = 85; // OPS.paintImageXObject
+  const pageScores: Array<{ pageIndex: number; imageOps: number }> = [];
+  if (doc.numPages === 1) {
+    pageScores.push({ pageIndex: 1, imageOps: 0 });
+  } else {
+    for (let i = 2; i <= doc.numPages; i++) {
+      try {
+        const page = await doc.getPage(i);
+        const ops = await page.getOperatorList();
+        const imageOps = ops.fnArray.filter((fn) => fn === PAINT_IMG_OP).length;
+        pageScores.push({ pageIndex: i, imageOps });
+      } catch {
+        // Ignore malformed pages; keep the others.
+      }
+    }
+    // Sort by image-op count desc so the most-likely-label page wins.
+    pageScores.sort((a, b) => b.imageOps - a.imageOps);
+  }
+
+  const candidates = pageScores.slice(0, 3);
+  const rendered: RenderedPng[] = [];
+  for (const c of candidates) {
+    try {
+      const p = c.pageIndex === 1 ? page1 : await doc.getPage(c.pageIndex);
+      const png = await renderPageToPng(p, targetLongEdge);
+      rendered.push(png);
+    } catch {
+      // Skip render failures rather than aborting the whole upload.
+    }
+  }
 
   const pageCount = doc.numPages;
   await doc.cleanup();
-  return { pageCount, page1Text, labelPng };
+
+  if (rendered.length === 0) {
+    throw new Error("Could not render any candidate label page from this PDF");
+  }
+  return {
+    pageCount,
+    page1Text,
+    labelPng: rendered[0]!,
+    extraLabelPngs: rendered.slice(1),
+  };
 }
