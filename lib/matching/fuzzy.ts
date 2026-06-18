@@ -63,6 +63,32 @@ export function matchFuzzy(input: FuzzyInput): MatchResult {
     };
   }
 
+  // TTB umbrella classes — for class_type only. When the form puts the
+  // product in "OTHER SPECIALTIES & PROPRIETARIES" (or just "SPECIALTIES"
+  // / "PROPRIETARIES"), the form is explicitly saying "this product
+  // doesn't fit a standard regulatory class; the label provides the
+  // authoritative descriptor". Real example: SORTILEGE (Canadian
+  // whisky + maple liqueur) — form says OTHER SPECIALTIES & PROPRIETARIES,
+  // label says "LIQUEUR made with CANADIAN WHISKY & MAPLE SYRUP". These
+  // describe the same TTB classification by design. We accept any
+  // non-empty descriptive label, leaving the brand / abv / net contents
+  // checks to do the real verification work.
+  if (
+    input.field === "class_type" &&
+    /\b(?:specialt(?:y|ies)|proprietar(?:y|ies))\b/.test(formNorm) &&
+    extNorm.length > 0
+  ) {
+    return {
+      field: input.field,
+      formValue: input.formValue,
+      extractedValue: input.extracted.value,
+      verdict: "match",
+      reason: `${input.fieldLabel}: form uses TTB umbrella class "${input.formValue}"; label specifies "${input.extracted.value}"`,
+      margin: 1,
+      sourceFace: input.extracted.face,
+    };
+  }
+
   // Empty form value against a non-empty label is a mismatch by definition.
   if (formNorm.length === 0) {
     return {
