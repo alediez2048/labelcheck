@@ -24,6 +24,12 @@ export function normalizeForFuzzy(s: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    // Spelling variants TTB treats as equivalent. WHISKY/WHISKEY shows up
+    // constantly: form-side is typed by the applicant ("BOURBON WHISKY"),
+    // label-side carries the official spelling ("TENNESSEE BOURBON
+    // WHISKEY"). 27 CFR § 5.22 uses "WHISKY" as the umbrella class name
+    // and treats the two spellings as identical for compliance.
+    .replace(/\bwhisky\b/g, "whiskey")
     .replace(/\s+/g, " ")
     .trim();
 }
