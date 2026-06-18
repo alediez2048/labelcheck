@@ -23,6 +23,7 @@ import React, { useState } from "react";
 import { beverageFromClass } from "@/lib/intake/beverageFromClass";
 import { processPdf } from "@/lib/intake/clientPdf";
 import { parseColaForm } from "@/lib/intake/parseColaForm";
+import { SAMPLE_COLAS } from "@/lib/intake/sampleColas";
 import { useQueue, type QueueApplicationInput } from "@/lib/queue/QueueProvider";
 import type { SampleForm } from "@/fixtures/samples";
 import type { VerificationResult } from "@/types";
@@ -287,6 +288,32 @@ export function UploadPdfButton(): React.ReactElement {
     onFilesChosen(ev.dataTransfer.files);
   }
 
+  /**
+   * Demo helper: fetch the 10 curated sample COLAs from `/sample-colas/*.pdf`
+   * (served from `public/sample-colas/` by Next.js) and run them through the
+   * SAME processFiles pipeline a real drag-drop uses. No new code paths —
+   * just a different way to put File objects into the dropzone.
+   */
+  async function onSeedWithSamples(): Promise<void> {
+    if (pending) return;
+    setError(null);
+    try {
+      const files = await Promise.all(
+        SAMPLE_COLAS.map(async (entry) => {
+          const res = await fetch(`/sample-colas/${entry.fileName}`);
+          if (!res.ok) {
+            throw new Error(`Could not fetch ${entry.fileName} (${res.status})`);
+          }
+          const buf = await res.arrayBuffer();
+          return new File([buf], entry.fileName, { type: "application/pdf" });
+        }),
+      );
+      await processFiles(files);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load sample COLAs");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div
@@ -309,18 +336,34 @@ export function UploadPdfButton(): React.ReactElement {
           Parsed + rendered in your browser. Verdicts flow into the Match
           approval pool or the Review distribution board below.
         </p>
-        <label className="mt-2 inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-md border border-indigo-700 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-within:ring-2 focus-within:ring-indigo-300">
-          <span aria-hidden="true">↑</span>
-          <span>Choose PDFs</span>
-          <input
-            type="file"
-            multiple
-            accept="application/pdf,.pdf"
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+          <label className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-md border border-indigo-700 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-within:ring-2 focus-within:ring-indigo-300">
+            <span aria-hidden="true">↑</span>
+            <span>Choose PDFs</span>
+            <input
+              type="file"
+              multiple
+              accept="application/pdf,.pdf"
+              disabled={pending}
+              className="sr-only"
+              onChange={(e) => onFilesChosen(e.target.files)}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void onSeedWithSamples()}
             disabled={pending}
-            className="sr-only"
-            onChange={(e) => onFilesChosen(e.target.files)}
-          />
-        </label>
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span aria-hidden="true">✨</span>
+            <span>Try {SAMPLE_COLAS.length} sample TTB COLAs</span>
+          </button>
+        </div>
+        <p className="mt-1 text-[11px] text-slate-500">
+          Curated real TTB applications: whiskeys, wines, rum, tequila, gin,
+          sake, ale — including the diacritic + multi-page cases the matcher
+          handles.
+        </p>
       </div>
 
       {progress.length > 0 && (
