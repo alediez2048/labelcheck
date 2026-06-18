@@ -173,12 +173,21 @@ export async function runVerification(
     return result;
   }
 
-  // 3b. Short-circuit if any face is unreadable (FR-26b). The structured
-  //     `UNREADABLE_IMAGE` error carries the FR-26b recommendation; the
-  //     reason message names the affected face(s) so the agent knows
-  //     which artwork to look at.
+  // 3b. Short-circuit only if EVERY face is unreadable (FR-26b). The
+  //     dropzone sends up to 3 candidate renders (front/back/neck) ranked
+  //     by which page is most likely to be the label. If the picker's
+  //     top-ranked page turns out to be a watermark / footer / form
+  //     continuation but a back-ranked candidate IS the real label, we
+  //     still have a readable face — grade against it instead of
+  //     bouncing a perfectly fine application to Review.
+  //
+  //     If at least one face has readable content, the matching engine
+  //     already picks the best per-field source via `sourceFace`, so a
+  //     mixed-readability extraction grades correctly.
   const unreadable = unreadableFaces(extraction);
-  if (unreadable.length > 0) {
+  const allUnreadable =
+    unreadable.length > 0 && unreadable.length >= input.faces.length;
+  if (allUnreadable) {
     const reason = unreadable
       .map(
         (f) =>

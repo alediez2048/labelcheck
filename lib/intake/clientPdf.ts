@@ -158,14 +158,29 @@ export async function processPdf(
   const candidateIndices: number[] =
     doc.numPages === 1 ? [1] : Array.from({ length: doc.numPages - 1 }, (_, i) => i + 2);
 
-  type Scored = { pageIndex: number; png: RenderedPng; maxImageArea: number };
+  type Scored = {
+    pageIndex: number;
+    png: RenderedPng;
+    score: number;
+  };
   const scored: Scored[] = [];
   for (const pageIndex of candidateIndices) {
     try {
       const p = pageIndex === 1 ? page1 : await doc.getPage(pageIndex);
       const png = await renderPageToPng(p, targetLongEdge);
       const ops = await p.getOperatorList();
-      let maxImageArea = 0;
+      const pageViewport = p.getViewport({ scale: 1 });
+      const pageArea = pageViewport.width * pageViewport.height;
+
+      // Scan every embedded image on the page. For each, compute its
+      // coverage of the page area. We want the LABEL image — present, large
+      // enough to read, but NOT page-filling (those are watermarks /
+      // photocopy scans). On 13130001000430.pdf (HONEY TEA), page 3's TTB
+      // footer carries a 591x828 watermark image overlaid on a 612x792
+      // page — coverage 1.0+. Page 2's 356x580 actual label sits at 0.42
+      // coverage. Raw-area ranking picked the watermark; coverage-aware
+      // ranking picks the label.
+      let bestImageScore = 0;
       for (let i = 0; i < ops.fnArray.length; i++) {
         if (ops.fnArray[i] !== PAINT_IMG_OP) continue;
         const args = ops.argsArray[i];
@@ -173,23 +188,29 @@ export async function processPdf(
         if (typeof name !== "string") continue;
         try {
           const img = p.objs.get(name) as { width?: number; height?: number } | null;
-          if (img && typeof img.width === "number" && typeof img.height === "number") {
-            const area = img.width * img.height;
-            if (area > maxImageArea) maxImageArea = area;
+          if (!img || typeof img.width !== "number" || typeof img.height !== "number") {
+            continue;
           }
+          const area = img.width * img.height;
+          if (area < 10_000) continue; // ignore tiny icons (14x16 etc.)
+          const coverage = pageArea > 0 ? area / pageArea : 0;
+          // Penalty: pages whose biggest image fills the page are almost
+          // always watermarks. >0.85 coverage → drop the score sharply.
+          const watermarkPenalty = coverage > 0.85 ? 0.05 : 1.0;
+          const imageScore = area * watermarkPenalty;
+          if (imageScore > bestImageScore) bestImageScore = imageScore;
         } catch {
           // unresolved or null — skip
         }
       }
-      scored.push({ pageIndex, png, maxImageArea });
+      scored.push({ pageIndex, png, score: bestImageScore });
     } catch {
       // Skip render failures rather than aborting the whole upload.
     }
   }
 
-  // Sort by max image area desc; the page hosting the largest embedded
-  // image is overwhelmingly the label page.
-  scored.sort((a, b) => b.maxImageArea - a.maxImageArea);
+  // Sort by score desc. Tied pages keep their natural order (page 2 first).
+  scored.sort((a, b) => b.score - a.score);
   const rendered: RenderedPng[] = scored.slice(0, 3).map((s) => s.png);
 
   const pageCount = doc.numPages;
