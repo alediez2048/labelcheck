@@ -27,6 +27,7 @@ import { FieldTable } from "@/app/verify/result/FieldTable";
 import { LaneBanner } from "@/app/verify/result/LaneBanner";
 import { ReturnForCorrectionForm } from "@/app/verify/result/ReturnForCorrectionForm";
 import { UnreadableBanner } from "@/app/verify/result/UnreadableBanner";
+import { RetryServiceBanner } from "@/app/verify/result/RetryServiceBanner";
 import { useQueue } from "@/lib/queue/QueueProvider";
 import { selectMyQueue } from "@/lib/queue/myQueue";
 import type { ReturnReasonSummary } from "@/types";
@@ -151,6 +152,11 @@ export default function QueueReviewDetailPage(): React.ReactElement {
       {verification.extractionFailed &&
         verification.recommendation === "return_unreadable_image" && (
           <UnreadableBanner flags={verification.flags} />
+        )}
+
+      {verification.extractionFailed &&
+        verification.recommendation === "retry_service_slow" && (
+          <RetryServiceBanner flags={verification.flags} />
         )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]">

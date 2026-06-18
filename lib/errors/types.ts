@@ -43,8 +43,16 @@ export type StructuredError = {
    * UNREADABLE_IMAGE are NOT retryable as-is; the others are.
    */
   retryable: boolean;
-  /** When the error maps to FR-26b, carry the recommendation here. */
-  recommendation?: "return_unreadable_image";
+  /**
+   * Default operator action the UI should foreground.
+   *
+   * - `return_unreadable_image` — FR-26b: the artwork is genuinely
+   *   unreadable; the applicant must supply a clearer image.
+   * - `retry_service_slow` — the provider call timed out or the
+   *   service was unavailable. The artwork may be fine; the operator
+   *   should re-process before bouncing the application.
+   */
+  recommendation?: "return_unreadable_image" | "retry_service_slow";
   /** Optional per-field references for INVALID_INPUT. */
   fields?: ReadonlyArray<string>;
 };
@@ -93,9 +101,9 @@ export function providerTimeout(_ms: number): StructuredError {
   return {
     code: "PROVIDER_TIMEOUT",
     message:
-      "Could not verify in time — the label-reading service was slow to respond. Please try again, or request a better image from the applicant.",
+      "Could not verify in time — the label-reading service was slow to respond. Please re-process the application before bouncing it.",
     retryable: true,
-    recommendation: "return_unreadable_image",
+    recommendation: "retry_service_slow",
   };
 }
 
@@ -109,7 +117,7 @@ export function providerRateLimit(): StructuredError {
     message:
       "Could not verify in time — the label-reading service is temporarily unavailable. Please try again in a moment.",
     retryable: true,
-    recommendation: "return_unreadable_image",
+    recommendation: "retry_service_slow",
   };
 }
 
@@ -122,7 +130,7 @@ export function providerUnavailable(_reason?: string): StructuredError {
     message:
       "Could not verify in time — the label-reading service is temporarily unavailable. Please try again in a moment.",
     retryable: true,
-    recommendation: "return_unreadable_image",
+    recommendation: "retry_service_slow",
   };
 }
 

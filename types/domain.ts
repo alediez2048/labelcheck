@@ -210,9 +210,11 @@ export type FieldResult = {
  * - `extractionFailed`: deterministic system signal — extraction returned
  *   no usable text on at least one face (FR-26b). Distinct from a
  *   low-confidence reading.
- * - `recommendation`: when extraction failed, the system explicitly
- *   recommends "Return — unreadable image" rather than leaving it to
- *   agent judgment (FR-26b).
+ * - `recommendation`: when extraction failed, the system surfaces a
+ *   default operator action. `return_unreadable_image` (FR-26b) for a
+ *   genuinely unreadable face; `retry_service_slow` for a provider
+ *   timeout / rate-limit / 5xx where the artwork may be fine and the
+ *   operator should re-process before bouncing the application.
  */
 export type VerificationResult = {
   applicationId: string;
@@ -222,7 +224,7 @@ export type VerificationResult = {
   warning: WarningFlags;
   flags: string[];
   extractionFailed: boolean;
-  recommendation?: "return_unreadable_image";
+  recommendation?: "return_unreadable_image" | "retry_service_slow";
 };
 
 // ---------------------------------------------------------------------------

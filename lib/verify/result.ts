@@ -113,7 +113,7 @@ export function buildTimeoutResult(opts: {
     warning: EMPTY_WARNING,
     flags: [message],
     extractionFailed: true,
-    recommendation: "return_unreadable_image",
+    recommendation: "retry_service_slow",
   };
 }
 

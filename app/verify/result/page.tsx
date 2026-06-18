@@ -33,6 +33,7 @@ import { FieldTable } from "./FieldTable";
 import { LaneBanner } from "./LaneBanner";
 import { ReturnForCorrectionForm } from "./ReturnForCorrectionForm";
 import { UnreadableBanner } from "./UnreadableBanner";
+import { RetryServiceBanner } from "./RetryServiceBanner";
 
 const RESULT_STORAGE_KEY = "labelcheck:verification-result";
 const SUBMISSION_STORAGE_KEY = "labelcheck:submitted-application";
@@ -162,6 +163,10 @@ export default function ResultPage(): React.ReactElement {
 
       {result.extractionFailed && result.recommendation === "return_unreadable_image" && (
         <UnreadableBanner flags={result.flags} />
+      )}
+
+      {result.extractionFailed && result.recommendation === "retry_service_slow" && (
+        <RetryServiceBanner flags={result.flags} />
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

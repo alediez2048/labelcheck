@@ -34,11 +34,17 @@ import type { BeverageType, FaceKind, FieldName } from "@/types";
 /**
  * D10 numbers, in one place. Tuning knobs live here so a future P5-2
  * calibration sweep (or a provider swap in P6-1) doesn't have to chase
- * literals scattered across the codebase. The 8000ms per-attempt timeout
- * is a degradation knob, not a hard kill — p95-under-5s is the goal the
- * route is measured against (NFR-1), not the per-call cutoff.
+ * literals scattered across the codebase. The per-attempt timeout is a
+ * degradation knob, not a hard kill — p95-under-5s is the goal the route
+ * is measured against (NFR-1), not the per-call cutoff.
+ *
+ * 20s was 8s. PDFs with multi-image label pages (e.g. BARENJAGER —
+ * page 2 carries three embedded JPEGs totalling ~380k px²) routinely
+ * exceeded 8s on Vercel cold-starts and surfaced as PROVIDER_TIMEOUT.
+ * The /api/verify route already allows >20s wall time; the previous
+ * cap was the bottleneck.
  */
-const PROVIDER_TIMEOUT_MS = 8000;
+const PROVIDER_TIMEOUT_MS = 20000;
 const PROVIDER_RETRY_ATTEMPTS = 2;
 const PROVIDER_RETRY_BACKOFF_MS = 250;
 
