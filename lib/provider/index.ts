@@ -1,34 +1,32 @@
 /**
- * Provider factory — env-driven, single seam (D8).
+ * Provider factory + chain — env-driven, single seam (D8).
  *
- * `PROVIDER=mock` is the default and gets P0-7 CI green without an API
- * key. Live provider implementations land in P1-2 (Anthropic Claude
- * Sonnet 4.6 per D8) and P6-1 (Azure OpenAI in Azure Government as the
- * recommended production path, with self-hosted olmOCR as the air-gapped
- * fallback — see techstack.md Model Selection).
+ * `PROVIDER` is either a single id (e.g. `anthropic`, `mock`) or a
+ * comma-separated chain (e.g. `anthropic,openai,openrouter`). The
+ * extraction service uses `getProviderChain()` + `withFailover()` to
+ * try each slot in order; if every slot fails, the request surfaces a
+ * degraded result. Single-id values still work via `getProvider()` for
+ * test paths that stub the provider.
  *
- * Selection table — the model bake-off (P5-4) also keys candidates by the
- * same ids via `lib/provider/registry.ts`.
+ * Selection table:
  *
- * | PROVIDER          | Adapter                       | Notes                              |
- * | ---               | ---                           | ---                                 |
- * | (unset) / mock    | MockVisionProvider            | CI default; no env required        |
- * | anthropic         | AnthropicVisionProvider       | Requires ANTHROPIC_API_KEY         |
- * | azure-openai-gov  | AzureOpenAIGovVisionProvider  | Requires AZURE_OPENAI_GOV_*        |
- * | olmocr            | OlmocrVisionProvider          | Reads OLMOCR_ENDPOINT              |
- * | glm-ocr           | GlmOcrVisionProvider          | Requires GLM_OCR_ENDPOINT; pending |
- * | qwen-vl           | QwenVlVisionProvider          | Requires QWEN_VL_ENDPOINT; pending |
+ * | id               | adapter                       | required env                 |
+ * | ---              | ---                           | ---                           |
+ * | mock             | MockVisionProvider            | none                          |
+ * | anthropic        | AnthropicVisionProvider       | ANTHROPIC_API_KEY             |
+ * | openai           | OpenAIVisionProvider          | OPENAI_API_KEY                |
+ * | openrouter       | OpenRouterVisionProvider      | OPENROUTER_API_KEY            |
+ * | azure-openai-gov | AzureOpenAIGovVisionProvider  | AZURE_OPENAI_GOV_*            |
+ * | olmocr           | OlmocrVisionProvider          | OLMOCR_ENDPOINT               |
+ * | glm-ocr          | GlmOcrVisionProvider          | GLM_OCR_ENDPOINT (review)     |
+ * | qwen-vl          | QwenVlVisionProvider          | QWEN_VL_ENDPOINT (review)     |
+ *
+ * Adapters are lazy-loaded so the cold-start path never imports SDKs
+ * we won't use.
  */
 
 import type { VisionProvider } from "./types";
 
-/**
- * Lazy-load each adapter on demand so the cold-start phase never
- * imports SDKs we won't use (P5-8 Vercel hardening). The previous
- * top-of-file eager imports pulled in `openai` + Anthropic SDK +
- * provider clients on every route that depended on this module,
- * and one of those SDKs was crashing the function's cold-start.
- */
 async function loadProvider(name: string): Promise<VisionProvider> {
   switch (name) {
     case "mock": {
@@ -38,6 +36,14 @@ async function loadProvider(name: string): Promise<VisionProvider> {
     case "anthropic": {
       const { AnthropicVisionProvider } = await import("./anthropic");
       return new AnthropicVisionProvider();
+    }
+    case "openai": {
+      const { OpenAIVisionProvider } = await import("./openai");
+      return new OpenAIVisionProvider();
+    }
+    case "openrouter": {
+      const { OpenRouterVisionProvider } = await import("./openrouter");
+      return new OpenRouterVisionProvider();
     }
     case "azure-openai-gov": {
       const { AzureOpenAIGovVisionProvider } = await import("./azure-openai-gov");
@@ -66,22 +72,68 @@ async function loadProvider(name: string): Promise<VisionProvider> {
 const KNOWN_PROVIDERS = new Set([
   "mock",
   "anthropic",
+  "openai",
+  "openrouter",
   "azure-openai-gov",
   "olmocr",
   "glm-ocr",
   "qwen-vl",
 ]);
 
+function parseProviderChain(): string[] {
+  const raw = process.env.PROVIDER ?? "mock";
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0);
+  if (ids.length === 0) return ["mock"];
+  for (const id of ids) {
+    if (!KNOWN_PROVIDERS.has(id)) {
+      throw new Error(
+        `Unknown PROVIDER value "${id}". ` +
+          `Known: ${[...KNOWN_PROVIDERS].sort().join(", ")}.`,
+      );
+    }
+  }
+  return ids;
+}
+
 /**
- * Return the configured vision provider.
- *
- * Throws with a clear "not provisioned" / "not yet implemented" message
- * when the requested adapter is missing required env, so the bake-off
- * can catch it and mark the candidate `not-run`.
+ * Single-provider accessor — returns the FIRST slot in the chain. Used
+ * by tests that stub `getProvider()` directly, and by callers that
+ * don't need failover (the bake-off, single-provider isolation tests).
  */
 export async function getProvider(): Promise<VisionProvider> {
-  const name = (process.env.PROVIDER ?? "mock").toLowerCase();
-  return loadProvider(name);
+  const chain = parseProviderChain();
+  return loadProvider(chain[0]!);
+}
+
+/**
+ * Resolved provider chain in order. Each slot is loaded lazily so a
+ * misconfigured fallback (missing API key on slot 2) doesn't block
+ * startup of a healthy primary.
+ */
+export type ProviderChainSlot = {
+  id: string;
+  load(): Promise<VisionProvider>;
+};
+
+export function getProviderChain(): ProviderChainSlot[] {
+  const ids = parseProviderChain();
+  return ids.map((id, index) => ({
+    id,
+    async load(): Promise<VisionProvider> {
+      // Slot 0 delegates to `getProvider()` via dynamic import so tests
+      // that spy on `getProvider` continue to control the primary
+      // adapter without per-test rewrites. Slots 1..N call
+      // `loadProvider(id)` directly.
+      if (index === 0) {
+        const mod = await import("./index");
+        return mod.getProvider();
+      }
+      return loadProvider(id);
+    },
+  }));
 }
 
 export type {

@@ -10,7 +10,7 @@
  */
 
 import { preprocessImage, type ImageMime } from "@/lib/image";
-import { getProvider } from "@/lib/provider";
+import { getProvider, getProviderChain } from "@/lib/provider";
 import type {
   ExtractionRequest,
   ExtractionResponse,
@@ -25,6 +25,7 @@ import {
   withRetry,
   withTimeout,
 } from "@/lib/provider/withTimeout";
+import { withFailover } from "@/lib/provider/withFailover";
 import { SpanStatusCode } from "@opentelemetry/api";
 import { getTracer } from "@/lib/observability/tracing";
 import { rereadWarning } from "./rereadWarning";
@@ -181,30 +182,32 @@ export async function extract(
   //    context comes from the parent `verification` span set in the
   //    route handler — OTel's context propagation makes this child
   //    inherit it without manual threading.
-  const provider = await getProvider();
+  // Failover chain: try each provider in PROVIDER (comma-separated)
+  // in order. Each slot gets the same per-provider retry+timeout
+  // budget; advances on any error after the budget is exhausted.
+  const chain = getProviderChain();
   const tracer = getTracer();
   const modelStart = performance.now();
   let outcome: "ok" | "timeout" | "transient" | "error" = "ok";
   let firstPass: ExtractionResponse | null = null;
+  let finalProvider: VisionProvider | null = null;
+  let finalProviderName = chain[0]?.id ?? "unknown";
   const childSpan = tracer.startSpan("extraction.call", {
     attributes: {
-      "extraction.provider": provider.name,
+      "extraction.provider": finalProviderName,
       "extraction.face_count": application.faces.length,
     },
   });
   try {
-    firstPass = await withRetry(
-      () =>
-        withTimeout(
-          (_signal) => provider.extract(request),
-          PROVIDER_TIMEOUT_MS,
-        ),
-      {
-        attempts: PROVIDER_RETRY_ATTEMPTS,
-        backoffMs: PROVIDER_RETRY_BACKOFF_MS,
-        retryOn: isTransientError,
-      },
-    );
+    const failoverResult = await withFailover(chain, request, {
+      attempts: PROVIDER_RETRY_ATTEMPTS,
+      backoffMs: PROVIDER_RETRY_BACKOFF_MS,
+      timeoutMs: PROVIDER_TIMEOUT_MS,
+    });
+    firstPass = failoverResult.response;
+    finalProvider = failoverResult.finalProvider;
+    finalProviderName = failoverResult.finalProvider.name;
+    childSpan.setAttribute("extraction.provider", finalProviderName);
   } catch (err) {
     if (err instanceof TimeoutError) {
       outcome = "timeout";
@@ -246,7 +249,7 @@ export async function extract(
       JSON.stringify({
         event: "extraction.call",
         applicationId: application.id,
-        provider: provider.name,
+        provider: finalProviderName,
         faceCount: application.faces.length,
         modelMs,
         outcome,
@@ -260,9 +263,9 @@ export async function extract(
   //    legibility; that's the slice worth a second look. The decision
   //    lives in code (D4 + D5); the legibility flag is the model's
   //    signal but the rule is ours.
-  if (firstPass && !firstPass.degraded && firstPass.faces.length > 0) {
+  if (firstPass && !firstPass.degraded && firstPass.faces.length > 0 && finalProvider) {
     return maybeRereadWarning({
-      provider,
+      provider: finalProvider,
       applicationId: application.id,
       firstPass,
       preprocessedByKind,
