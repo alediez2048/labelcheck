@@ -10,7 +10,7 @@
  */
 
 import { preprocessImage, type ImageMime } from "@/lib/image";
-import { getProvider, getProviderChain } from "@/lib/provider";
+import { getProviderChain } from "@/lib/provider";
 import type {
   ExtractionRequest,
   ExtractionResponse,
@@ -22,8 +22,6 @@ import {
   isTransientError,
   TimeoutError,
   toStructuredError,
-  withRetry,
-  withTimeout,
 } from "@/lib/provider/withTimeout";
 import { withFailover } from "@/lib/provider/withFailover";
 import { SpanStatusCode } from "@opentelemetry/api";
