@@ -32,14 +32,10 @@ import type { ExtractionRequest, ExtractionResponse } from "@/lib/provider";
 import type { VerificationResult } from "@/types";
 
 /**
- * Test-only canonical warning text. The repo ships a placeholder in
- * `config/warning.json` until A18 is resolved, which means the warning
- * matcher would reject every transcribed warning at integration time.
- * The integration tests inject a real canonical via `getWarningConfig`
- * so the routing logic is what's under test, not the placeholder. When
- * A18 lands and the config carries a real verbatim text, this stub is
- * still correct: the matcher compares whatever the test provider
- * returns to whatever this constant says, and the path is exercised.
+ * Test-only canonical warning text, injected via `getWarningConfig` so
+ * the routing logic is under test independent of `config/warning.json`.
+ * The matcher compares whatever the test provider returns to this
+ * constant, so the path is exercised either way.
  */
 const CANONICAL_WARNING_TEXT =
   "GOVERNMENT WARNING: (1) According to the Surgeon General, women should " +

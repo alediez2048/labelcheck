@@ -30,9 +30,10 @@ describe("config loaders", () => {
     _resetConfigCacheForTesting();
   });
 
-  it("loads warning.json and exposes the A18 placeholder (delete this test when A18 is resolved)", () => {
+  it("loads warning.json with the 27 CFR 16.21 text", () => {
     const cfg = getWarningConfig();
-    expect(cfg.canonicalText).toContain("__TODO_VERBATIM_TEXT_A18__");
+    expect(cfg.canonicalText.startsWith("GOVERNMENT WARNING: (1) According to the Surgeon General")).toBe(true);
+    expect(cfg.canonicalText).not.toContain("TODO");
     expect(cfg.headingText).toBe("GOVERNMENT WARNING:");
     expect(cfg.headingCapsRequired).toBe(true);
     expect(cfg.headingBoldEnforcement).toBe("best_effort");

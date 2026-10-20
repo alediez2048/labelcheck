@@ -183,7 +183,7 @@ describe("runVerification", () => {
 
     expect(result.lane).toBe("review");
     expect(result.extractionFailed).toBe(true);
-    expect(result.recommendation).toBe("return_unreadable_image");
+    expect(result.recommendation).toBe("retry_service_slow");
     expect(result.flags[0]?.toLowerCase()).toContain("could not verify");
   });
 });

@@ -19,15 +19,13 @@
  *
  * Why we inject a canonical warning config
  * ----------------------------------------
- * `config/warning.json` ships the `__TODO_VERBATIM_TEXT_A18__`
- * placeholder until A18 is resolved. Using it as-is would fail every
- * green case in the eval and the false-negative rate would be 0% for
- * the wrong reason ("every case is a real negative"). The runner
- * plumbs the canonical 27 CFR § 16.21 text through `runVerification`'s
- * `warningConfig` parameter so the eval measures pipeline correctness
- * against the real warning the production config will eventually carry.
- * The route handler doesn't pass this — production behaviour is
- * unchanged.
+ * `config/warning.json` runs the warning check in `presence_only` mode
+ * (see that file's README). The golden set is labelled against the
+ * STRICT rules, so the runner injects a strict config with the
+ * canonical 27 CFR § 16.21 text through `runVerification`'s
+ * `warningConfig` parameter. The eval therefore measures the full
+ * verbatim + ALL CAPS + bold check. The route handler doesn't pass
+ * this, so request-path behaviour is unchanged.
  */
 
 import sharp from "sharp";
@@ -62,8 +60,8 @@ export type RunOptions = {
    * Override the canonical warning text injected into the pipeline. When
    * undefined, the runner uses the 27 CFR § 16.21 canonical text above;
    * when explicitly `null`, no override is passed and the pipeline reads
-   * `config/warning.json` (which still ships the A18 placeholder — most
-   * cases will lane as `mismatch` for the wrong reason). The default is
+   * `config/warning.json` (presence-only, so warning-defect cases will
+   * not lane as `mismatch`). The default is
    * what callers want; `null` is for ticket-specific debugging.
    */
   warningConfig?: WarningConfig | null;

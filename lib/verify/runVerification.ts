@@ -83,9 +83,9 @@ export type RunVerificationInput = {
   /** Optional P5-1 hook — wires the verification span into the pipeline. */
   observability?: RunVerificationObservability;
   /**
-   * Optional warning-config override. P5-2: the eval harness threads a
-   * canonical-text config through so the A18 placeholder in
-   * `config/warning.json` doesn't fail every green case. The matching
+   * Optional warning-config override. The eval harness threads a strict
+   * canonical-text config through, so it measures the full warning check
+   * rather than the presence-only mode in `config/warning.json`. The matching
    * engine's `MatchApplicationInput.warningConfig` already accepts an
    * override; this just plumbs it through the pipeline entrypoint. The
    * route handler doesn't pass it, so request-path behaviour is unchanged.

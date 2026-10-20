@@ -14,7 +14,7 @@
  *     input).
  */
 
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   getMyRollup,
@@ -23,6 +23,20 @@ import {
 import { SEED_DISPOSITIONED_APPLICATIONS } from "@/lib/queue/fixtures";
 
 describe("getMyRollup", () => {
+  // The fixtures carry fixed dates, so pin "now" to the day after the
+  // latest seeded decision. Without this the month window drifts past
+  // the fixtures and every count reads 0.
+  beforeAll(() => {
+    const latest = Math.max(
+      ...SEED_DISPOSITIONED_APPLICATIONS.map((a) => Date.parse(a.disposition.decidedAt)),
+    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(latest + 24 * 60 * 60 * 1000);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   it("returns the agent's own dispositions only when called as agent", () => {
     const snapshot = getMyRollup(
       { range: "month" },

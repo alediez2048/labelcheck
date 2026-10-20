@@ -124,7 +124,7 @@ const CONFIG_KEY_TO_FIELD_NAME: Readonly<Record<string, FieldName>> = {
 /**
  * Inputs for the orchestrator. `tolerances` and `warningConfig` are
  * exposed so tests can supply fixed values rather than relying on
- * `config/warning.json`'s A18 placeholder. In production the route
+ * `config/warning.json`. In production the route
  * handler passes nothing and the orchestrator reads from `lib/config`.
  */
 export type MatchApplicationInput = {

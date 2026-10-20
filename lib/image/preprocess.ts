@@ -70,6 +70,21 @@ function resolveMaxEdge(): number {
 }
 
 /**
+ * True when the bytes start with a JPEG, PNG or WebP file signature.
+ * Used to tell "sharp could not run here" (pass the image through) from
+ * "this is not an image" (reject it).
+ */
+function hasImageSignature(bytes: Buffer): boolean {
+  if (bytes.length < 12) return false;
+  const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const png =
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  const webp =
+    bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  return jpeg || png || webp;
+}
+
+/**
  * Read input metadata up front so the logger has the pre-rotation
  * dimensions. Throws our clean error on corrupt bytes.
  */
@@ -86,7 +101,8 @@ async function readInputMetadata(bytes: Buffer) {
  * Preprocess one face image. Pure function — same input, same output.
  *
  * Throws `Error("Image could not be decoded")` (no stack trace, no path,
- * no bytes) on any decode failure. The layer above maps this to the
+ * no bytes) when the bytes are not a JPEG, PNG or WebP. A real image that
+ * sharp cannot process here is passed through unchanged (see below). The layer above maps this to the
  * FR-16 "needs a better image" review-lane outcome.
  */
 export async function preprocessImage(
@@ -128,6 +144,11 @@ export async function preprocessImage(
       throw new Error("Image could not be decoded");
     }
   } catch (err) {
+    // Bytes that are not an image at all fail here, whatever sharp did.
+    // Only a real image (by its file signature) is passed through.
+    if (!hasImageSignature(bytes)) {
+      throw new Error("Image could not be decoded");
+    }
     bypassReason = err instanceof Error ? err.message : String(err);
     outBuf = bytes;
     outMeta = { width: inputMeta.width, height: inputMeta.height };

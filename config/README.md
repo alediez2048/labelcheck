@@ -12,11 +12,14 @@ A compliance reviewer should be able to open any of these JSON files, change a v
 | `tolerances.json` | Per-field matching rules (fuzzy / exact / stated-equals-stated) and similarity thresholds | FR-8, FR-9, FR-10 |
 | `fields-by-type.json` | Required-field lists keyed by beverage type (wine / distilled_spirits / malt_beverage) | FR-3, A10 |
 
-## The verbatim warning text — A18 placeholder
+## The government warning
 
-`warning.json` currently carries the literal sentinel `__TODO_VERBATIM_TEXT_A18__` in `canonicalText`. This is the **gating regulatory item** (assumption A18). It is intentional: the agent that ran P0-4 was instructed **not** to paraphrase or invent the warning text because doing so silently is a regulatory hazard.
+`warning.json` carries the verbatim 27 CFR § 16.21 text and the heading rules. `enforcement` picks how strictly it is applied:
 
-Replace the placeholder only when the verbatim 27 CFR § 16.21 wording has been confirmed by a TTB stakeholder. A separate tiny ticket is the right home for that change. Until then, `grep -r __TODO_VERBATIM_TEXT_A18__` should return exactly the occurrence in `warning.json`.
+- `"strict"` (the default when the key is omitted): the warning must be present, match the canonical text word for word (whitespace normalised), carry an ALL CAPS `GOVERNMENT WARNING:` heading, and be bold. Uncertain bold goes to human review (D6).
+- `"presence_only"` (what ships): the warning only has to be on the label. A warning the model did not detect goes to the review lane rather than the mismatch lane.
+
+Presence-only ships because real, approved COLAs vary slightly from the canonical wording and casing, and the model often misses small back-label text, so strict mode put nearly every real application in the mismatch lane. The eval harness and the acceptance tests pin `strict`, so the full check stays measured and tested.
 
 ## ABV is stated-equals-stated (A19)
 

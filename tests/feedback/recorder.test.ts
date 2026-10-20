@@ -155,8 +155,8 @@ describe("recordDispositionForFeedbackLoop (P5-3)", () => {
     expect(row.effectiveLane).toBe("match");
   });
 
-  it("never writes the raw applicationId in plaintext", async () => {
-    const applicationId = "harbor-mist-vodka-NEVER-IN-PLAINTEXT";
+  it("builds the record id from the hash, keeping the raw id only in the prototype deep-link field", async () => {
+    const applicationId = "harbor-mist-vodka-raw-id";
     await recordDispositionForFeedbackLoop(
       {
         applicationId,
@@ -170,9 +170,14 @@ describe("recordDispositionForFeedbackLoop (P5-3)", () => {
       },
       { dataDir },
     );
+    const records = (await readAllRecords()) as Array<Record<string, unknown>>;
+    const row = records[0]!;
+    expect(String(row.id)).toMatch(/^sha256:/);
+    expect(String(row.id)).not.toContain(applicationId);
+    expect(row.applicationIdHash).toMatch(/^sha256:/);
+    expect(row.applicationId).toBe(applicationId);
+    // The raw id appears exactly once: the documented deep-link field.
     const raw = await readAllRaw();
-    expect(raw).not.toContain(applicationId);
-    // The hashed prefix is there.
-    expect(raw).toContain("sha256:");
+    expect(raw.split(applicationId).length - 1).toBe(1);
   });
 });

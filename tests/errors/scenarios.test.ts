@@ -228,7 +228,7 @@ describe("P3-3 — bad-input audit table", () => {
     const body = (await res.json()) as VerificationResult;
     expect(body.lane).toBe("review");
     expect(body.extractionFailed).toBe(true);
-    expect(body.recommendation).toBe("return_unreadable_image");
+    expect(body.recommendation).toBe("retry_service_slow");
     expect(body.flags[0]).toMatch(/could not verify/i);
     // D10 — exactly two attempts (initial + one retry).
     expect(failing).toHaveBeenCalledTimes(2);
@@ -261,7 +261,7 @@ describe("P3-3 — bad-input audit table", () => {
     const body = (await res.json()) as VerificationResult;
     expect(body.lane).toBe("review");
     expect(body.extractionFailed).toBe(true);
-    expect(body.recommendation).toBe("return_unreadable_image");
+    expect(body.recommendation).toBe("retry_service_slow");
     expect(body.flags[0]?.toLowerCase()).toContain("temporarily unavailable");
     expect(failing).toHaveBeenCalledTimes(2);
   });
@@ -293,7 +293,7 @@ describe("P3-3 — bad-input audit table", () => {
     const body = (await res.json()) as VerificationResult;
     expect(body.lane).toBe("review");
     expect(body.extractionFailed).toBe(true);
-    expect(body.recommendation).toBe("return_unreadable_image");
+    expect(body.recommendation).toBe("retry_service_slow");
     expect(body.flags[0]?.toLowerCase()).toContain("temporarily unavailable");
     expect(failing).toHaveBeenCalledTimes(2);
   });

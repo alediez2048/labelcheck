@@ -18,8 +18,7 @@ export const WarningConfigSchema = z
   .object({
     version: z.string(),
     /**
-     * The verbatim 27 CFR § 16.21 text. Currently a clearly-marked
-     * placeholder (`__TODO_VERBATIM_TEXT_A18__`) until A18 is resolved.
+     * The verbatim 27 CFR § 16.21 text.
      */
     canonicalText: z.string(),
     /** The heading the matcher looks for, e.g. "GOVERNMENT WARNING:". */
@@ -34,6 +33,16 @@ export const WarningConfigSchema = z
      * lane rather than auto-failing on a styling cue.
      */
     headingBoldEnforcement: z.enum(["strict", "best_effort"]),
+    /**
+     * How the matcher treats the warning text.
+     * - `"strict"` (default when omitted): presence + verbatim + ALL CAPS
+     *   heading + bold, exactly as FR-11 / FR-12 describe.
+     * - `"presence_only"`: the warning only has to be on the label. Real
+     *   approved COLAs vary slightly from the canonical wording, and a
+     *   warning the model could not see goes to human review instead of
+     *   failing outright.
+     */
+    enforcement: z.enum(["strict", "presence_only"]).optional(),
   })
   .strict();
 

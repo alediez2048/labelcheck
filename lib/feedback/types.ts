@@ -83,7 +83,9 @@ export type ConfirmationState =
  *
  * Privacy posture:
  *   - `applicationIdHash` is the salted-SHA-256 of the system applicant
- *     id (via `hashPii`). Never the raw id.
+ *     id (via `hashPii`), and it is what the record `id` is built from.
+ *     The raw id is also kept in `applicationId`, a prototype-only field
+ *     for deep links (see that field); production drops it.
  *   - `brand` is transcribed from the label (system data, like the
  *     fields the matcher already records). Kept verbatim, matching the
  *     eval report (P5-2). NOT applicant identity.

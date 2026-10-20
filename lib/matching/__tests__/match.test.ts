@@ -6,10 +6,8 @@
  * tracing AC numbers back to runtime tests.
  *
  * The warning matcher tests pass a fixed `WarningConfig` rather than
- * relying on `config/warning.json`'s A18 placeholder — `config/warning.json`
- * exists explicitly so that a "real" warning text comparison would
- * always fail (which is the placeholder's design). Tests should not
- * depend on that placeholder.
+ * relying on `config/warning.json`, so a config edit cannot change
+ * what these tests assert.
  */
 
 import { describe, expect, it } from "vitest";

@@ -13,7 +13,7 @@ What works: a vision model reads the label photo and returns schema-validated fi
 What is not done yet:
 
 - The reviewer assistant is a stub (`lib/assistant/generator.ts`); the app uses a mock.
-- The government warning text in `config/warning.json` is a deliberate placeholder until the exact 27 CFR 16.21 wording is confirmed (see `config/README.md`).
+- `config/warning.json` carries the 27 CFR 16.21 warning text. The deployed check is presence-only; the eval and acceptance tests run the strict verbatim + ALL CAPS + bold check (see `config/README.md`).
 - The CI eval gate runs a deterministic mock adapter over a 10-case golden set. It tests matching and triage logic, not model accuracy. `EVAL_PROVIDER=live pnpm eval` runs the same set against the real model.
 
 ## Run
@@ -39,7 +39,7 @@ CI runs `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm build`, and `pnpm t
 
 **`pnpm test:eval`** runs the offline eval described below.
 
-## Latency bench (P1-11)
+## Latency bench
 
 ```bash
 pnpm tsx scripts/bench-latency.ts                  # mock adapter (default)
@@ -47,11 +47,11 @@ ITERATIONS=100 pnpm tsx scripts/bench-latency.ts   # bigger sample
 PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm tsx scripts/bench-latency.ts
 ```
 
-Prints `p50 / p95 / max` for the extraction call and for the end-to-end pipeline, split by single-face vs multi-face. The p95 number is the headline (NFR-1 / AC-7 budget: 5s). The multi-face split is the measured answer to **assumption A12** (real-world latency of full-resolution multi-face calls). If the live-adapter multi-face p95 exceeds the budget, the bench prints `A12_FLAGGED` and the follow-up belongs in P3-4 (performance hardening).
+Prints `p50 / p95 / max` for the extraction call and for the end-to-end pipeline, split by single-face vs multi-face. The p95 number is the headline (budget: 5s). The multi-face split is the measured answer to **assumption A12** (real-world latency of full-resolution multi-face calls). If the live-adapter multi-face p95 exceeds the budget, the bench prints `A12_FLAGGED`.
 
 CI runs a reduced version of the bench (20 iterations against the mock) via `tests/latency.test.ts` so AC-7 is part of the build gate. The live-adapter measurement is opt-in — CI never asserts against the live model because the latency would be flaky.
 
-## Performance (P3-4)
+## Performance
 
 The 5-second p95 budget for single-application verification (NFR-1, AC-7)
 assumes a **warm host** — no scale-to-zero, minimum instance count ≥ 1.
@@ -87,7 +87,7 @@ single-app budget is never close to threatened. Live-adapter validation
 is a separate manual run with a real API key; the mock measurement is
 the structural smoke confirming the script + the cap interact correctly.
 
-## Tracing (P5-1)
+## Tracing
 
 Every verification request and every assistant turn emits an
 OpenTelemetry trace. The exporter is config-swappable via
@@ -98,8 +98,8 @@ OpenTelemetry trace. The exporter is config-swappable via
 - `file` — JSONL appended to `OTEL_FILE_PATH` (default
   `.data/traces/otel.jsonl`; the `.data/` directory is gitignored).
 - `otlp` — production seam. Posts to `OTEL_OTLP_ENDPOINT` via OTLP
-  HTTP. P6-6 swaps the in-boundary Langfuse or Phoenix host in
-  without touching call sites.
+  HTTP, so a self-hosted Langfuse or Phoenix collector can be
+  swapped in without touching call sites.
 
 `PII_HASH_SALT` is **required in production**. The dev prototype
 falls back to a fixed string with a console warning so local work
@@ -107,7 +107,7 @@ keeps moving. See `docs/PRIVACY-IN-TRACES.md` for the full redaction
 policy — what's hashed, what's verbatim, which keys are on the
 allow-list.
 
-## Eval (P5-2)
+## Eval
 
 ```bash
 pnpm eval                                          # mock adapter (default)
@@ -118,8 +118,8 @@ EVAL_PROVIDER=live ANTHROPIC_API_KEY=... pnpm eval # live adapter
 to end through the verification pipeline and writes a metrics report
 under `eval-reports/<ISO timestamp>/`:
 
-- `report.json` — structured metrics; P5-4 (model bake-off) and P5-5
-  (CI eval gate) read this.
+- `report.json` — structured metrics; the model bake-off and the CI eval
+  gate read this.
 - `report.md` — human summary; leads with the **false-negative rate
   on real mismatches** (observability.md's headline safety metric).
 
@@ -134,7 +134,7 @@ default and runs deterministically without an API key. No applicant
 PII enters the report — all values are enums, counts, ratios, and
 stable internal case ids (NFR-4).
 
-## Bake-off (P5-4)
+## Bake-off
 
 ```bash
 pnpm bakeoff                                                    # default: mock,anthropic,olmocr
@@ -142,7 +142,7 @@ pnpm bakeoff --providers=mock,anthropic,olmocr
 pnpm bakeoff --providers=mock,anthropic,azure-openai-gov,olmocr,glm-ocr,qwen-vl
 ```
 
-The bake-off runs the full P5-2 eval against the golden set once per
+The bake-off runs the full eval against the golden set once per
 provider, writes per-provider reports under
 `eval-reports/bakeoff-<ISO timestamp>/<providerId>/`, and produces a
 single `comparison.md` + `comparison.json` at the bake-off root.
@@ -176,8 +176,8 @@ excluded with the underlying error.
 LabelCheck/
 ├── app/                  Next.js App Router pages and API routes
 ├── lib/                  business logic — extraction, matching, triage (P1)
-├── config/               canonical warning text, tolerances, per-type fields (P0-4)
-├── types/                shared domain types — Application, Lane, Disposition (P0-2)
+├── config/               canonical warning text, tolerances, per-type fields
+├── types/                shared domain types — Application, Lane, Disposition
 ├── docs/                 design, build plan, 43 ticket files
 ├── tools/                data tools — cola-fetcher, cola-generator, cola-assembler
 └── data/                 sample COLAs (real + synthesized)
@@ -189,26 +189,26 @@ Copy `.env.example` to `.env` and fill in the values you need. `.env` is gitigno
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ACCESS_PASSCODE` | unset | Spend-shield passcode for the deployed app (P0-6). Unset for local dev — the access gate becomes a no-op. **Not authentication** — production uses PIV/CAC + SSO + RBAC + audit (NFR-8, P6-3). |
-| `ACCESS_COOKIE_SECRET` | unset | Server-side HMAC secret for signing the access cookie (P0-6). **Required when `ACCESS_PASSCODE` is set.** Use 32+ bytes of randomness. |
-| `PROVIDER` | `mock` | Vision provider adapter selector (P0-3). Supported values: `mock` (default), `anthropic` (Claude Sonnet 4.6, P1-2), `azure-openai-gov` (P5-4 / P6-1), `olmocr` (P5-4 / P6-1), `glm-ocr` (P5-4 bake-off — pending security review), `qwen-vl` (P5-4 bake-off — pending security review). |
-| `ANTHROPIC_API_KEY` | unset | Required when `PROVIDER=anthropic` (P1-2). The Anthropic provider throws at startup if the value is missing. |
-| `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Override the Claude model used by the Anthropic provider (P1-2). Useful for evals against a specific model snapshot during P5-4 bake-off. |
-| `AZURE_OPENAI_GOV_ENDPOINT` | unset | Azure OpenAI on Azure Government resource URL (e.g. `https://<resource>.openai.azure.us/`). Required for `PROVIDER=azure-openai-gov` (P5-4). |
-| `AZURE_OPENAI_GOV_API_KEY` | unset | Azure OpenAI on Azure Government resource key. Required for `PROVIDER=azure-openai-gov` (P5-4). |
-| `AZURE_OPENAI_GOV_DEPLOYMENT` | unset | Deployment name for the GPT-4o vision model on Azure Gov. Required for `PROVIDER=azure-openai-gov` (P5-4). |
-| `AZURE_OPENAI_GOV_API_VERSION` | `2024-08-01-preview` | API version pinned for the Azure Gov adapter (P5-4). |
-| `OLMOCR_ENDPOINT` | `http://localhost:8080` | Local olmOCR serving endpoint (P5-4). The adapter posts to `<endpoint>/extract`. |
+| `ACCESS_PASSCODE` | unset | Spend-shield passcode for the deployed app. Unset for local dev — the access gate becomes a no-op. **Not authentication** — production uses PIV/CAC + SSO + RBAC + audit (NFR-8). |
+| `ACCESS_COOKIE_SECRET` | unset | Server-side HMAC secret for signing the access cookie. **Required when `ACCESS_PASSCODE` is set.** Use 32+ bytes of randomness. |
+| `PROVIDER` | `mock` | Vision provider adapter selector. Supported values: `mock` (default), `anthropic` (Claude Sonnet 4.6), `azure-openai-gov`, `olmocr`, `glm-ocr` (bake-off, pending security review), `qwen-vl` (bake-off, pending security review). |
+| `ANTHROPIC_API_KEY` | unset | Required when `PROVIDER=anthropic`. The Anthropic provider throws at startup if the value is missing. |
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Override the Claude model used by the Anthropic provider. Useful for evals against a specific model snapshot during the bake-off. |
+| `AZURE_OPENAI_GOV_ENDPOINT` | unset | Azure OpenAI on Azure Government resource URL (e.g. `https://<resource>.openai.azure.us/`). Required for `PROVIDER=azure-openai-gov`. |
+| `AZURE_OPENAI_GOV_API_KEY` | unset | Azure OpenAI on Azure Government resource key. Required for `PROVIDER=azure-openai-gov`. |
+| `AZURE_OPENAI_GOV_DEPLOYMENT` | unset | Deployment name for the GPT-4o vision model on Azure Gov. Required for `PROVIDER=azure-openai-gov`. |
+| `AZURE_OPENAI_GOV_API_VERSION` | `2024-08-01-preview` | API version pinned for the Azure Gov adapter. |
+| `OLMOCR_ENDPOINT` | `http://localhost:8080` | Local olmOCR serving endpoint. The adapter posts to `<endpoint>/extract`. |
 | `GLM_OCR_ENDPOINT` | unset | Local GLM-OCR serving endpoint. **PENDING SECURITY REVIEW — Chinese-origin model; not approved for Treasury workloads without executive review** (techstack.md framing rule). |
 | `QWEN_VL_ENDPOINT` | unset | Local Qwen2.5-VL serving endpoint. **PENDING SECURITY REVIEW — Chinese-origin model; not approved for Treasury workloads without executive review** (techstack.md framing rule). |
-| `IMAGE_MAX_LONG_EDGE` | `1568` | Long-edge cap for image preprocessing (P0-5). Default is Claude's usable maximum (D7). **Do not set below 1568 without changing the provider** — the smallest text on the label (the government warning) becomes illegible and the warning check silently weakens. |
-| `OTEL_EXPORTER` | `console` | Trace + metric exporter (P5-1). Supported values: `console`, `file`, `otlp`. |
+| `IMAGE_MAX_LONG_EDGE` | `1568` | Long-edge cap for image preprocessing. Default is Claude's usable maximum (D7). **Do not set below 1568 without changing the provider** — the smallest text on the label (the government warning) becomes illegible and the warning check silently weakens. |
+| `OTEL_EXPORTER` | `console` | Trace + metric exporter. Supported values: `console`, `file`, `otlp`. |
 | `OTEL_FILE_PATH` | `.data/traces/otel.jsonl` | Output path when `OTEL_EXPORTER=file`. |
-| `OTEL_OTLP_ENDPOINT` | unset | OTLP HTTP endpoint when `OTEL_EXPORTER=otlp` (P6-6). |
-| `PII_HASH_SALT` | dev fallback | Salt for hashing PII in trace attributes (P5-1). **Required in production.** See `docs/PRIVACY-IN-TRACES.md`. |
-| `FEEDBACK_AGREEMENT_WINDOW` | `100` | Rolling-window size for the tool-vs-agent agreement rate (P5-3). The Operations widget surfaces this against the all-time number. |
-| `FEEDBACK_SAMPLER_RATIO` | `0.10` | Fraction of daily overrides sampled into the disagreement queue (P5-3). The sampler also enforces `FEEDBACK_SAMPLER_CAP_PER_DAY`. |
-| `FEEDBACK_SAMPLER_CAP_PER_DAY` | `25` | Hard cap on the size of a day's sampled disagreement queue (P5-3) — keeps the supervisor's review pile bounded even when override volume spikes. |
+| `OTEL_OTLP_ENDPOINT` | unset | OTLP HTTP endpoint when `OTEL_EXPORTER=otlp`. |
+| `PII_HASH_SALT` | dev fallback | Salt for hashing PII in trace attributes. **Required in production.** See `docs/PRIVACY-IN-TRACES.md`. |
+| `FEEDBACK_AGREEMENT_WINDOW` | `100` | Rolling-window size for the tool-vs-agent agreement rate. The Operations widget surfaces this against the all-time number. |
+| `FEEDBACK_SAMPLER_RATIO` | `0.10` | Fraction of daily overrides sampled into the disagreement queue. The sampler also enforces `FEEDBACK_SAMPLER_CAP_PER_DAY`. |
+| `FEEDBACK_SAMPLER_CAP_PER_DAY` | `25` | Hard cap on the size of a day's sampled disagreement queue — keeps the supervisor's review pile bounded even when override volume spikes. |
 
 ## Documentation
 

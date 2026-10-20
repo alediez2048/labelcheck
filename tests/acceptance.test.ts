@@ -29,10 +29,8 @@
  * `app/api/verify/__tests__/route.test.ts`.
  *
  * Warning text comes from a TEST_WARNING_CONFIG injected via vi.spyOn —
- * `config/warning.json` still ships the `__TODO_VERBATIM_TEXT_A18__`
- * placeholder, and using the placeholder would silently fail every
- * green pair. P1-10's job is to assert pipeline behaviour, not the
- * pending A18 text.
+ * `config/warning.json` runs in presence-only mode, while the golden set
+ * is labelled against the strict rules, so the tests pin a strict config.
  */
 
 import sharp from "sharp";

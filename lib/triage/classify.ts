@@ -48,24 +48,15 @@ export type ClassifyInput = {
 };
 
 /**
- * Lane-blocking fields — only these fields' verdicts decide the lane.
- * All other extracted fields (producer name, address, country of
- * origin, fanciful name, class type, net contents, government
- * warning) still appear in the per-field summary so the agent can
- * review them, but they do NOT push the lane from match to mismatch
+ * Lane-blocking fields: these fields' verdicts decide the lane. Other
+ * extracted fields (producer name, address, country of origin, fanciful
+ * name) still appear in the per-field summary but never move the lane
  * on their own.
  *
- * Demo posture: TTB labels routinely have warnings whose wording or
- * casing varies slightly from the canonical 27 CFR § 16.21 text,
- * which the strict verbatim+ALL-CAPS check trips even on real
- * approved COLAs. We surface that signal in the summary but keep
- * the lane decision on the two least-ambiguous checks:
- *   - brand_name      (FR-8 — tolerant of case/punctuation)
- *   - alcohol_content (FR-9 — stated-equals-stated)
- *
- * The warning matcher itself is also relaxed to presence-only (see
- * `lib/matching/warning.ts`), so the summary row reads "match" as
- * long as the warning is on the label.
+ * The government warning is handled by its own rule (step 2): a warning
+ * `mismatch` goes to the mismatch lane at any confidence, and a
+ * `low_confidence` warning goes to review. How strict the warning check
+ * is lives in `config/warning.json` (`enforcement`), not here.
  */
 const LANE_BLOCKING_FIELDS: ReadonlySet<string> = new Set([
   "brand_name",
@@ -73,6 +64,8 @@ const LANE_BLOCKING_FIELDS: ReadonlySet<string> = new Set([
   "class_type",
   "net_contents",
 ]);
+
+const WARNING_FIELD = "government_warning";
 
 export function classify(input: ClassifyInput): TriageResult {
   const threshold =
@@ -87,17 +80,19 @@ export function classify(input: ClassifyInput): TriageResult {
       r.confidence >= threshold,
   );
 
-  // 2. Government warning is no longer a lane-blocking field for the
-  //    demo (see LANE_BLOCKING_FIELDS rationale). Strict verbatim
-  //    checks trip on real approved COLAs that paraphrase the warning;
-  //    the summary row still surfaces the verdict so reviewers can see
-  //    it. Lane decision rests on blocking fields only.
+  // 2. A government warning mismatch blocks at ANY confidence (D6).
+  const warningFailures = fieldResults.filter(
+    (r) => r.field === WARNING_FIELD && r.verdict === "mismatch",
+  );
 
-  if (confidentMismatches.length > 0) {
+  if (warningFailures.length > 0 || confidentMismatches.length > 0) {
     return {
       lane: "mismatch",
       overallConfidence: minConfidence(fieldResults),
-      reasons: dedupe(confidentMismatches.map((r) => r.reason)),
+      // Warning reasons first: it is the highest-stakes check.
+      reasons: dedupe(
+        [...warningFailures, ...confidentMismatches].map((r) => r.reason),
+      ),
     };
   }
 
@@ -117,6 +112,7 @@ export function classify(input: ClassifyInput): TriageResult {
   //    — restricted to BLOCKING FIELDS so a missing producer address
   //    on the label doesn't push the lane to review.
   const reviewTriggers = fieldResults.filter((r) => {
+    if (r.field === WARNING_FIELD) return r.verdict === "low_confidence";
     if (!LANE_BLOCKING_FIELDS.has(r.field)) return false;
     if (r.verdict === "not_found") return true;
     if (r.verdict === "low_confidence") return true;
