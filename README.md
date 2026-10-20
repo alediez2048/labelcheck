@@ -6,7 +6,15 @@ Compares a typed application form against a photographed product label, classifi
 
 ## Status
 
-Phase 0 scaffold (P0-1). The verification flow itself is built in Phase 1 (P1-1 through P1-11). See `docs/00-build/PRD.md` for the full plan.
+Working prototype, not deployed.
+
+What works: a vision model reads the label photo and returns schema-validated fields (Anthropic by default, with retry and provider failover), deterministic rules match those fields against the application, and a triage step sorts each case into match, mismatch or review. There is a reviewer queue UI, tracing with PII redaction, an offline eval harness and a CI eval gate.
+
+What is not done yet:
+
+- The reviewer assistant is a stub (`lib/assistant/generator.ts`); the app uses a mock.
+- The government warning text in `config/warning.json` is a deliberate placeholder until the exact 27 CFR 16.21 wording is confirmed (see `config/README.md`).
+- The CI eval gate runs a deterministic mock adapter over a 10-case golden set. It tests matching and triage logic, not model accuracy. `EVAL_PROVIDER=live pnpm eval` runs the same set against the real model.
 
 ## Run
 
@@ -18,7 +26,7 @@ pnpm lint       # ESLint with strict no-any
 pnpm test       # Vitest one-shot
 pnpm test:watch # Vitest watch mode
 pnpm test:ui    # Vitest browser UI
-pnpm test:eval  # offline eval harness (placeholder; P5-2 fills it)
+pnpm test:eval  # offline eval against the golden set (same as pnpm eval)
 ```
 
 ## Testing
@@ -29,7 +37,7 @@ CI runs `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm build`, and `pnpm t
 
 **No applicant PII in fixtures (NFR-4, AC-10).** All test images must be either synthetic (generated programmatically with `sharp.create` like the image preprocessor tests) or sourced from the Public COLA Registry (assumption A24). Never commit a real, unapproved label photo.
 
-**`pnpm test:eval`** is a hook reserved for the offline eval harness implemented by P5-2 (`docs/00-build/tickets/P5-2-offline-eval-harness.md`). It runs the verification path against the golden set (real green pairs + synthesized defects) and reports per-field precision/recall, lane accuracy, false-negative rate, warning-check accuracy, and confidence calibration per observability.md. Today it prints a placeholder and exits 0; P5-2 fills it in.
+**`pnpm test:eval`** runs the offline eval described below.
 
 ## Latency bench (P1-11)
 
@@ -209,5 +217,4 @@ Read in this order:
 1. `docs/01-product/business.md` — the why
 2. `docs/01-product/constraints.md` — the boundaries
 3. `docs/02-design/CONTEXT.md` — the glossary
-4. `docs/00-build/PRD.md` — the build plan
-5. `docs/00-build/tickets/` — 43 per-ticket primers
+4. `docs/02-design/systemsdesign.md` — architecture and design decisions

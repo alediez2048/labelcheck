@@ -9,16 +9,14 @@ This directory holds the full design and build documentation, organized into fiv
 1. **Start here.** Skim this index, then read `01-product/business.md` for the why and `01-product/constraints.md` for the boundaries.
 2. **Get the language.** `02-design/CONTEXT.md` is the glossary — every other doc speaks it.
 3. **Understand the shape.** `02-design/systemsdesign.md` for architecture and the D1–D16 decisions; `02-design/flowchart.md` for process diagrams.
-4. **Find what to build.** `00-build/PRD.md` is the authoritative build plan; `00-build/TICKETS.md` is the per-ticket backlog.
 
 ## Categories
 
-### `00-build/` — what we're building and how to ship it
+### `00-build/` — hosting and intake notes
 | File | Role |
 |---|---|
-| [PRD.md](00-build/PRD.md) | Authoritative build plan: phases P0–P6, success metrics, cross-cutting requirements, risks |
-| [TICKETS.md](00-build/TICKETS.md) | 43-ticket backlog with deps, branches, estimates, acceptance criteria |
-| [TICKET-TEMPLATE.md](00-build/TICKET-TEMPLATE.md) | Fill-in kickstart primer for spinning up a fresh agent session per ticket |
+| [HOSTING.md](00-build/HOSTING.md) | Hosting and deployment notes |
+| [UPLOAD-INTAKE-TRAPS.md](00-build/UPLOAD-INTAKE-TRAPS.md) | Edge cases in label upload intake |
 
 ### `01-product/` — the why, the what, the constraints
 | File | Role |

@@ -58,3 +58,7 @@ eval-reports/
 # moves the corpus into the governed datastore.
 eval-data/
 .vercel
+
+# Local AI tooling
+.cursor/
+.claude/

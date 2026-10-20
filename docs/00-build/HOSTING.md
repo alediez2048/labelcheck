@@ -54,7 +54,6 @@ request returns at normal latency, not a cold-start spike.
 
 ## References
 
-- `docs/00-build/tickets/P3-4-performance-hardening.md` — this ticket.
 - `app/api/health/route.ts` — the health-check endpoint.
 - `scripts/load.ts` — the concurrent + batch-burst load script.
 - `docs/02-design/systemsdesign.md` — Meeting the Latency Budget.
