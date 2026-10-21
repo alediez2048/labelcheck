@@ -1,5 +1,5 @@
 /**
- * The ONLY tool the read-only assistant can call (FR-30, D16).
+ * The ONLY tool the read-only assistant can call.
  *
  * Returns a small JSON snapshot of the caller's role-scoped numbers:
  *   - Agent caller → that agent's own dispositions only (scope: self).
@@ -17,7 +17,7 @@
  * swaps in a `metric_rollup` read from the DB; the signature does
  * not change.
  *
- * Prototype seam (mirrors P2-6's analytics layer): the production
+ * Prototype seam (mirrors 's analytics layer): the production
  * read is `SELECT * FROM metric_rollup WHERE agent_id = :callerId`
  * for an Agent and `WHERE agent_id IS NULL` for an Admin. The
  * prototype computes the same shape on the fly because there is no

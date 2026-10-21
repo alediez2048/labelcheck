@@ -1,5 +1,5 @@
 /**
- * Latency distribution (P5-2; observability.md "Latency distribution";
+ * Latency distribution (observability.md "Latency distribution";
  * NFR-1; A12).
  *
  * Reports p50 / p95 / p99 / max from the measured per-case durations

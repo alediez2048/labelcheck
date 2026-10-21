@@ -1,5 +1,5 @@
 /**
- * P5-3 — effective-lane derivation (`lib/feedback/effectiveLane.ts`).
+ * effective-lane derivation (`lib/feedback/effectiveLane.ts`).
  *
  * Covers the FR-26b unreadable path and the structured-reason failure
  * path so a refactor can't silently weaken the override detection

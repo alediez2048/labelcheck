@@ -1,9 +1,9 @@
 /**
- * VolumeTrend — N-week column-bar chart (P2-6, mockup.md Analytics).
+ * VolumeTrend — N-week column-bar chart (mockup.md Analytics).
  *
  * Hand-rolled CSS-grid bars (zero dep) with the count rendered above
  * each bar so the numeric value never depends on bar height alone
- * (NFR-2; AC-9). A title prop lets My Stats reuse the same component
+ *. A title prop lets My Stats reuse the same component
  * with a different heading.
  */
 

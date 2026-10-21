@@ -1,5 +1,5 @@
 /**
- * Specialization-aware selection strategy (P2-4, D15, FR-28).
+ * Specialization-aware selection strategy.
  *
  * Two-step pick:
  *   1. Specialist match — the highest-priority pool item whose
@@ -12,7 +12,7 @@
  * before review lane, then `receivedAt` ASC. The match lane is
  * defensively skipped — the pool already excludes it upstream
  * (`claim.ts`), but the strategy refuses to return one even if the
- * caller is wrong (D11, D15).
+ * caller is wrong.
  *
  * Why overflow lives here, not in the caller: D15 forbids hard
  * specialty partitions because a thin specialty (e.g., one malt

@@ -1,5 +1,5 @@
 /**
- * Agent route-group layout (P2-5, D16; FR-29).
+ * Agent route-group layout.
  *
  * Wraps every `/queue`, `/queue/[id]`, `/stats`, and `/profile` route
  * in the `AgentShell`. Also acts as the route-layer half of the agent

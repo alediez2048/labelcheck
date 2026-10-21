@@ -1,5 +1,5 @@
 /**
- * P5-5 — CI eval gate: regression comparator.
+ * CI eval gate: regression comparator.
  *
  * Given a current `EvalReport` and an `EvalBaseline`, decide whether the
  * run passes the gate. The headline metric (false-negative rate) is a

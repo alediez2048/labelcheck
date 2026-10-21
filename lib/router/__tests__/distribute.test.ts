@@ -1,8 +1,8 @@
 /**
- * `distribute` tests (P2-3).
+ * `distribute` tests.
  *
  * One pass across `available` agents drains the pool to capacity;
- * `applied: true` discriminates from the P2-2 stub. Match-lane rows
+ * `applied: true` discriminates from the stub. Match-lane rows
  * are never touched; OOO agents are skipped; the summary counts are
  * exact.
  */

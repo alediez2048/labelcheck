@@ -1,5 +1,5 @@
 /**
- * `setSpecialization` tests (P2-4, D16, FR-28).
+ * `setSpecialization` tests.
  *
  * Admin-only gate, mutation semantics, audit-event metadata, and the
  * invariant that currently-claimed items are NOT touched.

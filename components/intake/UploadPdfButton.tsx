@@ -1,6 +1,6 @@
 /**
  * UploadPdfButton — drag-and-drop / file-picker intake for live TTB
- * COLA PDFs (P5-8). The headline demo control on Operations.
+ * COLA PDFs. The headline demo control on Operations.
  *
  * For each selected PDF, in the BROWSER:
  *   1. Extract page-1 text via pdfjs-dist → regex form fields.

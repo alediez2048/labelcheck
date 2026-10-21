@@ -2,7 +2,7 @@
  * Access gate entry page.
  *
  * SPEND SHIELD, not authentication. The page itself says so out loud.
- * Production identity is P6-3 (PIV/CAC + SSO inside the FedRAMP boundary).
+ * Production identity is PIV/CAC + SSO inside the FedRAMP boundary.
  */
 
 export const dynamic = "force-dynamic";

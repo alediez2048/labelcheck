@@ -1,5 +1,5 @@
 /**
- * POST /api/assistant/turn — one chat turn (P4-2).
+ * POST /api/assistant/turn — one chat turn.
  *
  * Resolves the caller server-side (NEVER from the request body's role
  * field — observability.md role-scope isolation, FR-30, D16), calls
@@ -8,7 +8,7 @@
  * Prototype seam — caller identity: the route reads `activeAgentId`
  * from the body and looks the agent up in `SEED_AGENTS` to derive
  * the role. Production replaces this with a real session resolution
- * (PIV/CAC + SSO cookie or signed JWT, P6-3) — the body field
+ * (PIV/CAC + SSO cookie or signed JWT) — the body field
  * disappears entirely and the route reads the caller from the
  * request context. The lookup-then-trust pattern here keeps the
  * route's downstream contract identical between prototype and
@@ -61,7 +61,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: UNKNOWN_AGENT }, { status: 400 });
   }
 
-  // P5-1: wrap the turn in `withAssistantSpan`. The latest user
+  // wrap the turn in `withAssistantSpan`. The latest user
   // message is hashed (not stored verbatim) before it touches the
   // span; the orchestrator fills the rest of the attributes via the
   // observability hook as the turn unfolds.

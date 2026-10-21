@@ -1,12 +1,12 @@
 /**
  * Extraction service — the seam between a validated Application and the
- * vision provider (D14). One call per Application carrying all faces;
+ * vision provider. One call per Application carrying all faces;
  * the model returns transcribed text and warning structural flags only
- * (D4). Matching, confidence, and triage live in code (D5).
+ *. Matching, confidence, and triage live in code.
  *
- * P1-7 (Result API) calls `extract()` from the verify route handler
+ * (Result API) calls `extract` from the verify route handler
  * after preprocessing each face through `lib/image/preprocess`. The
- * matching engine (P1-3) consumes the result.
+ * matching engine consumes the result.
  */
 
 import { preprocessImage, type ImageMime } from "@/lib/image";
@@ -31,11 +31,11 @@ import { getRequiredFields } from "@/lib/config";
 import type { BeverageType, FaceKind, FieldName } from "@/types";
 
 /**
- * D10 numbers, in one place. Tuning knobs live here so a future P5-2
- * calibration sweep (or a provider swap in P6-1) doesn't have to chase
+ * D10 numbers, in one place. Tuning knobs live here so a future
+ * calibration sweep (or a provider swap) doesn't have to chase
  * literals scattered across the codebase. The per-attempt timeout is a
  * degradation knob, not a hard kill — p95-under-5s is the goal the route
- * is measured against (NFR-1), not the per-call cutoff.
+ * is measured against, not the per-call cutoff.
  *
  * 20s was 8s. PDFs with multi-image label pages (e.g. BARENJAGER —
  * page 2 carries three embedded JPEGs totalling ~380k px²) routinely
@@ -50,9 +50,9 @@ const PROVIDER_RETRY_BACKOFF_MS = 250;
 /**
  * Server-side view of an Application — the same shape as `Application`
  * from `types/domain.ts` but with face IMAGE BYTES instead of the
- * client-side `imageRef` handle. The verify route handler (P1-7)
+ * client-side `imageRef` handle. The verify route handler
  * constructs this from the multipart submission before calling
- * `extract()`.
+ * `extract`.
  *
  * Lives in the extraction module so callers don't import a server-only
  * shape from the public domain types module — keeping the "Application
@@ -93,8 +93,8 @@ const CONFIG_KEY_TO_FIELD_NAME: Readonly<Record<string, FieldName>> = {
  * Reads `getRequiredFields(beverageType)` from `lib/config` and maps
  * each key to its snake_case `FieldName` equivalent. Always appends
  * `government_warning` because the warning is checked across every
- * Application regardless of beverage type (D6, FR-11) — even though
- * the config does include it explicitly, the `add()` is idempotent.
+ * Application regardless of beverage type — even though
+ * the config does include it explicitly, the `add` is idempotent.
  */
 function fieldSchemaFor(beverageType: BeverageType): ReadonlyArray<FieldName> {
   const required = getRequiredFields(beverageType);
@@ -113,24 +113,24 @@ function fieldSchemaFor(beverageType: BeverageType): ReadonlyArray<FieldName> {
  * The preprocessing loop is concurrent across faces (Promise.all) — image
  * preprocessing is independent per face and sharp releases the GIL
  * effectively. The provider call itself is exactly ONE round trip
- * carrying all faces (D14).
+ * carrying all faces.
  *
  * After the first-pass response returns, the service inspects each face's
  * `warning.legibility`. When a face has `warning.presence === true` AND
  * `warning.legibility === "low"`, the service kicks off at most ONE
- * targeted re-read of the warning region (P3-2 / D7). The re-read uses
+ * targeted re-read of the warning region. The re-read uses
  * the SAME preprocessed bytes the first pass saw — we hold the buffer
  * map next to the response rather than bleeding bytes through the
  * `ExtractionResponse` shape (the response is what the route handler
  * logs / hashes; carrying buffers through it risks accidental
- * logging per NFR-4). One re-read per application, no retry, shorter
+ * logging). One re-read per application, no retry, shorter
  * timeout — see `rereadWarning.ts`.
  */
 export async function extract(
   application: ExtractableApplication,
 ): Promise<ExtractionResponse> {
   // 1. Preprocess every face concurrently. Each face's bytes pass through
-  //    EXIF normalisation + long-edge cap (D7).
+  //    EXIF normalisation + long-edge cap.
   const preprocessedFaces: ProviderFaceInput[] = await Promise.all(
     application.faces.map(async (face) => {
       const result = await preprocessImage(face.bytes, face.mime);
@@ -145,7 +145,7 @@ export async function extract(
   // Side-table of preprocessed bytes keyed by FaceKind so the re-read
   // step can crop from the exact bytes the model saw on the first pass.
   // Stays scoped to this function so the bytes never escape the request
-  // lifecycle (NFR-4).
+  // lifecycle.
   const preprocessedByKind = new Map<FaceKind, ProviderFaceInput>();
   for (const f of preprocessedFaces) {
     preprocessedByKind.set(f.kind, f);
@@ -160,20 +160,20 @@ export async function extract(
     fieldSchema,
   };
 
-  // 3. One provider round trip (D14), wrapped in the timeout + retry
+  // 3. One provider round trip, wrapped in the timeout + retry
   //    budget from D10. A terminal timeout returns a degraded
   //    ExtractionResponse rather than throwing — the route handler in
-  //    P1-7 surfaces it as the "could not verify in time" review-lane
+  //    Surfaces it as the "could not verify in time" review-lane
   //    result. Non-transient errors (validation, programming bugs)
   //    propagate so the caller can surface a real error.
   //
-  //    Model-call duration is logged on every request (NFR-1 / P1-11)
+  //    Model-call duration is logged on every request
   //    so observability has a per-request signal feeding the p95
   //    headline (observability.md: What We Instrument). PII (the
   //    applicationId IS the application's internal id, not an
-  //    applicant identifier) stays out of the log values per NFR-4.
+  //    applicant identifier) stays out of the log values.
   //
-  //    P5-1: wrap the provider round-trip in an `extraction.call`
+  //    wrap the provider round-trip in an `extraction.call`
   //    child span so model-call latency is captured separately from
   //    the end-to-end pipeline cost (the observability.md "model-call
   //    latency captured separately" requirement). The active-span
@@ -209,7 +209,7 @@ export async function extract(
   } catch (err) {
     if (err instanceof TimeoutError) {
       outcome = "timeout";
-      // P3-3: alongside the legacy `degraded` enum, attach the structured
+      // alongside the legacy `degraded` enum, attach the structured
       // error so the route handler can route through `toDegradedResult`
       // without re-classifying the cause.
       firstPass = {
@@ -255,11 +255,11 @@ export async function extract(
     );
   }
 
-  // 4. Post-first-pass targeted re-read (P3-2 / D7). Degraded responses
+  // 4. Post-first-pass targeted re-read. Degraded responses
   //    skip this entirely — there are no faces to inspect. Otherwise
   //    pick the first face whose warning is present AND reported low
   //    legibility; that's the slice worth a second look. The decision
-  //    lives in code (D4 + D5); the legibility flag is the model's
+  //    lives in code; the legibility flag is the model's
   //    signal but the rule is ours.
   if (firstPass && !firstPass.degraded && firstPass.faces.length > 0 && finalProvider) {
     return maybeRereadWarning({
@@ -281,9 +281,9 @@ export async function extract(
 
 /**
  * Inspect the first-pass response for a low-legibility warning face and,
- * if found, kick off the bounded targeted re-read (P3-2). One re-read
+ * if found, kick off the bounded targeted re-read. One re-read
  * per application — picks the first qualifying face. The warning is one
- * field (D12), so one rescue attempt is enough.
+ * field, so one rescue attempt is enough.
  */
 async function maybeRereadWarning(opts: {
   provider: VisionProvider;
@@ -308,7 +308,7 @@ async function maybeRereadWarning(opts: {
     // The face appeared in the response but not in our preprocessed
     // map — shouldn't happen, but if it does we have nothing to crop.
     // Keep the first-pass result; the triage classifier handles the
-    // low-legibility warning per FR-16.
+    // low-legibility warning.
     return firstPass;
   }
 
@@ -320,14 +320,14 @@ async function maybeRereadWarning(opts: {
     faceMime: sourceBytes.mime,
     sourceFace: target.kind,
     // Region hint is not surfaced through the current response shape
-    // (D4 keeps the wire payload minimal). When a future ticket adds a
+    // (keeps the wire payload minimal). When a future ticket adds a
     // per-warning bounding box to the FaceExtraction, plumb it through
     // here. Today the crop falls back to the back-face bottom 40%.
     regionHint: undefined,
   });
   const rereadMs = Math.round(performance.now() - rereadStart);
 
-  // Structured log — PII-redacted per NFR-4. No transcribed text in
+  // Structured log — PII-redacted. No transcribed text in
   // the log values; the legibility-before / legibility-after pair is
   // what observability needs to measure how often the re-read rescues.
   // eslint-disable-next-line no-console
@@ -353,7 +353,7 @@ async function maybeRereadWarning(opts: {
     reread.legibility === "good" &&
     reread.warningText.length > 0;
   if (!shouldMerge) {
-    // P3-4: surface the fact that a re-read was attempted so the
+    // surface the fact that a re-read was attempted so the
     // `verify.timing` structured log can report `rereadTriggered: true`
     // even on the no-merge branch (a "tried but couldn't rescue" is
     // observability-worthy too).

@@ -1,9 +1,9 @@
 /**
- * ThroughputByAgent — per-agent processed-count chart (P2-6, mockup.md
+ * ThroughputByAgent — per-agent processed-count chart (mockup.md
  * Analytics).
  *
  * Horizontal bars labeled by agent name with the count to the right.
- * Bar is decorative; count is the load-bearing number (NFR-2; AC-9).
+ * Bar is decorative; count is the load-bearing number.
  */
 
 import React from "react";

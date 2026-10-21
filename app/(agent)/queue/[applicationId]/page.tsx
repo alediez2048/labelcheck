@@ -1,6 +1,6 @@
 /**
  * /queue/[applicationId] — Review detail inside the queue context
- * (P2-1; reuses the P1-8 review components).
+ * (reuses the review components).
  *
  * Loads the application's VerificationResult from the queue store
  * (no fresh extraction; the queue holds precomputed results per
@@ -46,7 +46,7 @@ type ViewState =
  * precomputed VerificationResult). Reconstruct a minimal SampleForm
  * shape from the field results so the AsSubmittedView can render
  * something meaningful. Production loads the real form values from
- * the schema's `application.form_fields` JSONB column (P6-2).
+ * the schema's `application.form_fields` JSONB column.
  */
 function reconstructFormFromFields(fields: ReadonlyArray<{ field: string; formValue: string }>): SampleForm {
   const get = (name: string): string =>

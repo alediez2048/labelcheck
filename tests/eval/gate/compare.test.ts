@@ -1,5 +1,5 @@
 /**
- * P5-5 — CI eval gate: unit tests for the regression comparator.
+ * CI eval gate: unit tests for the regression comparator.
  *
  * Each test plants a single, named regression (or improvement) and
  * asserts the comparator's pass / fail decision and the metric it

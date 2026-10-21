@@ -1,5 +1,5 @@
 /**
- * /verify/result — the agent review surface (FR-14, FR-15, FR-21, FR-26).
+ * /verify/result — the agent review surface.
  *
  * Client component because it reads the just-completed verification from
  * sessionStorage (the input page writes both the VerificationResult and
@@ -9,7 +9,7 @@
  *
  * On a disposition the page records the decision in session state (no
  * persistence), clears the stored result, and auto-advances back to
- * /verify. In P2-1 that auto-advance becomes "next in queue"; the seam
+ * /verify. Later that auto-advance becomes "next in queue"; the seam
  * is the same.
  */
 

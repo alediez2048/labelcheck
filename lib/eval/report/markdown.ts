@@ -1,5 +1,5 @@
 /**
- * Markdown report writer (P5-2).
+ * Markdown report writer.
  *
  * Layout, in order:
  *   1. Headline: false-negative rate on real mismatches.

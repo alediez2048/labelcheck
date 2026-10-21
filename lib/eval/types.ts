@@ -1,9 +1,9 @@
 /**
- * Offline eval harness — types (P5-2).
+ * Offline eval harness — types.
  *
  * One source of truth for the shapes the harness produces. Imported by
  * the runner (`runner.ts`), each metric function under `metrics/`, and
- * the report builders (`report/`). P5-4 (model bake-off) and P5-5 (CI
+ * the report builders (`report/`). (model bake-off) and (CI
  * gate) read the same `EvalReport` shape so this file is part of the
  * stable surface — extend in additive ways.
  *
@@ -186,7 +186,7 @@ export type EvalReport = {
    * Dataset / provider tag for the report. `mock` and `live` flag a
    * golden-set run on the mock or live vision provider; `corrections`
    * flags an `eval --dataset=corrections` run over the accumulated
-   * agent-correction corpus (P5-3).
+   * agent-correction corpus.
    */
   provider: "mock" | "live" | "corrections";
   caseCount: number;

@@ -1,5 +1,5 @@
 /**
- * Government warning check accuracy (P5-2; observability.md
+ * Government warning check accuracy (observability.md
  * "Government-warning check accuracy", FR-11/FR-12).
  *
  * Reports three sub-numbers — presence, verbatim, ALL CAPS — over the

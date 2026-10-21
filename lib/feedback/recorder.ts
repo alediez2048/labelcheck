@@ -1,5 +1,5 @@
 /**
- * Feedback recorder (P5-3).
+ * Feedback recorder.
  *
  * The entrypoint the POST `/api/feedback/record` route calls. Wraps
  * three pure decisions and one file write in a single async function:

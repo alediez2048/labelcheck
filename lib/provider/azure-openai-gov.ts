@@ -1,5 +1,5 @@
 /**
- * Azure OpenAI vision adapter — recommended production path (P5-4, P6-1).
+ * Azure OpenAI vision adapter — recommended production path.
  *
  * Target: GPT-4o family deployment on **Azure OpenAI in Azure Government**
  * (FedRAMP High, US vendor, no external endpoint). This is the recommended
@@ -24,9 +24,9 @@
  * provisioned" message and the bake-off marks this candidate as `not-run`
  * in the comparison report. The adapter is implemented end-to-end against
  * the `openai` SDK's Azure client; a configured Azure Gov deployment will
- * run through it. The serving prompt is the same one P1-2 uses
+ * run through it. The serving prompt is the same one uses
  * (`lib/extraction/prompt`), reusing the shared response shape — same
- * adapter surface for every candidate (D8) is the whole point of the
+ * adapter surface for every candidate is the whole point of the
  * bake-off.
  */
 
@@ -160,7 +160,7 @@ export class AzureOpenAIGovVisionProvider implements VisionProvider {
   }
 
   /**
-   * The targeted warning re-read (P3-2) is mock-only today; the live
+   * The targeted warning re-read is mock-only today; the live
    * Anthropic adapter rejects, and so does this one. A real call lands
    * when the live provider is exercised against a real cost budget.
    */

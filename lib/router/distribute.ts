@@ -1,13 +1,13 @@
 /**
- * Distribute the shared pool across available agents (P2-3 + P2-4).
+ * Distribute the shared pool across available agents.
  *
  * One pass through the available-agent list: each `available` agent
  * with `role === "agent"` gets one claim attempt; the loop stops when
  * the pool is empty or no remaining agent can claim. The default
- * strategy is `selectBySpecialization` (P2-4), so the per-pass split
+ * strategy is `selectBySpecialization`, so the per-pass split
  * between specialist matches and overflow lives in the summary.
  *
- * `applied: true` discriminates this real run from the P2-2 stub's
+ * `applied: true` discriminates this real run from the stub's
  * `applied: false`; the Operations view uses it to swap the toast copy
  * between "router queued" and "router applied N".
  *

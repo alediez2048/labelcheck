@@ -1,5 +1,5 @@
 /**
- * Client-side form-field parser for TTB COLA PDFs (P5-8).
+ * Client-side form-field parser for TTB COLA PDFs.
  *
  * Tuned against real TTB F 5100.31 COLAs from the Public COLA
  * Registry. The form is all-caps with numbered sections; values

@@ -1,5 +1,5 @@
 /**
- * Analytics value-types (P2-6).
+ * Analytics value-types.
  *
  * The shapes the division dashboard, the per-agent My Stats slice, and
  * the Team table read against. Production replaces the in-memory
@@ -18,7 +18,7 @@ import type { FieldName } from "@/types";
  *
  * `week` looks at the last 7 days; `month` looks at the last 30 days.
  * The selector `bucketsForRange` (in `metrics.ts`) owns the date math
- * so consumers never reach for `new Date()` directly.
+ * so consumers never reach for `new Date` directly.
  */
 export type AnalyticsRange = "week" | "month";
 
@@ -76,7 +76,7 @@ export type TriageBreakdown = {
  *
  * `field` is the wire-format `FieldName` so production can join straight
  * to `field_result.field_name`; `label` is the friendly UI string the
- * component renders so colour isn't the sole channel (NFR-2; AC-9).
+ * component renders so colour isn't the sole channel.
  */
 export type MismatchReason = {
   field: FieldName;
@@ -100,7 +100,7 @@ export type AgentThroughput = {
  * One row on the My Stats "recent decisions" list (mockup.md My Stats).
  *
  * `lane` is the AI's call at intake; `disposition` is the agent's
- * decision. Kept distinct (D11, CONTEXT.md Lane vs Disposition).
+ * decision. Kept distinct (CONTEXT.md Lane vs Disposition).
  */
 export type RecentDecision = {
   applicationId: string;

@@ -1,5 +1,5 @@
 /**
- * P5-3 — recorder + corpus round-trip (`lib/feedback/recorder.ts`).
+ * recorder + corpus round-trip (`lib/feedback/recorder.ts`).
  *
  * Hermetic file-backed tests using a tmpdir per `it`. Asserts the
  * three classification paths (agreement / flag / clear) AND the

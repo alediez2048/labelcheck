@@ -1,5 +1,5 @@
 /**
- * Alcohol content matching — stated-equals-stated (FR-9, A19).
+ * Alcohol content matching — stated-equals-stated.
  *
  * Both sides are normalised via `parseAbvPercent`, then compared as
  * numbers. TTB's real ABV tolerance tables vary by beverage type and

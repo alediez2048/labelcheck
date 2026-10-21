@@ -1,5 +1,5 @@
 /**
- * GET /api/feedback/agreement — tool-vs-agent agreement snapshot (P5-3).
+ * GET /api/feedback/agreement — tool-vs-agent agreement snapshot.
  *
  * Reads the full corpus, computes the rolling window + all-time +
  * per-beverage-type breakdown, returns the snapshot. Consumed by the

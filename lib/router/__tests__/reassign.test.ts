@@ -1,5 +1,5 @@
 /**
- * `reassign` tests (P2-3).
+ * `reassign` tests.
  *
  * Admin-only gate, `from` validation, return-to-pool clears
  * `claimedAt`, audit-event metadata captures the from/to pair.

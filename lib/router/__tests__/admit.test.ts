@@ -1,5 +1,5 @@
 /**
- * `admitToPool` tests (P2-3).
+ * `admitToPool` tests.
  *
  * Match-lane rejection, idempotence on already-pooled exceptions, and
  * clearing a prior claim (which writes an "override" audit event).

@@ -1,5 +1,5 @@
 /**
- * Typed span helpers (P5-1).
+ * Typed span helpers.
  *
  * Call sites in the verification pipeline and the assistant turn use
  * these helpers instead of touching the raw OTel API. The helpers
@@ -19,7 +19,7 @@
  * The matching engine's per-field events are emitted via
  * `addFieldEvent` from the route handler, not from inside
  * `matchApplication` itself — the latter does not have access to the
- * `ctx`. Option (b) from the P5-1 prompt: keep the engine pure, set
+ * `ctx`. Option (b) from the prompt: keep the engine pure, set
  * events from the route handler where `fieldResults` is already
  * available. The trade-off is documented at the call site.
  */
@@ -61,7 +61,7 @@ import {
  * Arrays of strings: each element is treated independently against the
  * allow-list. The assistant's `assistant.retrieved_sources` is on the
  * allow-list because the chunk filenames are admin-uploaded reference
- * material (NFR-4 carve-out per P4-1), not applicant data.
+ * material (carve-out), not applicant data.
  */
 function redactAttributeValue(
   key: string,
@@ -127,7 +127,7 @@ export type VerificationSpanContext = {
  * and a `lane=review` outcome.
  *
  * After the span ends we bump the request counter, the lane counter,
- * and the latency histogram. Metrics are emitted post-`end()` so the
+ * and the latency histogram. Metrics are emitted post-`end` so the
  * span has the final attributes for the backend's correlation.
  */
 export async function withVerificationSpan<T>(
@@ -220,7 +220,7 @@ export type AssistantSpanContext = {
  *
  * Retrieved chunk text bodies are NOT recorded as attributes — only
  * filenames go on the span (under the allow-listed
- * `assistant.retrieved_sources`). Per P4-1's NFR-4 carve-out,
+ * `assistant.retrieved_sources`). Per the NFR-4 carve-out,
  * filenames of admin-uploaded reference content are safe verbatim.
  *
  * Metrics: turn counter + latency histogram on every call, refusal

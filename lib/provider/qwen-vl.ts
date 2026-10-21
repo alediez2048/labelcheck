@@ -19,7 +19,7 @@
  *   - Security review: PENDING — not approved for Treasury workloads.
  *
  * Wire shape mirrors `lib/provider/olmocr.ts` so the bake-off compares
- * candidates on the same surface (D8). Requires `QWEN_VL_ENDPOINT`; throws
+ * candidates on the same surface. Requires `QWEN_VL_ENDPOINT`; throws
  * "Qwen2.5-VL endpoint not configured" if missing.
  */
 

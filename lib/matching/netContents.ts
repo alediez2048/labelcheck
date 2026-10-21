@@ -1,5 +1,5 @@
 /**
- * Net contents matching — unit-normalised exact (FR-10).
+ * Net contents matching — unit-normalised exact.
  *
  * Parses both sides via `parseNetContents` into `{value, unit}` and
  * compares both. The unit normalisation step is what makes "750 mL"

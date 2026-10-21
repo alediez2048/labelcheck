@@ -1,7 +1,7 @@
 /**
  * Map a TTB "Class/Type" string to one of our three beverage types
- * (P5-8). The TTB taxonomy has ~hundreds of entries; the routing
- * model (D15) only distinguishes three buckets, so a small string
+ *. The TTB taxonomy has ~hundreds of entries; the routing
+ * model only distinguishes three buckets, so a small string
  * test is enough.
  *
  * Defaults to "distilled_spirits" — the most common bucket on the

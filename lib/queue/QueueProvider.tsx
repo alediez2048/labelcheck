@@ -1,5 +1,5 @@
 /**
- * Client-side queue store (P2-1 + P2-3 + P2-5).
+ * Client-side queue store.
  *
  * Holds the in-memory `QueueStoreState` in React state and exposes the
  * mutation seams (`claimNext`, `recordDisposition`, router actions)
@@ -8,13 +8,13 @@
  * per-application review detail, and the Operations view share the
  * same state without prop-threading.
  *
- * Session-only by design (NFR-4) — a page reload reseeds from the
+ * Session-only by design — a page reload reseeds from the
  * fixtures; nothing persists to disk or to a server.
  *
  * Admin-gated actions (`bulkApproveMatchLane`, `applyDistribute`,
  * `handAssign`, `reassign`, `setSpecialization`) derive the actor from
  * `state.currentAgentId` + the agent's `role` — `state.currentAgentId`
- * IS the active-agent store (D16; the role switcher in P2-5 mutates it
+ * IS the active-agent store (D16; the role switcher later mutates it
  * via `setCurrentAgentId`). They translate thrown `RouterError`s into
  * `{ ok, error }` results the UI can render without a try/catch. The
  * lib layer still throws — defense in depth means a direct call from
@@ -86,14 +86,14 @@ type QueueContextValue = {
   recordDisposition: (input: DispositionInput) => DispositionResult["record"] | null;
   /**
    * Bulk-confirm every match-lane application currently in the store
-   * (FR-20, FR-23). The actor is derived from `state.currentAgentId` —
-   * the active agent must be an admin (D16). Returns `{ ok, records }`
+   *. The actor is derived from `state.currentAgentId` —
+   * the active agent must be an admin. Returns `{ ok, records }`
    * on success, `{ ok: false, error }` if the active agent is missing
    * or not admin.
    */
   bulkApproveMatchLane: () => BulkApproveResult;
   /**
-   * Set the current agent id — the role switcher (P2-5) uses this to
+   * Set the current agent id — the role switcher uses this to
    * swap active identity between the supervisor and a seeded agent.
    */
   setCurrentAgentId: (id: string) => void;
@@ -135,7 +135,7 @@ type QueueContextValue = {
     availability: "available" | "out_of_office",
   ) => ActionResult;
   /**
-   * Inject a freshly-verified application (P5-8 drag-and-drop intake).
+   * Inject a freshly-verified application (drag-and-drop intake).
    * Idempotent on `applicationId` — re-injecting refreshes the row in
    * place rather than duplicating it.
    */
@@ -181,7 +181,7 @@ export function QueueProvider({
       const result = recordDispositionPure(state, input);
       if (!result) return null;
       setState(result.state);
-      // Fire-and-forget feedback-loop write (P5-3). The disposition
+      // Fire-and-forget feedback-loop write. The disposition
       // MUST NOT be blocked by this — the gotcha is explicit. Catch
       // every error and swallow; the recorder side logs a span event.
       if (source) {
@@ -225,7 +225,7 @@ export function QueueProvider({
       if (result) {
         next = result.state;
         records.push(result.record);
-        // Fire-and-forget feedback-loop write per the P5-3 wiring.
+        // Fire-and-forget feedback-loop write per the wiring.
         if (source) {
           void postFeedbackRecord({
             application: source,
@@ -387,7 +387,7 @@ export function QueueProvider({
   );
 
   /**
-   * Inject a freshly-verified application into the live queue (P5-8
+   * Inject a freshly-verified application into the live queue (
    * drag-and-drop intake). The upload flow polls /api/batch and calls
    * this for each completed item so the Operations panels (funnel,
    * Match pool, Review distribution, Live feed) populate without a
@@ -402,7 +402,7 @@ export function QueueProvider({
         // Dedup by applicationId AND by normalized brand. Re-uploads
         // of the same PDF (case / diacritic variants) collapse onto
         // the existing row instead of creating phantom copies that
-        // distribute() can then route to two different agents.
+        // distribute can then route to two different agents.
         const normBrand = (b: string): string =>
           b.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
         const byId = new Map(

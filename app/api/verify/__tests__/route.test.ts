@@ -14,10 +14,10 @@
  *   - Validation failure: missing required field → 400 with plain-language
  *           error and `fields` listing the broken keys.
  *
- * The unreadable-image case mocks `getProvider()` to return an empty face,
+ * The unreadable-image case mocks `getProvider` to return an empty face,
  * mirroring the pattern from `lib/extraction/__tests__/service.test.ts`.
  * That's the right seam — the route handler delegates to the extraction
- * service which calls `getProvider()`; stubbing higher up the stack would
+ * service which calls `getProvider`; stubbing higher up the stack would
  * skip the very integration we're trying to verify.
  */
 
@@ -105,7 +105,7 @@ describe("POST /api/verify", () => {
   beforeEach(() => {
     process.env.PROVIDER = "mock";
     // Override the warning config globally — see TEST_WARNING_CONFIG
-    // above. The matching engine reads from this accessor (P1-3); the
+    // above. The matching engine reads from this accessor; the
     // route handler delegates to the engine without re-wiring config.
     vi.spyOn(configModule, "getWarningConfig").mockReturnValue(
       TEST_WARNING_CONFIG,
@@ -124,7 +124,7 @@ describe("POST /api/verify", () => {
   it("AC-1: green pair → 200, lane=match, no per-field flags", async () => {
     // Inject a provider that returns a clean wine extraction whose
     // warning text matches the LIVE canonical config. The bundled mock
-    // ships its own canonical (post-A18 wording), which doesn't match
+    // ships its own canonical (post- wording), which doesn't match
     // the placeholder still in config/warning.json. Reading the live
     // canonical here lets AC-1 stay green when A18 lands without
     // churning the test.
@@ -267,18 +267,18 @@ describe("POST /api/verify", () => {
     expect(abv).toBeDefined();
     expect(abv?.verdict).toBe("mismatch");
     // The per-field reason carries the actual values so the agent's
-    // attention goes to the specific differing field (FR-15).
+    // attention goes to the specific differing field.
     expect(abv?.reason.toLowerCase()).toContain("alcohol");
   });
 
   // -------------------------------------------------------------------------
-  // AC-6 — Unreadable face
+  // Unreadable face
   // -------------------------------------------------------------------------
 
   it("AC-6: unreadable face → 200, lane=review, extractionFailed=true, recommendation=return_unreadable_image", async () => {
     // Stub the provider to return an empty front-face extraction — no
     // transcribed fields and warning.presence=false. That's the wire-
-    // level signal for "image unreadable / model decline" per FR-26b.
+    // level signal for "image unreadable / model decline".
     vi.spyOn(providerModule, "getProvider").mockReturnValue({
       name: "spy-unreadable",
       extract: async (_req: ExtractionRequest): Promise<ExtractionResponse> => ({

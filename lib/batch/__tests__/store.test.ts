@@ -4,7 +4,7 @@
  * Covers job/item identity assignment, in-place mutation, and the
  * `summarizeProgress` reduction. The lane-count rule (done items only)
  * is the load-bearing invariant: a failed item must not contribute to
- * any lane bucket — lane is the AI's call (D11/D15), and a failed item
+ * any lane bucket — lane is the AI's call, and a failed item
  * has no AI call.
  */
 

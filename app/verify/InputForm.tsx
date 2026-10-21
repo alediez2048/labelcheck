@@ -2,15 +2,15 @@
  * InputForm — the verify-page client component.
  *
  * Holds:
- *   - beverageType (drives the rendered field set; FR-3)
+ *   - beverageType (drives the rendered field set)
  *   - form values (one shape across all beverage types)
- *   - faces (1..3 label-face entries; D12)
+ *   - faces (1..3 label-face entries)
  *   - errors + submission preview state
  *
  * Verify-button submit validates required fields against the
- * fields-by-type config (no hardcoding; FR-25) and at least one face,
+ * fields-by-type config (no hardcoding) and at least one face,
  * then shows a Submission Preview panel. The Preview is a stand-in for
- * the real POST to /api/verify, which lands in P1-7. P1-2 plugs the
+ * the real POST to /api/verify, which lands later. A later change plugs the
  * extraction service into that endpoint.
  */
 
@@ -208,7 +208,7 @@ export function InputForm({ fieldsByType, samples }: Props): React.ReactElement 
       try {
         // Encode each face as base64. Sample faces come from public URLs;
         // uploads come from File handles. Both end up as base64 strings
-        // matching the route's JSON wire shape (P1-7).
+        // matching the route's JSON wire shape.
         const facePayloads = await Promise.all(
           faces.map(async (f) => {
             if (f.file) {

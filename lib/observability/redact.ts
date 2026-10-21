@@ -1,5 +1,5 @@
 /**
- * PII redaction at the trace boundary (P5-1).
+ * PII redaction at the trace boundary.
  *
  * Every string that touches a span attribute must pass through this
  * module — either the key is in the allow-list (and the value is safe

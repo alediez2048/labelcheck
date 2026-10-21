@@ -2,14 +2,14 @@
  * Extraction prompt template.
  *
  * Lives in its own file so the prompt can be diffed and versioned cleanly
- * (P5-5 evaluates prompt regressions against the golden set). The version
+ * (evaluates prompt regressions against the golden set). The version
  * string is bumped on any wording change so the eval gate can attribute a
  * score shift to a prompt edit.
  *
  * The prompt asks the model for ONE thing: transcribe what is printed.
  * Not "match" anything. Not "judge" anything. The model returns text and
- * structural flags; the matching engine (P1-3) does the comparison
- * (D4, D5). A future agent tempted to add a "matches" question is doing
+ * structural flags; the matching engine does the comparison
+ *. A future agent tempted to add a "matches" question is doing
  * the matching engine's job in the wrong place.
  */
 

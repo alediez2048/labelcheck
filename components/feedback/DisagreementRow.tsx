@@ -1,6 +1,6 @@
 /**
  * DisagreementRow — one sampled override in the disagreement queue
- * (P5-3, observability.md "Disagreements are sampled into a review queue").
+ * (observability.md "Disagreements are sampled into a review queue").
  *
  * The row is bidirectional by design: sometimes the tool was right and
  * the agent was wrong. The Confirm controls write the actual ground

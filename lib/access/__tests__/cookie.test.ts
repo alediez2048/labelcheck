@@ -1,5 +1,5 @@
 /**
- * Cookie sign/verify tests — skeleton until P0-7 wires Vitest.
+ * Cookie sign/verify tests — skeleton until Vitest is wired.
  *
  * Verifies the round-trip works, the wrong secret fails, and a tampered
  * cookie value fails. The `timingSafeEqualString` happy path / mismatch

@@ -1,10 +1,10 @@
 /**
- * ApplicationsTable — the All Applications data table (P2-6;
+ * ApplicationsTable — the All Applications data table (
  * mockup.md "All Applications").
  *
  * Renders a semantic `<table>` over the filter selector's rows. Sticky
  * header, striped rows. Status and Lane each render as colour + icon +
- * text pills so the row stays accessible (NFR-2; AC-9). Columns match
+ * text pills so the row stays accessible. Columns match
  * the ticket's column list: application + TTB id, beverage type,
  * status, lane, assigned agent, received date.
  *

@@ -1,5 +1,5 @@
 /**
- * HandAssignPicker — small popover for supervisor hand-assign (P2-3).
+ * HandAssignPicker — small popover for supervisor hand-assign.
  *
  * The supervisor's "I know better than the router" escape hatch. Lives
  * inline in the Review Distribution Board so the act of picking an

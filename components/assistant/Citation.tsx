@@ -1,6 +1,6 @@
 /**
  * Citation — small footer chip that names one KB source the assistant
- * relied on for an answer (P4-2; FR-31; observability.md groundedness).
+ * relied on for an answer (observability.md groundedness).
  *
  * The chip is the user-visible half of the groundedness contract: every
  * KB-backed claim shows where it came from, by filename and version, so
@@ -10,7 +10,7 @@
  * row a Knowledge Base admin would manage.
  *
  * The component is presentational only: it never fetches, never opens a
- * detail view. P4-3 may add an "open source" affordance; this scope
+ * detail view. A later change may add an "open source" affordance; this scope
  * stops at naming the source clearly.
  */
 

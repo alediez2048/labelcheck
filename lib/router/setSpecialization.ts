@@ -1,14 +1,14 @@
 /**
- * Admin-only specialization mutation (P2-4, D16, FR-28).
+ * Admin-only specialization mutation.
  *
  * The supervisor edits an agent's `specializations` from the Team view
- * (P2-6 wraps this in the full editor; P2-4 lands the data path). The
+ * (wraps this in the full editor; lands the data path). The
  * operation is admin-gated — D16 makes specialization an admin-assigned
  * attribute; an agent cannot self-assign.
  *
  * Currently-claimed items are NOT touched. Yanking an in-progress
  * disposition mid-flight would lose context; the supervisor uses
- * `reassign` (P2-3) when they explicitly want to move work between
+ * `reassign` when they explicitly want to move work between
  * agents. Re-routing on edit is the documented anti-pattern.
  *
  * Audit: emits `eventType: "override"` (the existing audit-event vocab
@@ -75,7 +75,7 @@ export function setSpecialization(
       // We reuse the audit shape (which requires an applicationId) by
       // pointing at the agent id — the schema column carries an opaque
       // string and the supervisor strip filters on `eventType`. The
-      // production migration in P6-2 will widen `audit_event` to cover
+      // production migration later will widen `audit_event` to cover
       // agent-scoped events explicitly.
       applicationId: agentId,
       actorId: actor.id,

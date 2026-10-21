@@ -1,8 +1,8 @@
 /**
- * JSON report writer (P5-2).
+ * JSON report writer.
  *
- * The structured machine-readable form of `EvalReport`. P5-4 (bake-off)
- * reads this; P5-5 (CI gate) reads this. Pretty-printed with 2-space
+ * The structured machine-readable form of `EvalReport`. (bake-off)
+ * reads this; (CI gate) reads this. Pretty-printed with 2-space
  * indent so the diff between two runs is human-skimmable when the
  * operator opens it.
  *

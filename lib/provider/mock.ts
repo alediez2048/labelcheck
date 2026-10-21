@@ -6,8 +6,8 @@
  * built and tested without an API key, without network, and without
  * non-determinism. The same response shape any real provider must return.
  *
- * Fixtures cover at least three signal cases the matching engine (P1-3)
- * and the triage classifier (P1-5) need to exercise:
+ * Fixtures cover at least three signal cases the matching engine
+ * and the triage classifier need to exercise:
  *   - sample-green-001              — every field matches; clean control
  *   - sample-abv-mismatch-001       — front face reads 45% ALC/VOL
  *   - sample-warning-titlecase-001  — warning present, allCaps: false
@@ -27,7 +27,7 @@ import type {
 } from "./types";
 
 /**
- * Canonical 27 CFR 16.21 warning. Lives in `config/` once P0-4 lands;
+ * Canonical 27 CFR 16.21 warning. Lives in `config/` once lands;
  * inlined here for the mock fixtures so this file is self-contained.
  */
 const CANONICAL_WARNING =
@@ -58,7 +58,7 @@ const WARNING_ABSENT: WarningFlags = {
 };
 
 /**
- * First-pass warning that came back low-legibility (P3-2). The warning
+ * First-pass warning that came back low-legibility. The warning
  * is detected on the face (presence: true) but the model could not
  * confidently transcribe it — extraction sees `government_warning: ""`
  * and `legibility: "low"`. The extraction service is meant to trigger
@@ -159,7 +159,7 @@ const FIXTURES: Record<string, ExtractionResponse> = {
 
   // -------------------------------------------------------------------------
   // sample-warning-missing-001 — bourbon; warning ABSENT on every face
-  // (drives AC-4 — a missing warning is a real mismatch)
+  // (drives — a missing warning is a real mismatch)
   // -------------------------------------------------------------------------
   "sample-warning-missing-001": {
     faces: [
@@ -265,7 +265,7 @@ const FIXTURES: Record<string, ExtractionResponse> = {
   },
 
   // FN probe 2 — ABV mismatch by 0.5% (close enough to look fine on a
-  // skim; the matcher requires stated-equals-stated per FR-9).
+  // skim; the matcher requires stated-equals-stated).
   "sample-fn-probe-abv-half-001": {
     faces: [
       face("front", {
@@ -311,7 +311,7 @@ const FIXTURES: Record<string, ExtractionResponse> = {
   },
 
   // -------------------------------------------------------------------------
-  // P3-2 re-read fixtures (D7 — targeted high-res re-read of the warning)
+  // Re-read fixtures (targeted high-res re-read of the warning)
   // -------------------------------------------------------------------------
   //
   // Pair with the rereadWarning map below:
@@ -370,7 +370,7 @@ const FIXTURES: Record<string, ExtractionResponse> = {
 };
 
 // ---------------------------------------------------------------------------
-// rereadWarning fixtures (P3-2)
+// rereadWarning fixtures
 // ---------------------------------------------------------------------------
 //
 // The mock `rereadWarning` returns a deterministic response keyed by the
@@ -445,7 +445,7 @@ export class MockVisionProvider implements VisionProvider {
   }
 
   /**
-   * Mock second pass for the targeted warning re-read (P3-2). Returns the
+   * Mock second pass for the targeted warning re-read. Returns the
    * canonical warning at good legibility for most fixtures so the
    * "re-read rescued the warning" happy path is exercised in tests; one
    * specific fixture id (`sample-reread-fails-001`) returns a still-low

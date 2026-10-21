@@ -1,11 +1,11 @@
 /**
- * Provider factory + chain — env-driven, single seam (D8).
+ * Provider factory + chain — env-driven, single seam.
  *
  * `PROVIDER` is either a single id (e.g. `anthropic`, `mock`) or a
  * comma-separated chain (e.g. `anthropic,openai,openrouter`). The
- * extraction service uses `getProviderChain()` + `withFailover()` to
+ * extraction service uses `getProviderChain` + `withFailover` to
  * try each slot in order; if every slot fails, the request surfaces a
- * degraded result. Single-id values still work via `getProvider()` for
+ * degraded result. Single-id values still work via `getProvider` for
  * test paths that stub the provider.
  *
  * Selection table:
@@ -100,7 +100,7 @@ function parseProviderChain(): string[] {
 
 /**
  * Single-provider accessor — returns the FIRST slot in the chain. Used
- * by tests that stub `getProvider()` directly, and by callers that
+ * by tests that stub `getProvider` directly, and by callers that
  * don't need failover (the bake-off, single-provider isolation tests).
  */
 export async function getProvider(): Promise<VisionProvider> {
@@ -123,7 +123,7 @@ export function getProviderChain(): ProviderChainSlot[] {
   return ids.map((id, index) => ({
     id,
     async load(): Promise<VisionProvider> {
-      // Slot 0 delegates to `getProvider()` via dynamic import so tests
+      // Slot 0 delegates to `getProvider` via dynamic import so tests
       // that spy on `getProvider` continue to control the primary
       // adapter without per-test rewrites. Slots 1..N call
       // `loadProvider(id)` directly.

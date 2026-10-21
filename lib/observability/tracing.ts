@@ -1,5 +1,5 @@
 /**
- * OpenTelemetry tracer + meter singleton (P5-1).
+ * OpenTelemetry tracer + meter singleton.
  *
  * One module owns the SDK lifecycle. The exporter is config-swappable
  * via `OTEL_EXPORTER`:
@@ -8,20 +8,20 @@
  *     on a periodic reader.
  *   - `"file"` — writes spans and metrics to JSONL at `OTEL_FILE_PATH`
  *     (default `.data/traces/otel.jsonl`). The `.data/` directory is
- *     gitignored by the P4-1 entry.
+ *     gitignored by the entry.
  *   - `"otlp"` — production seam. Posts to `OTEL_OTLP_ENDPOINT` via the
- *     OTLP HTTP exporters. P6-6 swaps the in-boundary Langfuse or
+ *     OTLP HTTP exporters. A later change swaps the in-boundary Langfuse or
  *     Phoenix host in without touching call sites.
  *
  * Async-flush guarantee: spans go through `BatchSpanProcessor` with a
  * bounded queue and an off-thread flush. The request hot path NEVER
- * blocks on the exporter — `span.end()` returns immediately, the
+ * blocks on the exporter — `span.end` returns immediately, the
  * processor schedules the next batch on its own timer. This is the
  * NFR-1 (p95 < 5s) discipline; instrumentation must not push the
  * budget.
  *
  * The OTLP exporters may not be available in every environment (the
- * P5-1 prompt explicitly allows dropping them). When import fails we
+ * Prompt explicitly allows dropping them). When import fails we
  * fall back to console with a clear warning — the OTLP seam being
  * importable matters more than the OTLP wire being live in dev.
  *
@@ -73,7 +73,7 @@ type ExporterMode = "console" | "file" | "otlp";
 
 /**
  * Module-level singletons. We construct them lazily on the first
- * `getTracer()` / `getMeter()` call so importing this module does not
+ * `getTracer` / `getMeter` call so importing this module does not
  * have side effects in tests that mock the SDK or in build-time
  * tooling (`pnpm build`) that touches the module graph without
  * intending to start an exporter.
@@ -322,7 +322,7 @@ function ensureInitialized(): void {
   // BatchSpanProcessor — bounded queue, async export. The defaults
   // are deliberately conservative for the prototype: small queue,
   // 5s scheduled flush. The request hot path NEVER awaits the
-  // exporter — `span.end()` returns immediately and the processor
+  // exporter — `span.end` returns immediately and the processor
   // schedules the next batch on its own timer. This is the NFR-1
   // discipline (instrumentation must not push p95 over 5s).
   const spanProcessor = new BatchSpanProcessor(buildSpanExporter(mode), {
@@ -376,7 +376,7 @@ export function getMeter(): Meter {
  * teardown between describe blocks (the `InMemorySpanExporter` test
  * suite calls this between scenarios).
  *
- * Calls `traceApi.disable()` / `metricsApi.disable()` so subsequent
+ * Calls `traceApi.disable` / `metricsApi.disable` so subsequent
  * `setGlobalTracerProvider` calls (e.g. from `__setProvidersForTests`)
  * actually take effect — without disabling first, OTel's
  * `registerGlobal` refuses the second registration and the proxy
@@ -398,8 +398,8 @@ export async function shutdown(): Promise<void> {
 /**
  * Test-only override: replace the singletons with custom providers
  * so a test can install an `InMemorySpanExporter` and assert against
- * the captured spans. Must be paired with `shutdown()` for cleanup
- * (the `disable()` call inside `shutdown` clears the global slot so
+ * the captured spans. Must be paired with `shutdown` for cleanup
+ * (the `disable` call inside `shutdown` clears the global slot so
  * a fresh `setGlobalTracerProvider` is honoured).
  */
 export function __setProvidersForTests(opts: {

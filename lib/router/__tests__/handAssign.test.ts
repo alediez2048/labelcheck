@@ -1,5 +1,5 @@
 /**
- * `handAssign` tests (P2-3).
+ * `handAssign` tests.
  *
  * Admin-only gate, claimed_at semantics on previously-unclaimed vs
  * previously-claimed targets, audit-event metadata.

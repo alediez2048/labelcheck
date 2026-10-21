@@ -1,16 +1,16 @@
 /**
- * Anthropic Claude vision provider — the production default per D8.
+ * Anthropic Claude vision provider — the production default.
  *
  * Lives behind the `VisionProvider` interface so the rest of the system
- * never knows whether it's hitting Claude, Azure OpenAI (P6-1), or
- * self-hosted olmOCR (P6-1 alt path). Selection is env-driven via
+ * never knows whether it's hitting Claude, Azure OpenAI, or
+ * self-hosted olmOCR (alt path). Selection is env-driven via
  * `lib/provider/index.ts`.
  *
  * The model returns text and warning structural flags only — never a
- * "matches" verdict (D4). The matching engine (P1-3) does the comparing.
+ * "matches" verdict. The matching engine does the comparing.
  *
  * Model: `claude-sonnet-4-6` (techstack: Model Selection — accuracy-safe
- * default per D8). Override with `ANTHROPIC_MODEL` if needed for evals.
+ * default). Override with `ANTHROPIC_MODEL` if needed for evals.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -159,16 +159,16 @@ export class AnthropicVisionProvider implements VisionProvider {
 
   cost_per_case(): number {
     // Rough per-application cost on Sonnet 4.6 with full-res multi-face
-    // call: ~$0.025/app. Used by P5-4's bake-off cost estimate.
+    // call: ~$0.025/app. Used by the bake-off cost estimate.
     return 0.025;
   }
 
   /**
-   * Targeted high-resolution warning re-read (P3-2).
+   * Targeted high-resolution warning re-read.
    *
    * The live Anthropic adapter intentionally throws today: a real Claude
    * prompt for the cropped region lands when the live provider is
-   * exercised against a real cost budget (out of scope for P3-2). The
+   * exercised against a real cost budget (out of scope for). The
    * extraction service tolerates the throw via `withTimeout` and the
    * `rereadWarning` wrapper — the first-pass result is kept and the
    * triage classifier routes the application via FR-16 + FR-26b.

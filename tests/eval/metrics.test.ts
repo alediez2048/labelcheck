@@ -1,5 +1,5 @@
 /**
- * Unit tests for the P5-2 metric functions.
+ * Unit tests for the metric functions.
  *
  * Each metric is exercised on a small hand-crafted `CaseRun[]` so a
  * bug in P/R math, the calibration index, or the percentile clamp

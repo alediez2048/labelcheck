@@ -19,7 +19,7 @@
  *   - Security review: PENDING — not approved for Treasury workloads.
  *
  * Wire shape mirrors `lib/provider/olmocr.ts` so the bake-off compares
- * candidates on the same surface (D8). Requires `GLM_OCR_ENDPOINT`; throws
+ * candidates on the same surface. Requires `GLM_OCR_ENDPOINT`; throws
  * "GLM-OCR endpoint not configured" if missing.
  */
 

@@ -1,17 +1,17 @@
 /**
- * Seed data for the agent-shell queue (P2-1).
+ * Seed data for the agent-shell queue.
  *
  * The mockup grounds the demo in nine sample applications — clean
  * matches, mismatches, low-confidence cases. The queue fixtures here
  * mirror that set with precomputed `VerificationResult`s so the queue
  * page doesn't need to run the verification pipeline at render time
- * (D15: routing happens at intake, the agent worklist consumes).
+ * (routing happens at intake, the agent worklist consumes).
  *
  * Match-lane fixtures are still present in the store so the selector
  * has data to filter against — they belong on the Admin Operations
- * view's "Approve all" pile (D11; mockup.md), not in My Queue.
+ * view's "Approve all" pile (mockup.md), not in My Queue.
  *
- * No PII (NFR-4): brand and producer names are synthetic. The faces
+ * No PII: brand and producer names are synthetic. The faces
  * point at public sample images from `public/fixtures/images/`.
  */
 
@@ -50,7 +50,7 @@ export const SEED_AGENTS: ReadonlyArray<QueueAgent> = [
     id: "agent-jordan",
     name: "Jordan Park",
     role: "agent",
-    // Generalist (P2-4 demo): empty specializations means the routing
+    // Generalist (demo): empty specializations means the routing
     // strategy goes straight to overflow for them, so any beverage
     // type can land on Jordan when no specialist is free. Keeps the
     // pool draining when a thin specialty (e.g., the only malt
@@ -71,7 +71,7 @@ export const DEFAULT_CURRENT_AGENT_ID = "agent-marcus";
 export const DEFAULT_SUPERVISOR_ID = "admin-sasha";
 /**
  * Rolling baseline match rate — placeholder for the `metric_rollup`
- * read in P6-2. The Operations view's delta pill is computed against
+ * read later. The Operations view's delta pill is computed against
  * this. 0.70 means "historically 70% of intake clears as match"; the
  * day's match rate vs this number is the supervisor's "are we
  * keeping up" pulse signal.
@@ -92,7 +92,7 @@ export const BASELINE_MATCH_RATE = 0.7;
 export const AVG_MANUAL_HANDLING_SECONDS = 240;
 
 /**
- * Seed audit log — empty for the demo. The router (P2-3) appends
+ * Seed audit log — empty for the demo. The router appends
  * entries here on claim, hand-assign, and reassign so the operations
  * surface can show the recent-activity strip without persistence.
  */
@@ -141,7 +141,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
   // Match lane — NEVER shown in My Queue (filtered by selector).
   // The Operations view's match-lane panel groups all four below.
   // Confidence is varied so the bottom-quartile cut is meaningful
-  // (FR-23: the supervisor's spot-check signal).
+  // (the supervisor's spot-check signal).
   // ---------------------------------------------------------------------
   {
     applicationId: "old-tom-001",
@@ -204,7 +204,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
       applicationId: "maple-hollow-cream-001",
       // Cleared as match but the brand confidence is the lowest of
       // any match in the day — the bottom-quartile candidate the
-      // supervisor will spot-check (FR-23). Lane stayed match
+      // supervisor will spot-check. Lane stayed match
       // because nothing failed; confidence just dragged.
       lane: "match",
       overallConfidence: 0.72,
@@ -235,7 +235,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
       // Lane is `match` overall, but one field carries a `not_found`
       // verdict — the "soft flag in an otherwise-match application"
       // case the supervisor should glance at before bulk-confirm
-      // (FR-23). Triage cleared it because the missing field is
+      //. Triage cleared it because the missing field is
       // optional for this beverage type; the row still surfaces in
       // the aggregate review surface as a courtesy.
       lane: "match",
@@ -445,7 +445,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
 ];
 
 // ---------------------------------------------------------------------------
-// Historical dispositioned applications (P2-6) — eight weeks of synthetic
+// Historical dispositioned applications — eight weeks of synthetic
 // history so the Analytics dashboard's volume trend, KPI cards, throughput
 // chart, and top-mismatch-reasons chart have enough data to look populated.
 //

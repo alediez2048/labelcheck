@@ -1,5 +1,5 @@
 /**
- * Live intake feed (P2-2, mockup.md Operations).
+ * Live intake feed (mockup.md Operations).
  *
  * Most-recent N applications with a destination string derived from
  * the current store state:

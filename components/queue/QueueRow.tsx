@@ -3,7 +3,7 @@
  *
  * Three things on the row: brand (what the application is for), the
  * single-line issue summary (why it's flagged), and a lane pill that
- * pairs color + icon + text (NFR-2, AC-9). The whole row is a link
+ * pairs color + icon + text. The whole row is a link
  * into the review detail so the click target is large and keyboard-
  * reachable.
  */

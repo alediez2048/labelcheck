@@ -1,5 +1,5 @@
 /**
- * Multi-face merge (D12, D13, FR-15).
+ * Multi-face merge.
  *
  * The matching engine produces per-face per-field results — one
  * FieldResult per face that carries a reading for the field (plus a
@@ -24,7 +24,7 @@
  * test fixtures stable.
  *
  * The government warning does NOT go through this merge — the warning
- * matcher in `warning.ts` already does its own cross-face logic per D12
+ * matcher in `warning.ts` already does its own cross-face logic
  * (presence is satisfied if any face carries the warning; missing on
  * every face is a real mismatch). Routing it through here too would
  * double-count.

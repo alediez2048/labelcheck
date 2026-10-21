@@ -1,5 +1,5 @@
 /**
- * Retrieval helper tests (P4-2).
+ * Retrieval helper tests.
  *
  * The mock embedder (`MockEmbedder`) is hash-based; it guarantees
  * "same text → same vector" but NOT "semantically similar texts →

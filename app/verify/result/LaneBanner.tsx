@@ -1,5 +1,5 @@
 /**
- * LaneBanner — color + icon + plain-text label (NFR-2, AC-9).
+ * LaneBanner — color + icon + plain-text label.
  *
  * The lane is the single most-glanceable signal on the page. Color alone
  * fails AC-9; every banner pairs a color treatment with a glyph AND a

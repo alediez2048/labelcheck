@@ -1,8 +1,8 @@
 /**
- * Bake-off comparison (P5-4).
+ * Bake-off comparison.
  *
  * Takes per-provider eval outcomes, applies the 5-second p95 latency gate
- * (NFR-1), ranks survivors by the false-negative-rate headline metric with
+ *, ranks survivors by the false-negative-rate headline metric with
  * the documented tie-breaks, and assembles the recommendation paragraph
  * under the stakeholder framing rule:
  *

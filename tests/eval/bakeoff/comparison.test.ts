@@ -1,5 +1,5 @@
 /**
- * P5-4 bake-off comparison ranking tests.
+ * Bake-off comparison ranking tests.
  *
  * The framing rule is enforced in code (lib/eval/bakeoff/comparison.ts).
  * The load-bearing assertions:

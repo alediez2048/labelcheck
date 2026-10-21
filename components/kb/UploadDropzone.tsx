@@ -1,6 +1,6 @@
 /**
  * UploadDropzone — admin file picker + drag-and-drop for KB ingestion
- * (P4-1).
+ *.
  *
  * Why a dropzone AND a button: the admin mental model is "drop the
  * file here" — but keyboard users and the screen-reader path need an

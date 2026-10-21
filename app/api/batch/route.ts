@@ -8,7 +8,7 @@
  *      mirroring the `/api/verify` per-item shape. Per-item validation
  *      failures are seeded into the job as `status: "failed"` so the
  *      malformed-item posture is consistent with the rest of the
- *      run (Error Handling; expanded in P3-3). The batch is rejected
+ *      run (Error Handling). The batch is rejected
  *      with 400 only when the BODY itself is malformed.
  *
  *   2. Synthetic batch — the caller posts a `count` and we generate
@@ -25,7 +25,7 @@
  */
 
 import { NextResponse } from "next/server";
-// sharp is imported lazily inside getSyntheticJpeg() so the route's
+// sharp is imported lazily inside getSyntheticJpeg so the route's
 // cold-start never touches the native binding. The synthetic-batch
 // path is the only consumer; the real-upload path uses the browser-
 // rendered PNG directly.

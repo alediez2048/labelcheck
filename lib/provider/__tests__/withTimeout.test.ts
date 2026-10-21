@@ -5,7 +5,7 @@
  * code runs against simulated time, the assertions don't drift, and the
  * test suite stays sub-second. The two patterns to know:
  *
- *   1. `vi.useFakeTimers()` + `await vi.advanceTimersByTimeAsync(ms)`
+ *   1. `vi.useFakeTimers` + `await vi.advanceTimersByTimeAsync(ms)`
  *      drives any pending setTimeout callbacks AND flushes the
  *      microtask queue so promises resolved inside them settle.
  *
@@ -183,7 +183,7 @@ describe("isTransientError", () => {
 });
 
 // ---------------------------------------------------------------------------
-// extract() integration — the degraded-on-timeout contract
+// extract integration — the degraded-on-timeout contract
 // ---------------------------------------------------------------------------
 
 describe("extract() — D10 degraded-on-timeout contract", () => {
@@ -215,7 +215,7 @@ describe("extract() — D10 degraded-on-timeout contract", () => {
   it("returns a degraded ExtractionResponse when both provider attempts time out", async () => {
     // Throwing TimeoutError directly exercises the same catch path that
     // the real-world double-timeout takes — withRetry sees a transient
-    // error, retries once, gets the same error, and extract()'s catch
+    // error, retries once, gets the same error, and extract's catch
     // converts it to the degraded response. This avoids racing fake
     // timers against sharp's native async work.
     const failingProvider = vi.fn(
@@ -237,13 +237,13 @@ describe("extract() — D10 degraded-on-timeout contract", () => {
     const result = await extract(app);
     expect(result.degraded).toBe("timeout");
     expect(result.faces).toEqual([]);
-    // Two attempts — initial call plus one retry per D10.
+    // Two attempts — initial call plus one retry.
     expect(failingProvider).toHaveBeenCalledTimes(2);
   });
 
   it("returns degraded='transient' when both attempts hit a non-timeout transient error", async () => {
     // HTTP 503 from the provider is transient per isTransientError. The
-    // retry budget is one, and after the second 503 extract() should
+    // retry budget is one, and after the second 503 extract should
     // return a degraded='transient' response (NOT throw).
     const failingProvider = vi.fn(
       async (_req: ExtractionRequest): Promise<ExtractionResponse> => {

@@ -1,9 +1,9 @@
 /**
- * TriageDonut — AI-lane breakdown over the range (P2-6, mockup.md
+ * TriageDonut — AI-lane breakdown over the range (mockup.md
  * Analytics).
  *
  * Hand-rolled SVG donut with three segments, paired with a numeric
- * legend so colour is never the sole channel (NFR-2; AC-9). Each
+ * legend so colour is never the sole channel. Each
  * legend row gets the lane label, a color swatch, an icon glyph, and
  * the count + percent — three channels on every row.
  *

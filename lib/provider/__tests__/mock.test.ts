@@ -4,7 +4,7 @@
  * Two kinds of assertion: type-level guards that fail `pnpm build` if a
  * `verdict` or `confidence` field is added to the response (D4, D5
  * enforcement at compile time) and runtime Vitest tests that assert the
- * canned fixtures match what the matching engine in P1-3 expects.
+ * canned fixtures match what the matching engine later expects.
  */
 
 import { describe, expect, it } from "vitest";
@@ -25,7 +25,7 @@ void _typecheck_provider;
 
 /**
  * The response shape must NOT carry a verdict or overall confidence — those
- * belong to P1-3 (matching) and P1-5 (triage), not the provider (D4, D5).
+ * belong to (matching) and (triage), not the provider.
  * If a future change adds either field, these type-level guards stop
  * compiling.
  */

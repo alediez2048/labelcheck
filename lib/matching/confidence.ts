@@ -1,9 +1,9 @@
 /**
- * Confidence derivation (P1-4, D5).
+ * Confidence derivation.
  *
  * Turns a `MatchResult` (verdict + margin) plus the model's per-region
  * legibility flag into a numeric 0..1 confidence scalar that the triage
- * classifier (P1-5) reads to decide a lane.
+ * classifier reads to decide a lane.
  *
  * The model's own self-reported overall confidence is **never** input
  * to this function. That's D5 verbatim — the model is poorly calibrated
@@ -16,7 +16,7 @@
  *      about whether the region was readable, not a verdict.
  *
  * The function is pure: same inputs always produce the same output.
- * That's what makes calibration curves measurable in P5-2.
+ * That's what makes calibration curves measurable later.
  */
 
 import type { FieldRule, ConfidenceConfig } from "@/lib/config";
@@ -70,7 +70,7 @@ export type DeriveConfidenceInput = {
  *
  * The model's self-reported overall confidence is intentionally not a
  * parameter here. Trace logs can carry it (per observability.md) but
- * the triage classifier must never read it (D5).
+ * the triage classifier must never read it.
  */
 export function deriveConfidence(input: DeriveConfidenceInput): number {
   const base = baseConfidence(input);

@@ -1,5 +1,5 @@
 /**
- * Confidence calibration (P5-2; observability.md "Confidence
+ * Confidence calibration (observability.md "Confidence
  * calibration"; systemsdesign.md D5).
  *
  * 10 fixed-width buckets — [0.0, 0.1), [0.1, 0.2), ..., [0.9, 1.0]. The

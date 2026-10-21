@@ -1,5 +1,5 @@
 /**
- * Admin route-group layout (P2-5, D16; FR-29).
+ * Admin route-group layout.
  *
  * Wraps every `/operations`, `/applications`, `/analytics`, `/team`,
  * and `/knowledge-base` route in the `AdminShell`. Also acts as the

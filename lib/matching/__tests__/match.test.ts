@@ -2,7 +2,7 @@
  * Matching engine tests — per-field + orchestrator.
  *
  * The acceptance-criteria-aligned tests are tagged in the description
- * strings so the eventual P1-10 golden-set harness can grep them when
+ * strings so the eventual golden-set harness can grep them when
  * tracing AC numbers back to runtime tests.
  *
  * The warning matcher tests pass a fixed `WarningConfig` rather than
@@ -113,7 +113,7 @@ describe("matchFuzzy (FR-8, AC-5)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ABV matcher (FR-9, AC-2, A19 simplification)
+// ABV matcher (simplification)
 // ---------------------------------------------------------------------------
 
 describe("matchAbv (FR-9, AC-2)", () => {
@@ -143,7 +143,7 @@ describe("matchAbv (FR-9, AC-2)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Net contents matcher (FR-10, AC-?)
+// Net contents matcher (AC-?)
 // ---------------------------------------------------------------------------
 
 describe("matchNetContents (FR-10)", () => {
@@ -203,7 +203,7 @@ describe("matchOrigin", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Government warning (FR-11, FR-12, AC-3, AC-4, D6)
+// Government warning
 // ---------------------------------------------------------------------------
 
 describe("matchWarning (FR-11, FR-12, D6)", () => {

@@ -1,5 +1,5 @@
 /**
- * /match-review — admin "trust but verify" surface (FR-23 expanded).
+ * /match-review — admin "trust but verify" surface.
  *
  * All applications currently in the Match lane, each row expandable
  * to show the label image + the per-field form-vs-label summary. The

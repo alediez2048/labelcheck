@@ -1,5 +1,5 @@
 /**
- * KpiCards — the four-card KPI strip on Analytics + My Stats (P2-6,
+ * KpiCards — the four-card KPI strip on Analytics + My Stats (
  * mockup.md).
  *
  * Each card: label, big number, caption. The hours-saved card surfaces

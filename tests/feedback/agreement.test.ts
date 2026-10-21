@@ -1,5 +1,5 @@
 /**
- * P5-3 — agreement metric (`lib/feedback/agreement.ts`).
+ * agreement metric (`lib/feedback/agreement.ts`).
  *
  * Covers the empty case, the headline rolling rate, window size, and
  * the per-beverage-type breakdown.

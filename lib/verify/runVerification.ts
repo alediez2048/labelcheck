@@ -8,16 +8,16 @@
  * the route handler; this function operates on already-validated,
  * already-decoded buffers.
  *
- * D14: one provider call per Application carrying all faces.
- * D4 / D5: model reads, code decides; never let model verdicts leak.
+ * one provider call per Application carrying all faces.
+ * model reads, code decides; never let model verdicts leak.
  *
- * P3-4: per-stage timing instrumentation. Every successful trip through
+ * per-stage timing instrumentation. Every successful trip through
  * the pipeline emits one `verify.timing` structured log line carrying
  * the totals + per-stage breakdown. The route handler's existing
- * `verify.request` end-to-end log line (P1-11) stays — that's the wire
+ * `verify.request` end-to-end log line stays — that's the wire
  * boundary; this one is the in-pipeline view that lets us attribute
  * latency to extract / match / triage when the p95 walks. PII-redacted
- * per NFR-4: no extracted values, no form values, no bytes.
+ *: no extracted values, no form values, no bytes.
  */
 
 import type { WarningConfig } from "@/lib/config";
@@ -50,7 +50,7 @@ const FACE_LABELS: Readonly<Record<FaceKind, string>> = {
 };
 
 /**
- * Optional observability hook for P5-1. The route handler wraps the
+ * Optional observability hook for. The route handler wraps the
  * call in `withVerificationSpan` and passes the resulting context
  * here; the pipeline forwards face-count, per-field events, and the
  * final lane / overall_confidence to it as the stages complete.
@@ -80,7 +80,7 @@ export type RunVerificationInput = {
     bytes: Buffer;
     mime: "image/jpeg" | "image/png";
   }>;
-  /** Optional P5-1 hook — wires the verification span into the pipeline. */
+  /** Optional hook — wires the verification span into the pipeline. */
   observability?: RunVerificationObservability;
   /**
    * Optional warning-config override. The eval harness threads a strict
@@ -120,12 +120,12 @@ export async function runVerification(
   // 2. Run extraction. An extraction-pipeline failure (decode error,
   //    provider exception that isn't transient) is treated as an
   //    INTERNAL structured error rather than a thrown error — the agent
-  //    sees a defensive review-lane result, not a stack trace (P3-3).
+  //    sees a defensive review-lane result, not a stack trace.
   //
-  //    P3-4: `extractMs` here wraps preprocessing + the provider round
+  //    `extractMs` here wraps preprocessing + the provider round
   //    trip + the (optional) warning re-read. Finer-grained split (sharp
-  //    preprocess vs. provider wall-clock) lands in P5-1's OpenTelemetry
-  //    spans; the `extraction.call` log emitted INSIDE `extract()` already
+  //    preprocess vs. provider wall-clock) lands in the OpenTelemetry
+  //    spans; the `extraction.call` log emitted INSIDE `extract` already
   //    carries the inner `modelMs` for callers that need it today.
   let extraction;
   let extractMs = 0;
@@ -144,7 +144,7 @@ export async function runVerification(
   }
 
   // 3a. Short-circuit on a degraded extraction (D10 — timeout or
-  //     exhausted-retry transient). P3-3 prefers the structured-error
+  //     exhausted-retry transient). prefers the structured-error
   //     `degradedError` field when present; the legacy
   //     `buildTimeoutResult` is the defensive fallback for older
   //     extraction outputs.
@@ -173,7 +173,7 @@ export async function runVerification(
     return result;
   }
 
-  // 3b. Short-circuit only if EVERY face is unreadable (FR-26b). The
+  // 3b. Short-circuit only if EVERY face is unreadable. The
   //     dropzone sends up to 3 candidate renders (front/back/neck) ranked
   //     by which page is most likely to be the label. If the picker's
   //     top-ranked page turns out to be a watermark / footer / form
@@ -252,7 +252,7 @@ export async function runVerification(
     }),
   );
 
-  // P5-1: emit per-field events on the active verification span. The
+  // emit per-field events on the active verification span. The
   // matching engine itself stays pure (it doesn't import the span
   // helper); the observability hook is a thin pass-through the route
   // handler wires up. The trade-off vs. emitting events inside
@@ -293,10 +293,10 @@ export async function runVerification(
 }
 
 /**
- * Structured per-request timing log line (P3-4).
+ * Structured per-request timing log line.
  *
  * One line per request, on every successful trip through the pipeline.
- * PII-redacted per NFR-4: no extracted values, no form values, no bytes.
+ * PII-redacted: no extracted values, no form values, no bytes.
  * The `applicationId` is an internal id (not an applicant identifier);
  * the lane is the AI's verdict, not a personal field. The `degraded`
  * boolean only reports whether the provider path degraded — the limit

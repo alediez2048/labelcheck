@@ -4,12 +4,12 @@
  * States how many exceptions the agent has CLAIMED ("your work") and
  * how many remain in the SHARED POOL ("more to pull"). The single
  * primary action — Get next from pool — embodies the pull model
- * (D15). One row, two numbers, one button: the mockup's "single next
+ *. One row, two numbers, one button: the mockup's "single next
  * thing to do" pattern.
  *
  * Disabled when the pool is empty OR the agent is out of office.
  * Both states are surfaced in plain language so the agent doesn't
- * have to guess why the button is dimmed (NFR-2).
+ * have to guess why the button is dimmed.
  */
 
 "use client";

@@ -1,5 +1,5 @@
 /**
- * `preprocessImage` tests — skeleton until P0-7 wires Vitest.
+ * `preprocessImage` tests — skeleton until Vitest is wired.
  *
  * Fixtures are generated programmatically with sharp in `beforeAll` so
  * nothing binary ends up in the repo. This is a small intentional

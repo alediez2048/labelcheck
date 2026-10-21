@@ -16,10 +16,10 @@
  * `effectiveTo`). Nothing is deleted; observability traces tie to the
  * version that was indexed at the time of a retrieval.
  *
- * Production swap (D8 seams):
- *   - The store seam (`getStore()`) moves from in-memory + file-backed
+ * Production swap (seams):
+ *   - The store seam (`getStore`) moves from in-memory + file-backed
  *     to pgvector; the orchestrator doesn't change.
- *   - The embedder seam (`getEmbedder()`) moves from the mock hash to
+ *   - The embedder seam (`getEmbedder`) moves from the mock hash to
  *     Voyage AI (Anthropic) or OpenAI text-embedding-3-small; the
  *     orchestrator doesn't change.
  *   - The `setImmediate` background dispatch becomes a real job queue

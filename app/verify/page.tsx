@@ -1,9 +1,9 @@
 /**
- * /verify — the application input page (P1-1).
+ * /verify — the application input page.
  *
  * Server component: loads the per-beverage-type required-field lists from
  * `config/fields-by-type.json` once at render and passes them to the
- * client `InputForm` so the form rendering is driven by config (FR-25)
+ * client `InputForm` so the form rendering is driven by config
  * rather than hardcoded.
  */
 

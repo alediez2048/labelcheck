@@ -1,5 +1,5 @@
 /**
- * Extraction service re-read tests (P3-2).
+ * Extraction service re-read tests.
  *
  * Job-critical assertions:
  *
@@ -13,7 +13,7 @@
  *   4. A re-read that comes back low-legibility leaves the first-pass
  *      result alone — the merge is gated on a successful second pass.
  *   5. Even when multiple faces qualify, the re-read fires at most ONCE
- *      per application (D14).
+ *      per application.
  */
 
 import sharp from "sharp";

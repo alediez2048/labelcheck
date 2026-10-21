@@ -1,10 +1,10 @@
 /**
  * Government warning matching — presence + verbatim + ALL CAPS strict +
- * bold best-effort (FR-11, FR-12, D6).
+ * bold best-effort.
  *
- * Cross-face rule per D12: presence is satisfied if ANY face has the
+ * Cross-face rule: presence is satisfied if ANY face has the
  * warning; once one face carries it, we check that face's text for
- * verbatim and all-caps. Bold is best-effort per D6 — `boldConfident:
+ * verbatim and all-caps. Bold is best-effort — `boldConfident:
  * "uncertain"` downgrades the overall verdict to `low_confidence`
  * rather than auto-passing or auto-failing on a styling read.
  *
@@ -68,7 +68,7 @@ export function matchWarning(input: WarningInput): MatchResult {
   const extractedText = warningFace.fields.government_warning;
   const sourceFace = warningFace.kind;
 
-  // 3. ALL CAPS heading check (strict per FR-11).
+  // 3. ALL CAPS heading check (strict).
   if (
     input.config.headingCapsRequired &&
     !extractedText.includes(input.config.headingText)
@@ -85,7 +85,7 @@ export function matchWarning(input: WarningInput): MatchResult {
   }
 
   // 4. Verbatim text check — whitespace-normalised but byte-for-byte
-  //    otherwise per FR-11.
+  //    otherwise.
   const canonicalNorm = normalizeWarningText(input.config.canonicalText);
   const extractedNorm = normalizeWarningText(extractedText);
   if (canonicalNorm !== extractedNorm) {
@@ -100,7 +100,7 @@ export function matchWarning(input: WarningInput): MatchResult {
     };
   }
 
-  // 5. Bold best-effort (D6) — uncertain downgrades to low_confidence.
+  // 5. Bold best-effort — uncertain downgrades to low_confidence.
   if (warningFace.warning.boldConfident === "uncertain") {
     return {
       field: "government_warning",
@@ -125,8 +125,8 @@ export function matchWarning(input: WarningInput): MatchResult {
     };
   }
 
-  // 6. Legibility (D7-driven re-read flag) — log only; doesn't change
-  //    verdict at this layer (the triage classifier in P1-5 will route
+  // 6. Legibility (driven re-read flag) — log only; doesn't change
+  //    verdict at this layer (the triage classifier later will route
   //    a low-legibility face into the review lane if confidence drops).
 
   return {

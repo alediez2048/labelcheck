@@ -1,8 +1,8 @@
 /**
- * SamplePicker — pick a preloaded sample to hydrate the form (D9).
+ * SamplePicker — pick a preloaded sample to hydrate the form.
  *
  * The samples come from `fixtures/samples.ts` and ARE the same set that
- * P1-10 acceptance tests import directly, so the demo path and the test
+ * Acceptance tests import directly, so the demo path and the test
  * path can never drift.
  */
 

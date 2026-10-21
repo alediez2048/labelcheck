@@ -1,5 +1,5 @@
 /**
- * `lib/auth/scope` tests (P2-5).
+ * `lib/auth/scope` tests.
  *
  * Centralised admin gate — `requireAdmin` is what every admin-only
  * router operation calls. The tests pin the predicate (admin passes,

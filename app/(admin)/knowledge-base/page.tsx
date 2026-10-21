@@ -1,5 +1,5 @@
 /**
- * /knowledge-base — admin-managed corpus the assistant cites (P4-1).
+ * /knowledge-base — admin-managed corpus the assistant cites.
  *
  * Composes the upload dropzone and the source list, and owns the
  * polling loop that watches in-flight ingestions transition to

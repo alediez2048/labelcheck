@@ -1,16 +1,16 @@
 /**
- * Queue-facade claim (P2-1 signature, P2-3 implementation).
+ * Queue-facade claim (signature, implementation).
  *
  * The route module in `app/(agent)/queue/page.tsx` consumes the
  * `claimNext(state, now?): { state, outcome }` signature; that
  * contract is locked. Internally this delegates to
  * `lib/router/claim.ts` so the routing policy lives in one place
- * (P2-3; D15).
+ *.
  *
  * Outcome shape stays compatible: `{ ok: true, claimed }` or
  * `{ ok: false, reason: "agent_unavailable" | "no_eligible_pool_item" }`.
  * The agent page renders both branches; preserving the discriminator
- * means P2-3 doesn't touch the UI.
+ * means doesn't touch the UI.
  */
 
 import { claimNext as routerClaimNext } from "@/lib/router/claim";

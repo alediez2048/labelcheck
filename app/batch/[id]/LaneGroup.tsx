@@ -10,7 +10,7 @@
  * The bulk-approve action on the match group is intentionally
  * ephemeral — no router call, no provider mutation. The Phase 2
  * MatchLaneApprovalPanel is anchored to the LIVE queue's match-lane
- * applications; a batch is its own world (ephemeral, NFR-4 / D2). A
+ * applications; a batch is its own world (ephemeral). A
  * later ticket can fold in the full aggregate review surface here.
  * Until then, exposing the action keeps FR-20 visible on the batch
  * path so a supervisor's mental model carries across both surfaces.
@@ -156,7 +156,7 @@ export function LaneGroup({ lane, items }: Props): React.ReactElement {
 
 /**
  * Row in a lane group. Collapsed by default — exception-first review
- * (FR-19) means the agent's eye should land on counts and brands first
+ * means the agent's eye should land on counts and brands first
  * and only expand the ones that need a closer look.
  */
 function LaneItemRow({ item }: { item: BatchItem }): React.ReactElement {

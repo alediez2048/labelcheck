@@ -1,5 +1,5 @@
 /**
- * /analytics — Division dashboard (P2-6, mockup.md Analytics).
+ * /analytics — Division dashboard (mockup.md Analytics).
  *
  * Composes:
  *   - RangeToggle  — drives the whole view (week / month).
@@ -9,7 +9,7 @@
  *   - TopMismatchReasons — failing-field share.
  *   - ThroughputByAgent  — per-agent processed count.
  *
- * Reads `state` off `useQueue()` so the selectors operate on the live
+ * Reads `state` off `useQueue` so the selectors operate on the live
  * in-memory store. Production swaps the selectors for `metric_rollup`
  * reads without touching this page (the selector signatures + return
  * shapes are stable).
@@ -41,7 +41,7 @@ export default function AnalyticsPage(): React.ReactElement {
   const [range, setRange] = useState<AnalyticsRange>("week");
 
   // One anchor moment so every selector sees the same `now`. Without
-  // this, the seven selectors would each call `Date.now()` independently
+  // this, the seven selectors would each call `Date.now` independently
   // and the dashboard would be very slightly inconsistent if the call
   // crossed a second boundary.
   const now = useMemo(() => Date.now(), []);

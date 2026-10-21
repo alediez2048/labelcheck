@@ -1,5 +1,5 @@
 /**
- * Analytics selector tests (P2-6).
+ * Analytics selector tests.
  *
  * The Analytics dashboard is read-only over fixtures, so the selector
  * surface is where correctness lives. Every test pins a deterministic

@@ -1,15 +1,15 @@
 /**
- * Disposition mutation (P2-1; FR-26 atomic, whole-application).
+ * Disposition mutation (atomic, whole-application).
  *
  * Records the agent's decision on a claimed application by:
  *   1. Removing it from the active queue (`applications`) — the
  *      worklist only holds open exceptions.
- *   2. Appending it to `dispositionedApplications` (P2-6) — the
+ *   2. Appending it to `dispositionedApplications` — the
  *      historical record the Analytics dashboards, Team / My Stats
  *      pages, and the history slice of All Applications read from.
  *
  * In the prototype the disposition is logged in-memory only — there's
- * no persistence (NFR-4). P6-2's persistence layer will swap the two
+ * no persistence. the persistence layer will swap the two
  * arrays for the equivalent `disposition` table insert + `application`
  * status update; the queue contract (this function's signature) stays
  * the same.

@@ -1,11 +1,11 @@
 /**
  * MatchLaneApprovalPanel — the supervisor's aggregate review surface
- * above the bulk-confirm action (FR-20, FR-23).
+ * above the bulk-confirm action.
  *
  * Three signals before the click:
  *   1. Count + delta vs baseline match rate pill.
  *   2. Bottom-quartile-confidence matches inline, each
- *      tap-expandable to the P1-8 per-field breakdown (`<details>`).
+ *      tap-expandable to the per-field breakdown (`<details>`).
  *   3. The "flagged-field-in-match" list — match-lane applications
  *      with a non-`match` field result, surfaced separately because
  *      the signal is qualitative (a specific field) not quantitative
@@ -15,7 +15,7 @@
  * records one disposition per match-lane application and the panel
  * re-renders to the caught-up state.
  *
- * NOT auto-clear (CONTEXT.md Auto-clear; D11). The aggregate above
+ * NOT auto-clear (CONTEXT.md Auto-clear). The aggregate above
  * the click is what makes this a human-in-the-loop step.
  */
 

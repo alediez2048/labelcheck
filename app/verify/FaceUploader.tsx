@@ -1,12 +1,12 @@
 /**
- * FaceUploader — multi-face upload with kind labels and previews (D12).
+ * FaceUploader — multi-face upload with kind labels and previews.
  *
- * The unit of verification is the Application, not the face (D13). This
+ * The unit of verification is the Application, not the face. This
  * component never submits on its own — it surfaces the in-memory File +
  * preview state up to the parent so the parent can pack one Application
  * submission containing all faces.
  *
- * Files live in memory only (NFR-4). Object URLs are revoked by the
+ * Files live in memory only. Object URLs are revoked by the
  * parent when the component unmounts or a face is removed.
  */
 

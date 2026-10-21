@@ -1,5 +1,5 @@
 /**
- * QueueProvider → /api/feedback/record bridge (P5-3).
+ * QueueProvider → /api/feedback/record bridge.
  *
  * Builds the recorder payload from a dispositioned application + the
  * `DispositionRecord` the pure mutation produced, then fires the POST.

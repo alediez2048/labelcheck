@@ -1,5 +1,5 @@
 /**
- * In-memory batch job store (D2, NFR-4).
+ * In-memory batch job store.
  *
  * A module-level `Map<jobId, BatchJob>`. No persistence — a restart
  * loses jobs by design. The documented upgrade path (P6+) is the same

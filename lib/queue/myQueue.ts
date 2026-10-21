@@ -1,12 +1,12 @@
 /**
- * "My Queue" selector (P2-1, D15, D16, CONTEXT.md Work pool).
+ * "My Queue" selector (CONTEXT.md Work pool).
  *
  * Pure function: given the queue store and the current agent's id,
  * return the agent's CLAIMED exceptions, sorted problems-first.
  *
  *   - Filter: only this agent's claimed items.
  *   - Filter: match-lane applications NEVER reach the queue — they
- *     are bulk-confirmed on the Admin Operations view (D11, D15).
+ *     are bulk-confirmed on the Admin Operations view.
  *   - Sort: mismatch lane before review lane (problems first), then
  *     by `claimedAt` ascending (oldest claim first — the agent
  *     finishes what they started before starting new work).

@@ -1,12 +1,12 @@
 /**
- * Batch orchestrator (P3-1).
+ * Batch orchestrator.
  *
  * Fans pending items through `p-limit(cap)` so at most `concurrency`
  * runs are in flight at once. Each item dispatches to the same
  * per-application pipeline that `/api/verify` uses
  * (`lib/verify/runVerification.ts`) — no duplication. A single failure
  * does not abort the rest: thrown errors are caught and turned into
- * `status: "failed"` updates so the batch keeps running (P3-3 expands
+ * `status: "failed"` updates so the batch keeps running (expands
  * on this error-handling posture).
  *
  * The orchestrator is fire-and-forget from the API's perspective. The
@@ -79,7 +79,7 @@ export async function runBatch(
           // of the batch continues (systemsdesign Error Handling). The
           // thrown error is normalised to a `StructuredError` via the
           // module-boundary helper so the failed-items panel renders the
-          // same code vocabulary as the verify path (P3-3). The pipeline
+          // same code vocabulary as the verify path. The pipeline
           // already swallows expected failures (degraded provider,
           // unreadable image) inside `runVerification`, so anything that
           // reaches here is by definition unexpected and maps to

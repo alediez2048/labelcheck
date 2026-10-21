@@ -89,7 +89,7 @@ export function buildUnreadableResult(opts: {
 }
 
 /**
- * Build the structured "could not verify in time" result (D10, FR-16).
+ * Build the structured "could not verify in time" result.
  *
  * Surfaced when the extraction service exhausted its timeout + retry
  * budget. Lane=review (input-quality issue, not a regulatory failure),

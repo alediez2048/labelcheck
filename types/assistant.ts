@@ -1,5 +1,5 @@
 /**
- * Assistant turn contract (P4-2).
+ * Assistant turn contract.
  *
  * The wire shape for `/api/assistant/turn` plus the value-types the
  * server-side orchestrator (`lib/assistant/`) returns. Per FR-30 /
@@ -8,7 +8,7 @@
  * route handler agree on, and nothing about a turn persists to the
  * application DB.
  *
- * Role-scope isolation (D16; observability.md): the request body
+ * Role-scope isolation (observability.md): the request body
  * carries `activeAgentId` only so the server can look the row up in
  * the seed store and CONFIRM the caller. The role is NEVER trusted
  * from the body — the server reads `state.agents.find(a => a.id ===
@@ -39,7 +39,7 @@ export type AssistantMessage = {
 /**
  * Request body for `POST /api/assistant/turn`.
  *
- * `activeAgentId` is what the role switcher (P2-5) put in the URL or
+ * `activeAgentId` is what the role switcher put in the URL or
  * cookie. The server validates it against `SEED_AGENTS` and reads the
  * role from there — production swaps this for a real session / SSO
  * resolution and the body field disappears.

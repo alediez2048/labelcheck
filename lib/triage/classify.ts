@@ -1,21 +1,21 @@
 /**
- * Triage classifier — rolls per-field results into ONE lane (FR-13, D11).
+ * Triage classifier — rolls per-field results into ONE lane.
  *
  * The priority order is rigid by design: a real problem is never hidden
  * behind an otherwise-clean result, and anything uncertain escalates to
  * a human rather than being waved through. The order, in code:
  *
  *   1. Any field's verdict is `mismatch` AND its confidence is at or
- *      above the configured threshold → mismatch lane (FR-15).
+ *      above the configured threshold → mismatch lane.
  *   2. The government warning's verdict is `mismatch` at ANY confidence
  *      → mismatch lane (D6, FR-11/FR-12 — the warning is the highest-
  *      stakes check; we never let a flaky confidence number hide it).
  *   3. Any face's extraction failed (unreadable image) → review lane
- *      with the "needs a better image" reason (FR-16, FR-26b).
+ *      with the "needs a better image" reason.
  *   4. Any field's verdict is `not_found` or `low_confidence`, OR any
  *      field's verdict is `match` but its confidence is BELOW the
  *      threshold → review lane (a near-miss is the case that validates
- *      D5 — a model that confidently misreads a fuzzy field is caught
+ *      a model that confidently misreads a fuzzy field is caught
  *      here).
  *   5. Otherwise (every field a confident match) → match lane.
  *
@@ -80,7 +80,7 @@ export function classify(input: ClassifyInput): TriageResult {
       r.confidence >= threshold,
   );
 
-  // 2. A government warning mismatch blocks at ANY confidence (D6).
+  // 2. A government warning mismatch blocks at ANY confidence.
   const warningFailures = fieldResults.filter(
     (r) => r.field === WARNING_FIELD && r.verdict === "mismatch",
   );

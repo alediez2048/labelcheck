@@ -1,5 +1,5 @@
 /**
- * Postcheck unit tests (P4-3).
+ * Postcheck unit tests.
  *
  * Confirms the response-side guardrail's four behaviours:
  *   1. Uncited compliance claim → REFUSAL_UNSUPPORTED_COMPLIANCE.

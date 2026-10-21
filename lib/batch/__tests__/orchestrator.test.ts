@@ -9,7 +9,7 @@
  *      runs are in flight at once.
  *   2. Every scheduled item terminates (no leaked promise).
  *   3. A thrown error in one item lands `failed` without aborting the
- *      rest (Error Handling; expanded in P3-3).
+ *      rest (Error Handling).
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
@@ -133,7 +133,7 @@ describe("lib/batch/orchestrator", () => {
     expect(done).toBe(19);
     expect(failed).toBe(1);
     const failedItem = live.items.find((i) => i.status === "failed")!;
-    // P3-3: orchestrator funnels every thrown item through
+    // orchestrator funnels every thrown item through
     // `toStructuredError`. A plain `Error` carries no transient signal,
     // so it lands as `INTERNAL` with the defensive UI message — not the
     // raw `err.message`. That's the NFR-4 guarantee: error messages are

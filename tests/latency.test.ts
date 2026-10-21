@@ -1,5 +1,5 @@
 /**
- * P1-11 / NFR-1 / AC-7 CI smoke — assert mock-adapter p95 stays under
+ * / NFR-1 / AC-7 CI smoke — assert mock-adapter p95 stays under
  * the 5s budget.
  *
  * Runs a reduced version of the latency bench (20 iterations across

@@ -1,5 +1,5 @@
 /**
- * Operations selectors + bulk-confirm tests (P2-2).
+ * Operations selectors + bulk-confirm tests.
  *
  * Pure-logic guarantees that the UI depends on:
  *   - funnel counts are exact, latency average is correct

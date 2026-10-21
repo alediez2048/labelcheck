@@ -1,7 +1,7 @@
 /**
  * ReviewDistributionBoard — shared pool row + per-agent rows +
  * Distribute action, with hand-assign + reassign affordances
- * (P2-2 + P2-3, mockup.md Operations).
+ * (mockup.md Operations).
  *
  * The board is the supervisor's one-screen view of where exceptions
  * live: shared pool at the top, per-agent rows below, each
@@ -13,7 +13,7 @@
  * The component stays presentational: the page wires the provider
  * actions in and we surface results back through a status notice.
  * That keeps the queue store, the router, and the board cleanly
- * separated (D15; the page is the only place that knows about both).
+ * separated (the page is the only place that knows about both).
  */
 
 "use client";

@@ -2,13 +2,13 @@
  * Access gate — SPEND SHIELD, not authentication.
  *
  * Sits in front of the deployed app so an open URL cannot drain the model
- * budget (NFR-8). When ACCESS_PASSCODE is unset, the gate is a no-op so
+ * budget. When ACCESS_PASSCODE is unset, the gate is a no-op so
  * local `pnpm dev` works passcode-free. When set, requests must present a
  * valid `lc_access` cookie (HMAC of a fixed payload, see lib/access/cookie.ts)
  * or be redirected to `/access` (for browser GETs) or get a 401 (everything
  * else).
  *
- * Production identity is P6-3 — PIV/CAC + SSO + RBAC + audit logging within
+ * Production identity is — PIV/CAC + SSO + RBAC + audit logging within
  * the FedRAMP boundary. If anyone treats THIS as authentication, the
  * comment-and-README discipline of this ticket has failed.
  *

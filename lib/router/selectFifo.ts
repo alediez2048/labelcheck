@@ -1,16 +1,16 @@
 /**
- * Default selection strategy for the work router (P2-3).
+ * Default selection strategy for the work router.
  *
  * Priority order: mismatch lane before review lane; within a lane,
  * oldest `receivedAt` wins (FIFO). The mockup's "problems first" row
  * ordering and CONTEXT.md's claim contract both call for this rule.
  *
- * The agent parameter is intentionally unused here — P2-4 swaps in a
+ * The agent parameter is intentionally unused here — swaps in a
  * specialization-aware strategy that filters on `agent.specializations`.
  * Keeping the signature identical means the swap is a one-line
  * substitution at the call sites in `claim.ts` and `distribute.ts`.
  *
- * Defensive: match-lane rows should never reach the pool (D11, D15),
+ * Defensive: match-lane rows should never reach the pool,
  * but the strategy skips them explicitly so a future routing bug can't
  * leak a match-lane application into an agent's queue.
  */

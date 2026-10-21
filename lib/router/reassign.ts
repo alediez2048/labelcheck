@@ -1,5 +1,5 @@
 /**
- * Supervisor reassign (P2-3, D15).
+ * Supervisor reassign.
  *
  * Move a claimed application from agent A to agent B, or return it to
  * the shared pool by passing `toAgentId === null`. The `from` must

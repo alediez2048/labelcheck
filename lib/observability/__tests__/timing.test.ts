@@ -1,7 +1,7 @@
 /**
  * Tests for `lib/observability/timing.ts`.
  *
- * Three properties matter for the P5-1 swap:
+ * Three properties matter for the swap:
  *   1. The wrapped function's value is returned verbatim.
  *   2. The duration reflects actual wall-clock cost (≥ 0; not zero on
  *      a noticeably slow function).

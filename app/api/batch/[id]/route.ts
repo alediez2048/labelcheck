@@ -2,9 +2,9 @@
  * GET /api/batch/[id] — poll batch progress and per-item results.
  *
  * Returns `BatchPollResponse` (jobId, createdAt, progress, items,
- * finished). The UI polls this on a short interval (P3-1 results view)
+ * finished). The UI polls this on a short interval (results view)
  * until `finished === true`. State lives in `lib/batch/store.ts` — a
- * module-level Map; a restart returns 404 by design (D2, NFR-4).
+ * module-level Map; a restart returns 404 by design.
  */
 
 import { NextResponse } from "next/server";

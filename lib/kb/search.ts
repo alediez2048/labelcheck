@@ -1,7 +1,7 @@
 /**
  * Cosine-similarity search over the in-memory store.
  *
- * P4-2's retrieval consumes this. Production swap is a one-liner: in
+ * the retrieval consumes this. Production swap is a one-liner: in
  * pgvector this is `ORDER BY embedding <=> $1 LIMIT k` against the
  * `knowledge_base` table; the query shape and result ordering match.
  *
@@ -23,7 +23,7 @@ export type SearchResult = {
 };
 
 /**
- * Brute-force scan over `listCurrentChunks()`. Returns the top `limit`
+ * Brute-force scan over `listCurrentChunks`. Returns the top `limit`
  * chunks ordered by descending score. A `limit` of zero returns an
  * empty array; a `limit` larger than the corpus returns the whole
  * corpus.

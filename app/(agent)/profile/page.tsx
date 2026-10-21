@@ -1,15 +1,15 @@
 /**
- * /profile — Profile (P2-6; mockup.md "Profile"; D15; CONTEXT.md
+ * /profile — Profile (mockup.md "Profile"; D15; CONTEXT.md
  * Availability + Specialization).
  *
  * The agent's account screen: identity card (name, role, agent id),
  * team caption (the prototype has no team grouping yet —
  * documented), a read-only specialization display (admin sets it in
- * Team per D15; the caption surfaces that), and the existing
- * availability radio toggle ported verbatim from P2-5 so the OOO
+ * Team; the caption surfaces that), and the existing
+ * availability radio toggle ported verbatim from the earlier version so the OOO
  * branch of the work router stays demonstrable.
  *
- * Row-scoped to `currentAgent.id` (D16; FR-29). If the active actor
+ * Row-scoped to `currentAgent.id`. If the active actor
  * is not an agent (e.g. the role switcher landed on the supervisor
  * mid-render), render a clear notice instead of leaking the
  * supervisor's surface.

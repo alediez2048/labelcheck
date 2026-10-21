@@ -5,7 +5,7 @@
  * same import surface. The `tests/` directory holds top-level smoke and
  * acceptance tests; per-module tests live next to the code in `__tests__/`.
  *
- * P5-2 (offline eval harness) adds a separate `test:eval` invocation that
+ * (offline eval harness) adds a separate `test:eval` invocation that
  * runs the golden-set evaluation through `scripts/eval.ts` rather
  * than through Vitest, because the eval surface needs different metrics
  * and reporting than the unit-test runner provides.

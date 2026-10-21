@@ -1,5 +1,5 @@
 /**
- * Offline eval runner (P5-2).
+ * Offline eval runner.
  *
  * Walks the golden set, drives each case through the per-application
  * verification pipeline, and produces a `CaseRun[]` for the metric
@@ -15,7 +15,7 @@
  * That IS the manifest; importing it gives the runner strong typing,
  * the same source of truth the acceptance tests use, and zero drift
  * surface. The ticket's "manifest.json" framing predates the typed-
- * array decision in P1-10; the typed array is the right shape.
+ * array decision later; the typed array is the right shape.
  *
  * Why we inject a canonical warning config
  * ----------------------------------------
@@ -73,7 +73,7 @@ export type RunOutcome = {
 };
 
 /**
- * Per-provider outcome surface for the bake-off (P5-4).
+ * Per-provider outcome surface for the bake-off.
  *
  * When `status === "ok"` the runner produced a `RunOutcome`; when
  * `status === "not-run"` the adapter could not be exercised (missing
@@ -142,7 +142,7 @@ export async function runEval(options?: RunOptions): Promise<RunOutcome> {
       : (options?.warningConfig ?? TEST_WARNING_CONFIG);
 
   const provider = resolveProvider();
-  // Forward EVAL_PROVIDER → PROVIDER so `getProvider()` lines up with the
+  // Forward EVAL_PROVIDER → PROVIDER so `getProvider` lines up with the
   // operator's intent. We restore the prior value in `finally` so the
   // env stays clean for whatever the caller runs next.
   const priorProvider = process.env.PROVIDER;
@@ -202,7 +202,7 @@ export async function runEval(options?: RunOptions): Promise<RunOutcome> {
 export const EVAL_CANONICAL_WARNING_TEXT = CANONICAL_WARNING;
 
 /**
- * Run the eval for one specific provider id (P5-4 bake-off).
+ * Run the eval for one specific provider id (bake-off).
  *
  * Sets `process.env.PROVIDER = providerId` (and `EVAL_PROVIDER` so the
  * runner's provider-tag also lines up) for the duration of the call,
@@ -243,7 +243,7 @@ export async function runEvalForProvider(
 }
 
 /**
- * Synthesise `CaseRun`s from the agent-correction corpus (P5-3).
+ * Synthesise `CaseRun`s from the agent-correction corpus.
  *
  * For the corrections dataset the pipeline isn't re-run — the agent's
  * call IS ground truth, so `expectedLane = effectiveLane`. The

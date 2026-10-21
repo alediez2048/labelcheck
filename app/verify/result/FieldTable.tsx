@@ -1,9 +1,9 @@
 /**
- * FieldTable — per-field breakdown (FR-15, FR-24).
+ * FieldTable — per-field breakdown.
  *
  * Each row shows: field, form value, label-extracted value, source face,
  * verdict, confidence. Flagged rows pair color with an icon and a text
- * label per AC-9 — the differing field is the agent's first stop on a
+ * label — the differing field is the agent's first stop on a
  * mismatch.
  */
 

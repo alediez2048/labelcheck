@@ -1,14 +1,14 @@
 /**
- * Matching engine orchestrator (FR-7 through FR-12, FR-25, D4, D5, D6).
+ * Matching engine orchestrator (through).
  *
  * Walks the per-beverage-type required fields, dispatches each to the
  * right per-field matcher, and returns a `MatchResult[]`. The model has
- * produced the transcription (P1-2); from here every decision is code
- * (D4). Confidence derivation is P1-4; this engine reports `margin` so
- * P1-4 can convert.
+ * produced the transcription; from here every decision is code
+ *. Confidence derivation is; this engine reports `margin` so
+ * Can convert.
  *
  * All thresholds and the canonical warning text come from `lib/config`
- * (FR-25); nothing in this engine is hardcoded.
+ *; nothing in this engine is hardcoded.
  */
 
 import { getTolerances, getWarningConfig, getRequiredFields, type FieldRule, type TolerancesConfig, type WarningConfig } from "@/lib/config";
@@ -140,7 +140,7 @@ export type MatchApplicationInput = {
  * was found on. For the prototype we use the face's `warning.legibility`
  * as a proxy for the WHOLE face's image quality — the warning is the
  * smallest, hardest-to-read region, so if it's legible the rest of the
- * face very likely is too. P5-2 calibration will tell us if this proxy
+ * face very likely is too. calibration will tell us if this proxy
  * is too coarse; per-field legibility is a future provider concern.
  */
 function legibilityFor(
@@ -154,7 +154,7 @@ function legibilityFor(
 
 /**
  * Promote a `MatchResult` to a `FieldResult` by deriving confidence in
- * code from the margin + legibility (D5). `margin` is internal to the
+ * code from the margin + legibility. `margin` is internal to the
  * matching engine; `confidence` is what the triage classifier reads.
  */
 function attachConfidence(
@@ -182,9 +182,9 @@ function attachConfidence(
 }
 
 export function matchApplication(input: MatchApplicationInput): FieldResult[] {
-  // P5-1: wrap the matching loop in a `matching` child span. Per-field
+  // wrap the matching loop in a `matching` child span. Per-field
   // verdict events are emitted by the route handler (option (b) in the
-  // P5-1 prompt) — the matching engine itself stays pure and does not
+  // Prompt) — the matching engine itself stays pure and does not
   // import the span helper. The child span gives us a wall-clock
   // attribution for the matching stage without coupling the engine to
   // the observability surface.
@@ -202,7 +202,7 @@ function runMatch(input: MatchApplicationInput): FieldResult[] {
   const requiredFields = getRequiredFields(input.beverageType);
 
   // Per-face per-field results. The warning is special-cased — its
-  // matcher already merges across faces by construction (D12), so it
+  // matcher already merges across faces by construction, so it
   // contributes exactly one result that goes straight through merge
   // (a single-element group is returned as-is).
   const perFaceResults: FieldResult[] = [];
@@ -268,7 +268,7 @@ function runMatch(input: MatchApplicationInput): FieldResult[] {
 /**
  * Match one face's reading for one field, attach a code-derived
  * confidence, return a FieldResult. Pulled out so the orchestrator can
- * call it per face for the multi-face merge (D12).
+ * call it per face for the multi-face merge.
  */
 function runOne(opts: {
   field: FieldName;

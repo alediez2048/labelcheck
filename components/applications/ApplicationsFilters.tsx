@@ -1,6 +1,6 @@
 /**
  * ApplicationsFilters — controlled filter bar for the All Applications
- * page (P2-6; mockup.md "All Applications").
+ * page (mockup.md "All Applications").
  *
  * Four controls (left-to-right on wide viewports, stacked on narrow):
  *  - Free-text search (brand or TTB id).

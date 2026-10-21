@@ -9,7 +9,7 @@
  * or a DB client to "just cache the result"; the static check fails
  * loud before the change can ship.
  *
- * This is NOT a runtime golden-set assertion (per the P1-10 ticket and
+ * This is NOT a runtime golden-set assertion (per the ticket and
  * the brief): no PII to disk is verified by static analysis, not by
  * running the verification flow and inspecting side-effects. Side-
  * effect inspection would only catch the issue under the specific
@@ -46,7 +46,7 @@ const FORBIDDEN_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
   { pattern: /\bopen\(.+IDBDatabase/, reason: "IndexedDB usage" },
   // Known persistence clients — none of these belong in the Phase 1
   // verification path. Production persistence lands behind a separate
-  // boundary in P6-2.
+  // boundary later.
   { pattern: /from\s+["']pg["']/, reason: "pg — PostgreSQL client import" },
   { pattern: /from\s+["']postgres["']/, reason: "postgres — Postgres client import" },
   { pattern: /from\s+["']mongodb["']/, reason: "mongodb — MongoDB client import" },

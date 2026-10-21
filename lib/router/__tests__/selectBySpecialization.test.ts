@@ -1,5 +1,5 @@
 /**
- * `selectBySpecialization` strategy tests (P2-4, D15, FR-28).
+ * `selectBySpecialization` strategy tests.
  *
  * The pure-function guarantees the router contract leans on:
  *   - specialist match wins within priority order (lane then receivedAt)

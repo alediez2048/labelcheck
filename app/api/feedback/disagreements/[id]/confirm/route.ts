@@ -1,6 +1,6 @@
 /**
  * POST /api/feedback/disagreements/[id]/confirm — record the team's
- * confirmation for a sampled disagreement (P5-3).
+ * confirmation for a sampled disagreement.
  *
  * Body: `{ confirmation: "tool_was_right" | "agent_was_right" }`.
  *

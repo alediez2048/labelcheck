@@ -1,5 +1,5 @@
 /**
- * Guardrail eval harness (P4-3).
+ * Guardrail eval harness.
  *
  * Drives the assistant turn endpoint with an adversarial fixture set
  * (`fixtures/eval/assistant-guardrails.json`) and asserts the

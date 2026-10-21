@@ -1,5 +1,5 @@
 /**
- * P5-3 — override detector (`lib/feedback/override.ts`).
+ * override detector (`lib/feedback/override.ts`).
  *
  * Covers the three buckets (agreement / flag / clear) plus the edge
  * case where both lanes are non-match but differ (mismatch → review

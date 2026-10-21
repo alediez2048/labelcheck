@@ -1,8 +1,8 @@
 /**
- * Structured assistant turn trace (P4-2, extended in P4-3).
+ * Structured assistant turn trace (extended).
  *
  * One log line per `runTurn` invocation, emitted as JSON so the
- * observability backend (Langfuse / Phoenix in P6-6) can consume the
+ * observability backend (Langfuse / Phoenix) can consume the
  * same shape the prototype console emits. The shape is PII-redacted
  * by construction: no user message text, no model output text, no
  * applicant fields — only the structural facts about the turn.
@@ -13,7 +13,7 @@
  *   - `retrievedSources` — filenames of the chunks the prompt cited.
  *   - `usedTool`        — `get_my_rollup` when the tool fired, else absent.
  *   - `totalMs`         — wall-clock latency for the whole turn.
- *   - `intentTags`      — classifier output (P4-3). Empty array possible.
+ *   - `intentTags`      — classifier output. Empty array possible.
  *   - `refusalTemplate` — which refusal the generator emitted (or "none").
  *   - `postcheckAction` — which refusal the postcheck substituted
  *                         (or "none").

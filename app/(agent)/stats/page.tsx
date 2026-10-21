@@ -1,9 +1,9 @@
 /**
- * /stats — My Stats (P2-6; mockup.md "My Stats"; D16 row-scoping).
+ * /stats — My Stats (mockup.md "My Stats"; row-scoping).
  *
  * The per-agent slice of Analytics. Every selector takes
  * `currentAgent.id` so an agent can never see another agent's
- * numbers (D16; FR-29). The agent-shell layout already gates
+ * numbers. The agent-shell layout already gates
  * non-agent actors out; the `currentAgent` guard below is the
  * defense-in-depth — if hydration races or the role switcher
  * lands mid-render, the page degrades to a clear notice rather

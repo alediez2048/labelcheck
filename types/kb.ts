@@ -1,5 +1,5 @@
 /**
- * Knowledge base domain types — the corpus the read-only assistant (P4-2)
+ * Knowledge base domain types — the corpus the read-only assistant
  * is allowed to ground in.
  *
  * Mirrors the `knowledge_base` table in docs/02-design/schema.md so the
@@ -8,11 +8,11 @@
  * (CONTEXT.md "Knowledge base vs Configuration store"): KB holds
  * admin-uploaded help articles, onboarding notes, and best-practice
  * guidance; the verbatim 27 CFR § 16.21 warning text lives in
- * `config/warning.json` (P0-4), not here.
+ * `config/warning.json`, not here.
  *
- * The shape exported here is what the upload UI (P4-1 UI half) and the
- * retrieval helper (P4-2) consume; the internal store and embedder seams
- * follow the swappable-adapter pattern (D8) used by the vision provider
+ * The shape exported here is what the upload UI (UI half) and the
+ * retrieval helper consume; the internal store and embedder seams
+ * follow the swappable-adapter pattern used by the vision provider
  * in `lib/provider/`.
  */
 
@@ -77,7 +77,7 @@ export type KnowledgeBaseChunk = {
 };
 
 /**
- * Embedder seam (D8 — swappable adapter, mirrors `VisionProvider`).
+ * Embedder seam (swappable adapter, mirrors `VisionProvider`).
  *
  * Production swap: the Anthropic SDK has no public embeddings API as of
  * 2026-06; the Anthropic-recommended production embedder is Voyage AI
@@ -98,7 +98,7 @@ export type KnowledgeBaseEmbedder = {
  * adapter (`searchByEmbedding` becomes `ORDER BY embedding <=> $1
  * LIMIT k`).
  *
- * `listCurrentChunks` is the slice P4-2's retrieval reads: only chunks
+ * `listCurrentChunks` is the slice the retrieval reads: only chunks
  * whose source row has no `effectiveTo` (i.e. is not superseded).
  */
 export type KnowledgeBaseStore = {
@@ -107,7 +107,7 @@ export type KnowledgeBaseStore = {
   listSources(): KnowledgeBaseSource[];
   getSource(filename: string): KnowledgeBaseSource | null;
   listChunks(filename: string, version?: number): KnowledgeBaseChunk[];
-  /** Returns all CURRENT (effectiveTo undefined) chunks across all sources. Used by P4-2's retrieval. */
+  /** Returns all CURRENT (effectiveTo undefined) chunks across all sources. Used by the retrieval. */
   listCurrentChunks(): KnowledgeBaseChunk[];
   /** Mark a source's prior version superseded. Sets effectiveTo on the source row and all its chunks. */
   supersedeSource(filename: string, version: number, supersededAt: string): void;

@@ -1,7 +1,7 @@
 /**
  * Configuration loader — reads JSON from `config/`, validates with Zod,
  * and exposes typed accessors. Memoised: each file is read once per
- * process, so the matching engine (P1-3) can call `getTolerances()` in
+ * process, so the matching engine can call `getTolerances` in
  * a hot path without thinking about it.
  *
  * Errors at startup cite the file and the offending field so a compliance
@@ -29,7 +29,7 @@ import {
  * Validate one of the bundled JSON config blobs against its Zod
  * schema. Bundled at build time via direct ES-module imports so the
  * code runs everywhere — including serverless functions where
- * process.cwd() doesn't point at the source tree.
+ * process.cwd doesn't point at the source tree.
  */
 function validateConfig<T>(
   file: string,
@@ -57,7 +57,7 @@ let warningCache: WarningConfig | null = null;
 let tolerancesCache: TolerancesConfig | null = null;
 let fieldsByTypeCache: FieldsByTypeConfig | null = null;
 
-/** Canonical warning text + heading rules (FR-11, D6). */
+/** Canonical warning text + heading rules. */
 export function getWarningConfig(): WarningConfig {
   if (warningCache === null) {
     warningCache = validateConfig("warning.json", warningJson, WarningConfigSchema);
@@ -65,7 +65,7 @@ export function getWarningConfig(): WarningConfig {
   return warningCache;
 }
 
-/** Per-field matching rules and thresholds (FR-8, FR-9, FR-10, A19). */
+/** Per-field matching rules and thresholds. */
 export function getTolerances(): TolerancesConfig {
   if (tolerancesCache === null) {
     tolerancesCache = validateConfig("tolerances.json", tolerancesJson, TolerancesConfigSchema);
@@ -73,7 +73,7 @@ export function getTolerances(): TolerancesConfig {
   return tolerancesCache;
 }
 
-/** Required-field list for a beverage type (FR-3, A10). */
+/** Required-field list for a beverage type. */
 export function getRequiredFields(
   beverageType: BeverageType,
 ): readonly ConfigFieldKey[] {
@@ -85,7 +85,7 @@ export function getRequiredFields(
 
 /**
  * Test-only: reset the memo so a unit test can simulate a config reload.
- * Not part of the public surface that P1-3 consumes.
+ * Not part of the public surface that the next layer consumes.
  */
 export function _resetConfigCacheForTesting(): void {
   warningCache = null;

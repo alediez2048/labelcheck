@@ -1,6 +1,6 @@
 /**
  * POST /api/feedback/record — agent-correction feedback loop write
- * endpoint (P5-3).
+ * endpoint.
  *
  * Called by the QueueProvider as a fire-and-forget after a disposition
  * is recorded. The handler MUST NOT return a non-2xx on internal

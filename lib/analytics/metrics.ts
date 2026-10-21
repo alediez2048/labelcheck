@@ -1,5 +1,5 @@
 /**
- * Analytics metric selectors (P2-6).
+ * Analytics metric selectors.
  *
  * Pure functions over `QueueStoreState.dispositionedApplications` that
  * mirror the shape of `metric_rollup` in schema.md. The prototype
@@ -8,8 +8,8 @@
  * return shape, same call site.
  *
  * Date math is parameterised through `now` so range-boundary tests are
- * deterministic. The default uses `Date.now()` (the page passes
- * `Date.now()` once and threads it through).
+ * deterministic. The default uses `Date.now` (the page passes
+ * `Date.now` once and threads it through).
  *
  * The agent-scoped variants take an explicit `agentId` and filter on
  * `disposition.decidedBy`. The supervisor (admin role) decides match-
@@ -310,7 +310,7 @@ export function throughputByAgent(
 
 /**
  * The agent's most recent dispositions, newest first. Drives the
- * "recent decisions" list on My Stats. Row-scoped (D16; FR-29): an
+ * "recent decisions" list on My Stats. Row-scoped: an
  * agent only ever sees their own rows.
  */
 export function recentDecisions(

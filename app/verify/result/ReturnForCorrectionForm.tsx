@@ -8,7 +8,7 @@
  * "please fix". The free-text note is optional — most cases are fully
  * explained by the structured rows.
  *
- * Whole-application only (FR-26): there is no per-face / per-field
+ * Whole-application only: there is no per-face / per-field
  * checkbox here. The disposition is atomic; this form just records the
  * reasons that drove the agent to it.
  */

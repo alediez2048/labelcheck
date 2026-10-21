@@ -1,8 +1,8 @@
 /**
- * DispositionPanel — two-action whole-application disposition (FR-26).
+ * DispositionPanel — two-action whole-application disposition.
  *
  * Exactly two buttons: Approve, Return for correction. No manual reject
- * (FR-27 production auto-rejects after the 30-day correction window). No
+ * (production auto-rejects after the 30-day correction window). No
  * per-face or per-field controls — disposition is atomic (CONTEXT.md:
  * Disposition).
  *

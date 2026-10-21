@@ -1,5 +1,5 @@
 /**
- * Crop the warning region from a preprocessed face image (P3-2, D7).
+ * Crop the warning region from a preprocessed face image.
  *
  * Used by the targeted re-read path. When the first-pass extraction
  * reports `warning.legibility: "low"` on the face the warning matcher
@@ -13,12 +13,12 @@
  *
  *   1. With a `WarningRegionHint` — convert the model's normalized
  *      bounding box to integer pixel coordinates and call sharp's
- *      `.extract()` on it. Hint values are clamped to image bounds so
+ *      `.extract` on it. Hint values are clamped to image bounds so
  *      a slightly out-of-range hint never throws.
  *
  *   2. Without a hint — fall back to the bottom 40% of the image at
  *      full width. The warning lives on the back face in the lower
- *      half for ~all real labels (D12); a back-face bottom crop is the
+ *      half for ~all real labels; a back-face bottom crop is the
  *      right heuristic when the model didn't ship a hint. Documented
  *      so a future agent doesn't replace it with a "smarter" detector
  *      that quietly fails on edge cases.
@@ -137,10 +137,10 @@ export async function cropWarningRegion(
     height = Math.max(1, imageHeight - top);
   }
 
-  // Re-encode to the SAME mime as the input. sharp's `.extract()`
+  // Re-encode to the SAME mime as the input. sharp's `.extract`
   // preserves pixel resolution; the toBuffer call is what serialises
   // back to a real image file. We do NOT pass quality knobs — the
-  // crop should keep the model's full usable resolution (D7).
+  // crop should keep the model's full usable resolution.
   const pipeline = sharp(bytes).extract({ left, top, width, height });
   const out =
     mime === "image/png"

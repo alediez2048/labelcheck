@@ -1,5 +1,5 @@
 /**
- * Fixed-shape refusal templates (P4-3).
+ * Fixed-shape refusal templates.
  *
  * These constants ARE the contract the guardrail eval harness asserts
  * against. The string-match is verbatim — changing a comma here breaks
@@ -69,7 +69,7 @@ export function refusalFor(kind: RefusalKind): string {
 }
 
 /**
- * Short rationale shown next to a refusal in the chat UI (P4-3 NFR-2).
+ * Short rationale shown next to a refusal in the chat UI.
  * Kept out of the prompt to avoid drift; the prompt only carries the
  * sentence, and the UI carries the "why".
  */

@@ -1,5 +1,5 @@
 /**
- * /applications — All Applications (P2-6; mockup.md "All Applications").
+ * /applications — All Applications (mockup.md "All Applications").
  *
  * The full record. Filter the union of open work + dispositioned
  * history by free text, status, date range, and assigned agent. Owns
@@ -7,7 +7,7 @@
  * pure selector on every render — no effect, no stale read.
  *
  * Row-scoping is intentionally absent: this is the supervisor's
- * global record (D16; CONTEXT.md). The route-group layout gates
+ * global record (CONTEXT.md). The route-group layout gates
  * non-admin actors out before this page renders.
  */
 

@@ -1,10 +1,10 @@
 /**
  * SourcesList — per-source status table for the Knowledge Base tab
- * (P4-1).
+ *.
  *
  * Every row carries the four things the admin actually needs at a
  * glance: what was uploaded (filename + inferred topic), where it is
- * in the pipeline (status pill, NFR-2: colour + icon + text), how
+ * in the pipeline (status pill, colour + icon + text), how
  * much of it is now indexed (chunk count), and who put it there
  * (uploaded by, uploaded when). The "Replace with new version"
  * affordance is per-row because the mental model is "this thing is

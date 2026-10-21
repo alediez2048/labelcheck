@@ -1,12 +1,12 @@
 /**
- * Atomic claim (P2-3, FR-28, D15, CONTEXT.md Claim).
+ * Atomic claim (CONTEXT.md Claim).
  *
  * Picks the next eligible pool item for an agent and sets
  * `assignedAgentId` + `claimedAt` in one synchronous step. The
  * selection step is a strategy parameter — `selectBySpecialization`
- * (P2-4) is the default; `selectFifo` (P2-3) remains exported for
+ * is the default; `selectFifo` remains exported for
  * tests and for the documented configurable-alternative path
- * (round-robin push, per D15).
+ * (round-robin push).
  *
  * Availability is the only soft-fail: an `out_of_office` agent gets
  * `null` back rather than a thrown error, because the UI's

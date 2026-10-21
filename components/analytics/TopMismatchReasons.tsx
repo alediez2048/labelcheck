@@ -1,5 +1,5 @@
 /**
- * TopMismatchReasons — horizontal-bar chart of failing fields (P2-6,
+ * TopMismatchReasons — horizontal-bar chart of failing fields (
  * mockup.md Analytics).
  *
  * Each row: friendly label + bar + count. The bar is decorative; the

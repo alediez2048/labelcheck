@@ -1,9 +1,9 @@
 /**
- * Batch-intake types (P3-1).
+ * Batch-intake types.
  *
  * The batch path wraps the per-application pipeline (`runVerification`).
  * State is in-memory, ephemeral; a restart loses jobs by design
- * (D2, NFR-4). The UI polls `GET /api/batch/[id]`; the response shape
+ *. The UI polls `GET /api/batch/[id]`; the response shape
  * here IS the wire contract the batch results view consumes — keep it
  * stable.
  */
@@ -44,7 +44,7 @@ export type BatchItem = {
   status: BatchItemStatus;
   result?: VerificationResult;
   /**
-   * Populated when status transitions to `failed`. P3-3 normalised this
+   * Populated when status transitions to `failed`. normalised this
    * to the shared `StructuredError` shape so the failed-items panel
    * renders the same code/message vocabulary as the verify path.
    */

@@ -1,11 +1,11 @@
 /**
- * P5-5 — CI eval gate: baseline file schema + IO.
+ * CI eval gate: baseline file schema + IO.
  *
  * The committed `eval-baseline.json` at the repo root is the bar the
  * gate measures every run against. Its shape is a parallel snapshot of
  * `EvalReport` (the run shape) plus a `tolerances` block that lives in
  * config — not code — so the bar itself is reviewable in a PR
- * (FR-25 discipline applied to evals).
+ * (discipline applied to evals).
  *
  * The `golden_set_version` is a content hash of `tests/golden/index.ts`
  * (the typed array IS the manifest; see the note in `lib/eval/types.ts`).

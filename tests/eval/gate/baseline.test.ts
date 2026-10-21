@@ -1,5 +1,5 @@
 /**
- * P5-5 — CI eval gate: baseline schema + IO round-trip.
+ * CI eval gate: baseline schema + IO round-trip.
  *
  * The zod schema is the contract that prevents a baseline from being
  * loaded without a `golden_set_version` — the load-bearing field that

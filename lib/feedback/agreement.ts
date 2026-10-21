@@ -1,5 +1,5 @@
 /**
- * Tool-vs-agent agreement metric (P5-3).
+ * Tool-vs-agent agreement metric.
  *
  * Computes the live accuracy proxy observability.md names as the
  * highest-signal number the product produces. Three views over the
@@ -10,7 +10,7 @@
  *      a single bad batch surfaces immediately.
  *   2. All-time — every record ever written. The slow-moving baseline.
  *   3. Per beverage type — surfaces a specialization-specific weak
- *      spot (ties to FR-28 routing — D15 specializations).
+ *      spot (ties to routing — specializations).
  *
  * Pure function over `CorpusRecord[]`. The reader is the I/O layer
  * (`corpus.ts`); this module's only job is the math.

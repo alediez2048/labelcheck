@@ -1,5 +1,5 @@
 /**
- * Targeted high-resolution re-read of the warning region (P3-2, D7).
+ * Targeted high-resolution re-read of the warning region.
  *
  * Called at most ONCE per application by the extraction service when
  * the first-pass extraction returned a low-legibility warning region
@@ -16,7 +16,7 @@
  * low-confidence "needs a better image" lane.
  *
  * Providers without a `rereadWarning` method (the live Anthropic
- * adapter in P3-2) are handled gracefully: `attempted: false`, zero
+ * adapter later) are handled gracefully: `attempted: false`, zero
  * values, no crop, no model call.
  */
 

@@ -1,5 +1,5 @@
 /**
- * File-backed corpus store for the agent-correction feedback loop (P5-3).
+ * File-backed corpus store for the agent-correction feedback loop.
  *
  * Append-only JSONL files under `eval-data/agent-corrections/{ISO date}.jsonl`.
  * One day per file so the daily reader for the disagreement queue and
@@ -7,10 +7,10 @@
  * not scan an unbounded directory.
  *
  * **Prototype-only.** The ticket gotcha calls out that this moves to a
- * governed DB in P6-2 — the prototype rewrites a day's file in
+ * governed DB later — the prototype rewrites a day's file in
  * `updateCorpusRecord`, which is acceptable for the prototype's volume
  * but not for production. The function signatures here are the seam:
- * P6-2 swaps the implementation, the recorder + the API routes don't
+ * A later change swaps the implementation, the recorder + the API routes don't
  * change.
  *
  * Privacy: every line is a `CorpusRecord` (see `types.ts`) — no raw
@@ -47,7 +47,7 @@ function fileFor(record: CorpusRecord, dataDir: string): string {
  * Best-effort fsync: `appendFile` followed by `writeFile`-style flush is
  * not used — Node's append in append mode is atomic per line on POSIX
  * for lines under PIPE_BUF (~4KB), and our records sit well under that.
- * Production migrates to a real DB anyway (P6-2).
+ * Production migrates to a real DB anyway.
  */
 export async function appendCorpusRecord(
   record: CorpusRecord,
@@ -130,7 +130,7 @@ export async function readCorpusRecords(opts?: {
 /**
  * Update one record by id. Reads the day's file, rewrites it with the
  * patched line. Acceptable for the prototype's volume; production
- * (P6-2) does a single-row UPDATE against the governed datastore.
+ * does a single-row UPDATE against the governed datastore.
  *
  * Returns the updated record, or `null` when no record matches.
  */

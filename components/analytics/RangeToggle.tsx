@@ -1,10 +1,10 @@
 /**
- * RangeToggle — week / month segmented control (P2-6, mockup.md
+ * RangeToggle — week / month segmented control (mockup.md
  * Analytics).
  *
  * Drives the whole Analytics view. Hand-rolled SVG icons (not unicode
  * glyphs) so the active state reads in both axes: filled background +
- * bold text + icon (NFR-2; AC-9 — colour is not the sole channel).
+ * bold text + icon (colour is not the sole channel).
  */
 
 "use client";

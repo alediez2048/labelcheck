@@ -17,7 +17,7 @@
  *     knowledge token signed by the server.
  *
  * SPEND SHIELD, not security. This file protects the model budget. It is
- * NOT authentication, RBAC, or audit (those are P6-3, PIV/CAC + SSO).
+ * NOT authentication, RBAC, or audit (those are, PIV/CAC + SSO).
  */
 
 const COOKIE_PAYLOAD = "ok";

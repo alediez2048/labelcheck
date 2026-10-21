@@ -1,5 +1,5 @@
 /**
- * Auth scope helpers (P2-5, D16).
+ * Auth scope helpers.
  *
  * Centralises the "is this caller allowed to run an admin operation"
  * predicate. The router modules (`handAssign`, `reassign`,
@@ -12,7 +12,7 @@
  * `actorFromAgent` — no module-level "current actor" store exists.
  * `state.currentAgentId` + `state.agents` is the source of truth (D16
  * row-scoping is keyed off the same field). The role-switcher's
- * production swap (PIV/CAC + SSO, NFR-8) replaces only the binding of
+ * production swap (PIV/CAC + SSO) replaces only the binding of
  * `currentAgentId`; the helpers here are unchanged.
  */
 
@@ -21,7 +21,7 @@ import { RouterError } from "@/lib/router/types";
 
 /**
  * The caller of an admin-gated operation. Two effective roles only
- * (D16; schema.md `agent.role` trimmed enum) — `agent` and `admin`. No
+ * (schema.md `agent.role` trimmed enum) — `agent` and `admin`. No
  * third role anywhere in code.
  */
 export type Actor = {

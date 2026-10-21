@@ -1,14 +1,14 @@
 /**
  * GET /api/feedback/disagreements — today's sampled disagreement queue
- * (P5-3).
+ *.
  *
  * Reads today's corpus records (UTC day window), filters to
  * `sampled: true`, and shapes the rows into the UI contract the
  * parallel agent built against. The route is the only place the
  * corpus-record → UI-row mapping lives.
  *
- * Admin-only at the UI layer (D16); the route itself doesn't gate
- * because there's no auth in the prototype. P6-3 (PIV/CAC + SSO +
+ * Admin-only at the UI layer; the route itself doesn't gate
+ * because there's no auth in the prototype. (PIV/CAC + SSO +
  * RBAC) replaces the middleware-level gate with real role checks.
  */
 

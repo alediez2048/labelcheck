@@ -1,9 +1,9 @@
 /**
- * Pool admission (P2-3, FR-28, D15).
+ * Pool admission.
  *
  * Triaged exception applications (mismatch + review) enter the shared
  * work pool through this function. The match lane is hard-rejected —
- * bulk-confirm on Operations (P2-2) is the only path that touches a
+ * bulk-confirm on Operations is the only path that touches a
  * match-lane row, never the router.
  *
  * `admitToPool` is idempotent: if the application is already in the

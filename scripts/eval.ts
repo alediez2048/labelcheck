@@ -1,5 +1,5 @@
 /**
- * P5-2 + P5-3 — Offline eval harness entrypoint.
+ * Offline eval harness entrypoint.
  *
  * Usage:
  *   pnpm eval                                # mock adapter, golden set
@@ -137,7 +137,7 @@ async function main(): Promise<void> {
   }
 
   // The gate is a golden-set + mock-only mode. CI runs against the mock
-  // for determinism (NFR-3 / A21); live calls happen out-of-band.
+  // for determinism; live calls happen out-of-band.
   const dataset: Dataset = gate ? "golden" : parseDataset(argv);
   const runStartedAt = new Date().toISOString();
   const { runs, provider } = await loadRuns(dataset);

@@ -1,17 +1,17 @@
 /**
  * SpecializationEditor — admin-only multi-select popover for an
- * agent's beverage-type specialization (P2-4).
+ * agent's beverage-type specialization.
  *
  * The admin's inline edit lives next to the agent row on the Review
  * Distribution Board because the supervisor's mental model is "I'm
  * looking at this agent's load; their specialty is wrong, fix it
  * here." A modal would break that flow and a Team-view round-trip
- * doesn't ship until P2-6 — the inline editor is the minimum the
+ * doesn't ship until later — the inline editor is the minimum the
  * router needs to demonstrate specialization-aware routing.
  *
  * The component is presentational: the caller owns `value` and only
  * receives the new array on Save. An empty array means "generalist
- * (overflow only)" and is a valid choice per D15 / FR-28; the caption
+ * (overflow only)" and is a valid choice; the caption
  * surfaces that so the supervisor doesn't second-guess what an empty
  * selection means.
  *

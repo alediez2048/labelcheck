@@ -1,24 +1,24 @@
 /**
  * ChatPanel — bottom-right floating chat for the read-only assistant
- * (P4-2; FR-30, FR-31; systemsdesign.md Assistant).
+ * (systemsdesign.md Assistant).
  *
  * Why floating + same component in both shells: the assistant is a
  * helper layer over the work, not a route. Mounting one component in
  * both `(admin)` and `(agent)` layouts means the same UI surface is
  * present everywhere a signed-in actor can be, and the role-scoped
- * server-side resolution does the rest (D16). The panel itself reads
- * `currentAgent` from `useQueue()` so it can label the session
+ * server-side resolution does the rest. The panel itself reads
+ * `currentAgent` from `useQueue` so it can label the session
  * ("As {name} · {role}") and pass `activeAgentId` on every turn — but
  * never trusts the client value for authorisation; the server
- * re-derives it (D16; observability.md role-scope isolation).
+ * re-derives it (observability.md role-scope isolation).
  *
- * Session-only state (NFR-4): messages and citations live in component
+ * Session-only state: messages and citations live in component
  * state and reset on reload. Nothing about the conversation lands in
  * the application DB; traces are an observability concern, not an app
  * one. This is why the component keeps its own state instead of
  * reaching for a provider or persistence layer.
  *
- * Accessibility (NFR-2): role="dialog" + aria-modal="false" — the
+ * Accessibility: role="dialog" + aria-modal="false" — the
  * panel floats over the page but does not block underlying focus, so
  * the agent can read context while typing a question. The message
  * list is an aria-live="polite" region so new assistant turns are

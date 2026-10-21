@@ -1,5 +1,5 @@
 /**
- * Lane confusion matrix (P5-2; observability.md "Lane classification
+ * Lane confusion matrix (observability.md "Lane classification
  * accuracy").
  *
  * 3x3 matrix indexed `matrix[expected][predicted]`. Per-lane accuracy

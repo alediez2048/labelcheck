@@ -2,8 +2,8 @@
  * Triage classifier tests — exercises every branch of the priority
  * order and covers AC-1 through AC-6 at the unit level.
  *
- * The classifier consumes `FieldResult[]` (already produced by P1-3 +
- * P1-4); tests construct fixtures directly rather than running through
+ * The classifier consumes `FieldResult[]` (already produced by a later change +
+ *); tests construct fixtures directly rather than running through
  * the matching engine. That's deliberate — the priority logic is the
  * test surface, and decoupling from the matchers means a future
  * matching-rule change can't silently regress triage.

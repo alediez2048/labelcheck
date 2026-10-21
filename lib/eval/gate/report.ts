@@ -1,5 +1,5 @@
 /**
- * P5-5 — CI eval gate: `gate-result.md` writer.
+ * CI eval gate: `gate-result.md` writer.
  *
  * Renders the structured `GateResult` into the human-skimmable diff the
  * operator pulls from the CI artifact. Section order is deliberate:

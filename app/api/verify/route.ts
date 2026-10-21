@@ -5,7 +5,7 @@
  * together: wire-decode → validate → invoke the reusable per-application
  * pipeline (`lib/verify/runVerification.ts`) → emit one structured log
  * line. The pipeline itself (extract → match → triage) is the SAME
- * function the batch orchestrator (P3-1) calls; extracting it kept the
+ * function the batch orchestrator calls; extracting it kept the
  * single-application path identical to the batch path so the two cannot
  * drift.
  *
@@ -18,12 +18,12 @@
  *    distinction is inside the pipeline.
  *
  * 2. Validation errors return 400 with plain-language messages, never a
- *    zod path or stack trace. The reasons are user-facing (NFR-2);
+ *    zod path or stack trace. The reasons are user-facing;
  *    leaking framework noise into the agent UI would erode trust.
  *
- * The access gate is enforced at the edge by `middleware.ts` (P0-6).
+ * The access gate is enforced at the edge by `middleware.ts`.
  * Nothing inside this handler depends on the gate being on or off — the
- * gate is a spend shield, not auth (P6-3 is the real identity work).
+ * gate is a spend shield, not auth (is the real identity work).
  */
 
 import { NextResponse } from "next/server";
@@ -60,7 +60,7 @@ type JsonBody = {
  * with the user-facing reason.
  *
  * The wire shape is JSON because the form is a Next.js client component
- * that fetches() into this handler; multipart would force a separate
+ * that fetches into this handler; multipart would force a separate
  * parsing path for tests vs. browser. Base64 is the cost of staying on
  * one JSON contract — at the 1568px preprocess cap, a face is well under
  * the request body limit.
@@ -154,7 +154,7 @@ function decodeBody(raw: JsonBody): DecodeResult {
 /**
  * Log one end-to-end request span. Called from the POST handler's
  * `finally` so every return path is covered. PII (form values, image
- * bytes, transcribed text) stays out per NFR-4 / observability.md.
+ * bytes, transcribed text) stays out / observability.md.
  */
 function logRequestSpan(opts: {
   applicationId: string | null;
@@ -199,7 +199,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   // End-to-end timing for the /api/verify request — the NFR-1 5s
   // p95 budget is measured against this number. The extraction layer
   // also logs its own per-request timing so we can isolate the
-  // dominant cost (P1-11; observability.md: What We Instrument).
+  // dominant cost (observability.md: What We Instrument).
   const startedAt = performance.now();
   let applicationId: string | null = null;
   let outcome: "ok" | "validation" | "degraded" | "unreadable" | "error" =
@@ -244,7 +244,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
     applicationId = decoded.submission.applicationId;
 
-    // 3. Validate the (now Buffer-bearing) submission against the P1-1
+    // 3. Validate the (now Buffer-bearing) submission against the
     //    zod schema. The validator returns a UI-friendly shape — no zod
     //    paths leak through.
     const validation = validateApplication(decoded.submission.body);
@@ -269,9 +269,9 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     // 4. Run the reusable per-application pipeline (extract → match →
     //    triage). The pipeline lives in `lib/verify/runVerification.ts`
-    //    so the batch orchestrator (P3-1) composes the same flow.
+    //    so the batch orchestrator composes the same flow.
     //
-    //    P5-1: the entire pipeline runs INSIDE `withVerificationSpan`,
+    //    the entire pipeline runs INSIDE `withVerificationSpan`,
     //    which sets up the parent `verification` span and feeds the
     //    pipeline an observability hook. The hook receives face count,
     //    per-field events, and the final lane/confidence; the
@@ -307,7 +307,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     // Surface the underlying error so production debugging works
     // without a tracing backend wired up. PII is not present here —
     // the matcher / extractor never put applicant identifiers into
-    // exception messages (D4 + observability.md).
+    // exception messages (observability.md).
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
     return NextResponse.json(

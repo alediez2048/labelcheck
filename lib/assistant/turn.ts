@@ -1,9 +1,9 @@
 /**
- * Assistant turn orchestrator (P4-2, hardened in P4-3).
+ * Assistant turn orchestrator (hardened).
  *
  * Drives one full request → response cycle:
  *   1. Pick the latest user message from the client-held history.
- *   2. Classify the message intent (P4-3) — deterministic, no model call.
+ *   2. Classify the message intent — deterministic, no model call.
  *   3. Retrieve top-K KB chunks above the similarity floor.
  *   4. Build the system prompt (role + retrieved chunks + intent tags).
  *   5. Call the generator (chat-with-tools, mock or live).
@@ -12,7 +12,7 @@
  *      format the snapshot into prose. Citations are intentionally
  *      empty when the answer came from the tool (the tool output
  *      isn't KB material).
- *   7. Run the response-side postcheck (P4-3) — demote uncited
+ *   7. Run the response-side postcheck — demote uncited
  *      compliance claims and cross-user mentions to fixed-shape
  *      refusals. Belt-and-braces on top of the prompt.
  *   8. Build the response and emit a PII-redacted trace.
@@ -53,7 +53,7 @@ import {
 } from "@/lib/assistant/refusals";
 
 /**
- * Optional P5-1 observability hook. The route handler wraps `runTurn`
+ * Optional observability hook. The route handler wraps `runTurn`
  * in `withAssistantSpan` and threads the resulting context here; the
  * orchestrator fills attributes (intent tags, retrieval count, used
  * tool, refusal template, postcheck action, total ms) as the turn
@@ -71,7 +71,7 @@ export type RunTurnInput = {
   /** Resolved server-side; NEVER from the request body. */
   callerAgentId: string;
   callerRole: AssistantRole;
-  /** Optional P5-1 hook — wires the assistant.turn span attributes. */
+  /** Optional hook — wires the assistant.turn span attributes. */
   observability?: RunTurnObservability;
 };
 
@@ -177,7 +177,7 @@ export async function runTurn(
     postcheckAction: postResult.appliedRefusal ?? "none",
   });
 
-  // P5-1: feed the same facts to the assistant.turn span so the
+  // feed the same facts to the assistant.turn span so the
   // observability backend gets a single structured record per turn
   // (same shape the legacy console trace above carries). The
   // attribute keys all live in `SAFE_ATTRIBUTE_KEYS` — no PII.
@@ -218,7 +218,7 @@ function findLatestUser(
  * the templates. Returns null when the answer is not a refusal.
  *
  * The trace records refusals by kind so the observability backend can
- * count them without scraping the message text (NFR-4).
+ * count them without scraping the message text.
  */
 function matchRefusalTemplate(text: string): RefusalKind | null {
   if (!ALL_REFUSAL_TEMPLATES.includes(text)) {

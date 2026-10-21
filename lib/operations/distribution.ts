@@ -1,5 +1,5 @@
 /**
- * Review-distribution selectors (P2-2, mockup.md Operations).
+ * Review-distribution selectors (mockup.md Operations).
  *
  * Two related views:
  *   - Shared pool counts split by beverage type — the supervisor's
@@ -9,7 +9,7 @@
  *     trigger a Distribute pass.
  *
  * Match-lane applications NEVER enter either view — they belong on
- * the match-lane approval panel (D11; D15; CONTEXT.md Work pool).
+ * the match-lane approval panel (CONTEXT.md Work pool).
  */
 
 import type { BeverageType } from "@/types";

@@ -1,5 +1,5 @@
 /**
- * `get_my_rollup` tool tests (P4-2).
+ * `get_my_rollup` tool tests.
  *
  * Validates the role-scoped isolation invariant (D16,
  * observability.md):

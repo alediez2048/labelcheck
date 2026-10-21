@@ -1,5 +1,5 @@
 /**
- * Response-side guardrails (P4-3).
+ * Response-side guardrails.
  *
  * Belt-and-braces on top of the prompt. The prompt tells the model to
  * refuse certain categories; this module SCANS the generated response
@@ -14,7 +14,7 @@
  *      "fabricated rule" failure mode (observability.md: no
  *      fabricated rules). Replace with the unsupported-compliance
  *      refusal. The patterns live in `config/assistant-guardrails.json`
- *      so they're tunable without a code change (FR-25 spirit).
+ *      so they're tunable without a code change.
  *
  *   2. Cross-user mention. A response that names any agent OTHER than
  *      the caller is a role-scope leak (observability.md: zero leak).

@@ -1,5 +1,5 @@
 /**
- * GET /api/kb/sources — admin-only KB source list (P4-1).
+ * GET /api/kb/sources — admin-only KB source list.
  *
  * Thin pass-through onto `listSources` so the Knowledge Base UI can
  * poll for status transitions (`queued` → `indexing` → `ready` |

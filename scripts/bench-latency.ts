@@ -1,11 +1,11 @@
 /**
- * P1-11 — Latency bench (NFR-1, A12).
+ * Latency bench.
  *
  * Runs the golden-set fixtures through the verification pipeline N
  * times, measures the extraction call duration AND the end-to-end
  * pipeline duration, and reports p50 / p95 / max for each. The p95
  * number is the headline — the long tail is what fails the agent's
- * experience, not the median (NFR-1).
+ * experience, not the median.
  *
  * Defaults to the mock adapter so the bench can run in CI without an
  * API key. Set `PROVIDER=anthropic ANTHROPIC_API_KEY=...` to run
@@ -24,7 +24,7 @@
  *   PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm tsx scripts/bench-latency.ts
  *
  * The output is the seed for the OpenTelemetry per-verification span
- * in P5-1 — same event vocabulary (`extraction.call`, `verify.request`)
+ * later — same event vocabulary (`extraction.call`, `verify.request`)
  * and the same per-request timing structure.
  */
 
@@ -121,7 +121,7 @@ function percentile(values: number[], p: number): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   // Nearest-rank percentile — fine for N ≥ 20 and matches what the
-  // observability dashboards in P5-1 will use.
+  // observability dashboards later will use.
   const idx = Math.ceil((p / 100) * sorted.length) - 1;
   return sorted[Math.max(0, Math.min(idx, sorted.length - 1))]!;
 }

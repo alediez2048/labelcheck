@@ -1,5 +1,5 @@
 /**
- * P3-4 — Load script (NFR-1, NFR-7, AC-7).
+ * Load script.
  *
  * Drives the per-application pipeline (`runVerification`) under three
  * scenarios so the 5-second p95 budget can be defended in isolation,

@@ -1,5 +1,5 @@
 /**
- * Queue selector / summary / claim / disposition tests (P2-1).
+ * Queue selector / summary / claim / disposition tests.
  *
  * The UI is exercised manually; these tests assert the pure logic so a
  * future refactor can't silently break "match lane never reaches the
@@ -82,7 +82,7 @@ describe("selectMyQueue (D11, D15, CONTEXT.md Work pool)", () => {
     // Seed: Marcus owns harbor-mist + pages-1907-lager; Priya owns
     // vintage-park-vintners. The selector is keyed off
     // state.currentAgentId — switching it must swap the visible set
-    // wholesale, and never leak items across agents (D16 row-scoping).
+    // wholesale, and never leak items across agents (row-scoping).
     const base = seed();
 
     const marcusView = selectMyQueue({
@@ -294,7 +294,7 @@ describe("recordDisposition", () => {
       ),
     ).toBeUndefined();
     // The row moves to the historical record with status "approved"
-    // (P2-6 — Analytics + history read from this list).
+    // (Analytics + history read from this list).
     const dispositioned = result.state.dispositionedApplications.find(
       (a) => a.applicationId === "harbor-mist-vodka-001",
     );

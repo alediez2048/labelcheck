@@ -1,5 +1,5 @@
 /**
- * `selectFifo` strategy tests (P2-3).
+ * `selectFifo` strategy tests.
  *
  * Pure-function guarantees:
  *   - mismatch lane wins over review lane regardless of receivedAt

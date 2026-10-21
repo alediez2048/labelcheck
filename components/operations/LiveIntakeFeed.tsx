@@ -1,6 +1,6 @@
 /**
  * LiveIntakeFeed — most-recent applications with lane + destination
- * string (P2-2, mockup.md Operations).
+ * string (mockup.md Operations).
  *
  * Each row pairs the lane (color + icon + text) with the destination
  * the application landed in. The destination is a plain string so a

@@ -1,7 +1,7 @@
 /**
  * Zod schemas for the JSON config files in `config/`.
  *
- * Every schema is `.strict()` — unknown keys are rejected loudly rather
+ * Every schema is `.strict` — unknown keys are rejected loudly rather
  * than silently ignored. The whole point of FR-25 is that a compliance
  * reviewer can edit these files; a typo'd key like `"caps": true` instead
  * of `"headingCapsRequired": true` must fail the startup check, not
@@ -11,7 +11,7 @@
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
-// warning.json — canonical text + heading rules (D6)
+// warning.json — canonical text + heading rules
 // ---------------------------------------------------------------------------
 
 export const WarningConfigSchema = z
@@ -25,10 +25,10 @@ export const WarningConfigSchema = z
     headingText: z.string(),
     /** FR-11: heading must be ALL CAPS — strict pass/fail. */
     headingCapsRequired: z.boolean(),
-    /** FR-11: heading should be bold — but enforcement is best-effort per D6. */
+    /** FR-11: heading should be bold — but enforcement is best-effort. */
     headingBoldRequired: z.boolean(),
     /**
-     * D6: how strictly to enforce bold. `"best_effort"` means the
+     * how strictly to enforce bold. `"best_effort"` means the
      * triage classifier routes "uncertain" model reads to the review
      * lane rather than auto-failing on a styling cue.
      */
@@ -49,7 +49,7 @@ export const WarningConfigSchema = z
 export type WarningConfig = z.infer<typeof WarningConfigSchema>;
 
 // ---------------------------------------------------------------------------
-// tolerances.json — per-field matching rules (FR-8, FR-9, FR-10, A19)
+// tolerances.json — per-field matching rules
 // ---------------------------------------------------------------------------
 
 /** Normalization steps the matcher applies before comparison. */
@@ -93,16 +93,16 @@ export const FieldRuleSchema = z.discriminatedUnion("rule", [
 export type FieldRule = z.infer<typeof FieldRuleSchema>;
 
 /**
- * Confidence derivation parameters (P1-4, D5).
+ * Confidence derivation parameters.
  *
- * `threshold` is the split between "confident" and "uncertain" that P1-5
+ * `threshold` is the split between "confident" and "uncertain" that
  * triage uses. `legibilityFactors` multiply the base confidence per the
  * model's per-region legibility flag from `FaceExtraction.warning`.
  * `notFoundConfidence` and `lowConfidenceVerdict` set the mid-range
  * scalars for the corresponding `Verdict` values.
  *
  * The model's OWN overall self-reported confidence is never used here
- * (D5). It is logged-only.
+ *. It is logged-only.
  */
 const ConfidenceConfigSchema = z
   .object({
@@ -122,7 +122,7 @@ const ConfidenceConfigSchema = z
 export type ConfidenceConfig = z.infer<typeof ConfidenceConfigSchema>;
 
 /**
- * Re-read trigger configuration (P3-2 / D7).
+ * Re-read trigger configuration.
  *
  * `triggerOnLegibility` is the value of `WarningFlags.legibility` that
  * causes the extraction service to fire a targeted high-res second
@@ -148,9 +148,9 @@ export type WarningLegibilityRereadConfig = z.infer<
 /**
  * Per-field tolerance table. Keys are the camelCase form field names
  * (matching `FormFields` in `types/domain.ts`); the values are the
- * matching rules the engine (P1-3) applies. `confidence` carries the
- * derivation parameters used by P1-4 / consumed by P1-5 triage.
- * `warningLegibilityReread` carries the P3-2 trigger config.
+ * matching rules the engine applies. `confidence` carries the
+ * derivation parameters used by a later change / consumed by a later change triage.
+ * `warningLegibilityReread` carries the trigger config.
  */
 export const TolerancesConfigSchema = z
   .object({
@@ -169,7 +169,7 @@ export const TolerancesConfigSchema = z
 export type TolerancesConfig = z.infer<typeof TolerancesConfigSchema>;
 
 // ---------------------------------------------------------------------------
-// fields-by-type.json — required fields per beverage type (FR-3, A10)
+// fields-by-type.json — required fields per beverage type
 // ---------------------------------------------------------------------------
 
 /**

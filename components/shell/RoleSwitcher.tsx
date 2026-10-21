@@ -1,11 +1,11 @@
 /**
- * RoleSwitcher — sidebar identity dropdown (P2-5; D16; FR-29).
+ * RoleSwitcher — sidebar identity dropdown.
  *
- * The prototype's stand-in for PIV/CAC + SSO (NFR-8). Lists every
+ * The prototype's stand-in for PIV/CAC + SSO. Lists every
  * seeded agent and admin and lets the reviewer swap the active actor
  * so the Admin and Agent shells can be exercised side-by-side. The
  * switcher is intentionally explicit about role — color + icon + text
- * on the role pill so it never relies on color alone (NFR-2, AC-9) —
+ * on the role pill so it never relies on color alone —
  * and adds a specialization caption so picking "the wine specialist"
  * does not require remembering ids.
  *

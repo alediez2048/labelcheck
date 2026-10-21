@@ -1,9 +1,9 @@
 /**
  * Derives the one-line plain-language issue summary that My Queue
- * renders on each row (FR-15; mockup.md My Queue).
+ * renders on each row (mockup.md My Queue).
  *
  * The summary comes from the worst-verdict field in the latest
- * verification — NOT from a model self-report (D5). The priority is
+ * verification — NOT from a model self-report. The priority is
  * mismatch > not_found > low_confidence; ties broken by the natural
  * field order so the warning surfaces above a fanciful-name nit when
  * both are wrong (FR-11/FR-12 are the highest-stakes check; the queue
@@ -42,7 +42,7 @@ const VERDICT_PRIORITY: Readonly<Record<FieldResult["verdict"], number>> = {
  */
 export function deriveIssueSummary(verification: VerificationResult): string {
   // Unreadable / degraded / structurally-empty result — the flags array
-  // already carries the agent-readable sentence (FR-26b).
+  // already carries the agent-readable sentence.
   if (verification.extractionFailed) {
     return verification.flags[0] ?? "Could not verify — please re-upload.";
   }

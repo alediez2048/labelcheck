@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * AC-9 — automated a11y sweep of the review UI (P1-8).
+ * automated a11y sweep of the review UI.
  *
  * Renders the three lane states the agent will see — match / mismatch /
  * review (unreadable) — through the same components the production
@@ -168,7 +168,7 @@ describe("AC-9 — a11y sweep of the review UI", () => {
       <LaneBanner lane="mismatch" overallConfidence={0.8} />,
     );
     // The text label MUST be present in the DOM — color alone is
-    // insufficient per AC-9. We assert the literal verdict word so a
+    // insufficient. We assert the literal verdict word so a
     // future palette change can't silently drop the text fallback.
     expect(container.textContent).toMatch(/Mismatch/);
   });

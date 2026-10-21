@@ -1,5 +1,5 @@
 /**
- * Disagreement-queue sampler (P5-3).
+ * Disagreement-queue sampler.
  *
  * Decides whether an override record lands in the daily disagreement
  * queue. The recorder calls `shouldSample` BEFORE writing the new

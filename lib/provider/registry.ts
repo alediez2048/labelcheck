@@ -1,9 +1,9 @@
 /**
- * Vision-provider registry (P5-4).
+ * Vision-provider registry.
  *
  * A typed keyed list of every candidate the model bake-off can exercise.
  * Each entry carries:
- *   - the adapter factory (`build()`),
+ *   - the adapter factory (`build`),
  *   - stakeholder-facing origin metadata (vendor, country, license,
  *     in-boundary status, security-review status),
  *   - an approximate per-call cost used as a tie-breaker by the

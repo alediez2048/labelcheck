@@ -1,5 +1,5 @@
 /**
- * Intake funnel selector (P2-2, mockup.md Operations).
+ * Intake funnel selector (mockup.md Operations).
  *
  * Four ordered figures across the top of the supervisor's home:
  *   1. received          — total applications in the store
@@ -11,7 +11,7 @@
  *
  * Pure function: takes the store state, returns the snapshot the UI
  * component renders. No side effects, no model calls — the queue is
- * precomputed (D15).
+ * precomputed.
  */
 
 import type { QueueStoreState } from "@/lib/queue/types";

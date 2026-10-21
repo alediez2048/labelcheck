@@ -1,12 +1,12 @@
 /**
- * Aggregate review surface above the match-lane bulk-confirm (FR-23).
+ * Aggregate review surface above the match-lane bulk-confirm.
  *
  * The supervisor must see THREE things before they approve the whole
  * lane in one click — count, bottom-quartile-confidence matches
  * inline + tap-expandable, and the delta vs the rolling baseline
  * match rate. Without all three the page reduces to "approve all"
  * with no review, which is auto-clear — an off-by-default agency
- * policy (CONTEXT.md Auto-clear; D11). The selector wraps those
+ * policy (CONTEXT.md Auto-clear). The selector wraps those
  * three signals in one snapshot.
  *
  * The "single flagged-but-still-match field" case (a `lane === "match"`
@@ -37,7 +37,7 @@ export type AggregateReviewSnapshot = {
   /**
    * Match-lane applications with at least one non-`match` field
    * result — the "soft flag in an otherwise-match application" case
-   * (FR-23). Surfaced separately from the bottom quartile because the
+   *. Surfaced separately from the bottom quartile because the
    * signal is qualitative (a specific field) not quantitative
    * (low confidence overall).
    */

@@ -2,7 +2,7 @@
  * LanePill — color + icon + text lane chip for the feedback loop UI.
  *
  * The feedback loop surface (agreement widget + disagreement queue) needs
- * the same lane-language triple (NFR-2, AC-9) the queue row and the
+ * the same lane-language triple the queue row and the
  * distribution board already use. Rather than couple `components/feedback/`
  * to a leaf file under `app/verify/result/`, we keep a small local pill
  * here. The shape is intentionally minimal — feedback-loop rows compare

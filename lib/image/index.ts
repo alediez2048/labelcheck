@@ -1,5 +1,5 @@
 /**
- * Public barrel for `lib/image/`. P1-2's extraction service imports
+ * Public barrel for `lib/image/`. the extraction service imports
  * `preprocessImage` from `@/lib/image`.
  */
 

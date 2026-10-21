@@ -1,5 +1,5 @@
 /**
- * OpenTelemetry metric instruments (P5-1).
+ * OpenTelemetry metric instruments.
  *
  * The headline counters and latency histograms for the per-system view
  * in observability.md ("request rate, error and timeout rate by

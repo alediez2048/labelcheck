@@ -1,5 +1,5 @@
 /**
- * Intent classifier (P4-3).
+ * Intent classifier.
  *
  * Tags a user message with zero or more intents so the orchestrator
  * can pick the right refusal template (or pass through to KB / tool).

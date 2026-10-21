@@ -1,5 +1,5 @@
 /**
- * POST /api/kb/upload — admin-only multipart ingest entry point (P4-1).
+ * POST /api/kb/upload — admin-only multipart ingest entry point.
  *
  * Hands the uploaded file to `ingestUpload`, which kicks off the
  * parse → chunk → embed → upsert pipeline off the request path. The
@@ -13,7 +13,7 @@
  * layers in the prototype: (1) the route-layer redirect in
  * `app/(admin)/layout.tsx`, and (2) the access cookie in
  * `middleware.ts`. Production swaps this for a real auth context
- * (P6-3 — PIV/CAC + SSO + RBAC) and resolves the actor server-side.
+ * (PIV/CAC + SSO + RBAC) and resolves the actor server-side.
  * Because there is no React context in a route handler, there is
  * nowhere to read the active admin from here today.
  *

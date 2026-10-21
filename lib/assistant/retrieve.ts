@@ -1,5 +1,5 @@
 /**
- * Retrieval step (P4-2).
+ * Retrieval step.
  *
  * Embed the latest user message, search the in-memory KB for the
  * top-K cosine-similar chunks, drop anything below the configured
@@ -15,8 +15,8 @@
  *
  * Production swap: the store layer goes from in-memory to pgvector;
  * the retrieve helper's signature does not change. The embedder seam
- * already swaps to Voyage / OpenAI / olmOCR through `getEmbedder()`
- * (P4-1).
+ * already swaps to Voyage / OpenAI / olmOCR through `getEmbedder`
+ *.
  */
 
 import { readFileSync } from "node:fs";

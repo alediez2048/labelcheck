@@ -25,7 +25,7 @@ import type { StructuredError } from "./types";
  *   review lane with the structured-error message as the single flag
  *   (the wording matches the prior `buildTimeoutResult` shape).
  * - `INTERNAL` → review lane with a defensive message; NO recommendation
- *   (a programming bug shouldn't pretend to be an FR-26b case).
+ * (a programming bug shouldn't pretend to be an case).
  * - `INVALID_INPUT` → still produces a result (defensive, never expected),
  *   but the caller should be returning a 4xx instead.
  */

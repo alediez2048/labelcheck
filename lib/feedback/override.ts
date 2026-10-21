@@ -1,5 +1,5 @@
 /**
- * Override detector (P5-3).
+ * Override detector.
  *
  * Pure function comparing the tool's predicted lane to the agent's
  * effective lane and classifying the result into one of three

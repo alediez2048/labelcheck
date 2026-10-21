@@ -1,8 +1,8 @@
 /**
- * All Applications filter selector (P2-6).
+ * All Applications filter selector.
  *
  * Pure function that produces the rows the All Applications table
- * renders. The store keeps two distinct collections after P2-6:
+ * renders. The store keeps two distinct collections later:
  *
  *  - `state.applications` — open work (status = `"in_queue"`).
  *  - `state.dispositionedApplications` — history (status set by the
@@ -15,7 +15,7 @@
  * schema.md so a future prototype-to-production port is one-to-one).
  *
  * `now` is parameterised so range-boundary tests are deterministic;
- * production wires it to `Date.now()` (the default).
+ * production wires it to `Date.now` (the default).
  */
 
 import type {

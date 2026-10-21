@@ -1,5 +1,5 @@
 /**
- * The headline safety metric (P5-2; observability.md "False-negative
+ * The headline safety metric (observability.md "False-negative
  * rate on real mismatches").
  *
  * Definition: of the cases whose ground-truth lane is NOT `match`

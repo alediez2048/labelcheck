@@ -1,5 +1,5 @@
 /**
- * /team — Team (P2-6; mockup.md "Team"; D15).
+ * /team — Team (mockup.md "Team").
  *
  * Per-member performance table. One row per `role === "agent"`
  * member. The supervisor sees their week / month throughput, their

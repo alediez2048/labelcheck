@@ -1,5 +1,5 @@
 /**
- * Structured error vocabulary (P3-3).
+ * Structured error vocabulary.
  *
  * Bad inputs are NORMAL OUTCOMES, not errors (systemsdesign Error Handling).
  * The verify and batch entry points funnel every failure path through this
@@ -8,7 +8,7 @@
  *
  * Each code carries:
  *   - `message`: plain-language sentence safe to render in the UI. Never a
- *     zod path, never a stack trace, never applicant PII (NFR-2, NFR-4).
+ *     zod path, never a stack trace, never applicant PII.
  *   - `retryable`: whether re-running the same input might succeed.
  *     `INVALID_INPUT` and `UNREADABLE_IMAGE` are NOT retryable as-is — the
  *     caller has to change something (fix the form / re-upload a clearer
@@ -46,7 +46,7 @@ export type StructuredError = {
   /**
    * Default operator action the UI should foreground.
    *
-   * - `return_unreadable_image` — FR-26b: the artwork is genuinely
+   * - `return_unreadable_image` — the artwork is genuinely
    *   unreadable; the applicant must supply a clearer image.
    * - `retry_service_slow` — the provider call timed out or the
    *   service was unavailable. The artwork may be fine; the operator
@@ -94,7 +94,7 @@ export function unreadableImage(reason?: string): StructuredError {
 }
 
 /**
- * D10 — the provider call timed out twice. The agent sees a low-confidence
+ * the provider call timed out twice. The agent sees a low-confidence
  * "could not verify in time" result and can retry the whole submission.
  */
 export function providerTimeout(_ms: number): StructuredError {
@@ -108,7 +108,7 @@ export function providerTimeout(_ms: number): StructuredError {
 }
 
 /**
- * D10 — the provider returned 429 twice. Same UI posture as a timeout
+ * the provider returned 429 twice. Same UI posture as a timeout
  * with a slightly different reason; the retry button is the same.
  */
 export function providerRateLimit(): StructuredError {
@@ -122,7 +122,7 @@ export function providerRateLimit(): StructuredError {
 }
 
 /**
- * D10 — the provider returned a 5xx / network error twice.
+ * the provider returned a 5xx / network error twice.
  */
 export function providerUnavailable(_reason?: string): StructuredError {
   return {

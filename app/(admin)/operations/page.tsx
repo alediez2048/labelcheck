@@ -1,21 +1,21 @@
 /**
- * /operations — Operations (Admin shell home, P2-2 + P2-3).
+ * /operations — Operations (Admin shell home).
  *
  * The supervisor's day pulse. Three panels:
  *   1. Intake funnel — received → auto-verified (avg latency) →
  *      ready-to-approve → needs-review.
- *   2. Match-lane approval panel — aggregate review surface (FR-23)
- *      then a single "Approve all N" action (FR-20). Bulk-confirm
- *      bypasses the router entirely (D15; CONTEXT.md Work pool).
+ *   2. Match-lane approval panel — aggregate review surface
+ *      then a single "Approve all N" action. Bulk-confirm
+ *      bypasses the router entirely (CONTEXT.md Work pool).
  *   3. Review distribution board — shared pool + per-agent load +
  *      Distribute, Hand-assign, and Reassign actions wired to the
- *      P2-3 work router via the QueueProvider.
+ *      Work router via the QueueProvider.
  * Plus the live-intake feed at the bottom.
  *
  * The page is the only place that derives the per-section item
  * lists from the queue store. The board stays presentational and the
  * router lives behind the QueueProvider seam, so the route module is
- * the contract boundary between UI and routing policy (D15).
+ * the contract boundary between UI and routing policy.
  */
 
 "use client";
@@ -71,7 +71,7 @@ export default function OperationsPage(): React.ReactElement {
   const liveIntake = selectLiveIntake(state, 8);
 
   // Pool items = exception apps with no assignee. Match-lane never
-  // enters the pool (D15; CONTEXT.md Work pool).
+  // enters the pool (CONTEXT.md Work pool).
   const poolItems: ReadonlyArray<DistributionPoolItem> = state.applications
     .filter(
       (a) =>
@@ -111,7 +111,7 @@ export default function OperationsPage(): React.ReactElement {
   }
 
   /**
-   * Adapter so the board's `onDistribute` keeps its `() => DistributeSummary`
+   * Adapter so the board's `onDistribute` keeps its ` => DistributeSummary`
    * shape. The provider now returns `{ ok, summary | error }`; on failure we
    * surface the error inline and hand the board a zeroed summary so the
    * existing notice copy ("Routed N exception(s)…") still renders sensibly.

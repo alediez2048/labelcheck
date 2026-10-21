@@ -1,5 +1,5 @@
 /**
- * Tests for the All Applications filter selector (P2-6).
+ * Tests for the All Applications filter selector.
  *
  * The selector is a pure function over the (extended) queue store
  * state. These tests pin a fixed `now` so the date-range boundaries

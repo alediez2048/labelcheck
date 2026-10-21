@@ -1,8 +1,8 @@
 /**
- * SubmitBatchButton — operations entry into the P3-1 batch path.
+ * SubmitBatchButton — operations entry into the batch path.
  *
  * Two adjacent affordances rather than one because the supervisor's
- * mental model is "sample" vs "peak-season burst" (A29). Hardcoded
+ * mental model is "sample" vs "peak-season burst". Hardcoded
  * counts keep the prototype's input surface narrow: the orchestrator
  * synthesises applications from fixtures, so there's no form to fill
  * and nothing for a typo to break. Real production intake will be a

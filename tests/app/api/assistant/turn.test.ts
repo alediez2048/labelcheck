@@ -1,5 +1,5 @@
 /**
- * Integration tests for POST /api/assistant/turn (P4-2).
+ * Integration tests for POST /api/assistant/turn.
  *
  * Exercises the full route handler: body validation, server-side
  * caller resolution from `SEED_AGENTS`, orchestrator wiring

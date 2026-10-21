@@ -1,5 +1,5 @@
 /**
- * Model bake-off CLI (P5-4).
+ * Model bake-off CLI.
  *
  * Usage:
  *   pnpm bakeoff                                    # default: mock,anthropic,olmocr
@@ -252,7 +252,7 @@ async function main(): Promise<void> {
   console.log(`Reports: ${rootDir}`);
 }
 
-// Only run main() when invoked directly (not when imported, e.g. by
+// Only run main when invoked directly (not when imported, e.g. by
 // scripts/eval.ts delegating to the bake-off).
 const invokedDirectly = process.argv[1]?.endsWith("bakeoff.ts") ?? false;
 if (invokedDirectly) {

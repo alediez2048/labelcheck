@@ -8,18 +8,18 @@
  *   planted-mismatch fixtures (the observability.md headline safety
  *   metric).
  *
- *   AC-7 — a smoke timing check that the pipeline completes well under
+ *   a smoke timing check that the pipeline completes well under
  *   the NFR-1 5s budget on representative inputs. The formal p95 bench
- *   lands in P1-11.
+ *   lands later.
  *
- *   AC-8 — a ~300 batch is Phase 3 (P3-1). Marked as skipped here with
+ *   a ~300 batch is Phase 3. Marked as skipped here with
  *   the deferral reference, so a future agent can find the seam.
  *
- *   AC-9 — color + icon + text in the review UI — automated by the
+ *   color + icon + text in the review UI — automated by the
  *   jest-axe sweep in `tests/a11y.test.tsx` (where present) plus a
  *   manual screen-reader pass logged in `tests/MANUAL-CHECKS.md`.
  *
- *   AC-10 — no PII to disk — asserted by the static grep in
+ *   no PII to disk — asserted by the static grep in
  *   `tests/static/no-pii-to-disk.test.ts` and recorded in
  *   `tests/MANUAL-CHECKS.md`.
  *
@@ -199,14 +199,14 @@ describe("Phase 1 acceptance — AC-7 latency smoke", () => {
     expect(entry).toBeDefined();
     const result = await runPipeline(entry!);
     // The mock provider is in-process — the real measurement lands in
-    // P1-11 against the live adapter. We assert a generous ceiling here
+    // Against the live adapter. We assert a generous ceiling here
     // (1s) to catch any accidental regression in the in-process path.
     expect(result.durationMs).toBeLessThan(1000);
   });
 });
 
 describe.skip("AC-8 — batch of ~300 applications", () => {
-  // TODO: batch lands in P3-1 (Batch intake). The harness will iterate
+  // TODO: batch lands later (Batch intake). The harness will iterate
   // a synthesised batch through /api/verify with bounded concurrency
   // and assert grouped-by-lane results.
   it("is deferred to P3-1", () => {

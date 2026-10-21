@@ -1,5 +1,5 @@
 /**
- * P3-3 — error-scenarios audit table, one test per row.
+ * error-scenarios audit table, one test per row.
  *
  * Drives the real route handlers (`POST /api/verify` and `POST /api/batch`,
  * `GET /api/batch/[id]`) with constructed `Request` objects so the wire
@@ -11,7 +11,7 @@
  * isolation:
  *
  *   - INVALID_INPUT      — wrong file type / missing field / malformed body
- *   - UNREADABLE_IMAGE   — empty face, no warning presence (FR-16 / FR-26b)
+ *   - UNREADABLE_IMAGE   — empty face, no warning presence
  *   - PROVIDER_TIMEOUT   — provider throws TimeoutError twice
  *   - PROVIDER_UNAVAILABLE — provider throws { status: 503 } twice
  *   - PROVIDER_RATE_LIMIT — provider throws { status: 429 } twice
@@ -137,7 +137,7 @@ describe("P3-3 — bad-input audit table", () => {
     const body = (await res.json()) as { error: string; fields: string[] };
     expect(typeof body.error).toBe("string");
     expect(body.error.length).toBeGreaterThan(0);
-    // No raw zod path leaks (NFR-2).
+    // No raw zod path leaks.
     expect(body.error).not.toMatch(/faces\.\d+\.mime/);
   });
 
@@ -230,7 +230,7 @@ describe("P3-3 — bad-input audit table", () => {
     expect(body.extractionFailed).toBe(true);
     expect(body.recommendation).toBe("retry_service_slow");
     expect(body.flags[0]).toMatch(/could not verify/i);
-    // D10 — exactly two attempts (initial + one retry).
+    // exactly two attempts (initial + one retry).
     expect(failing).toHaveBeenCalledTimes(2);
   });
 
@@ -420,7 +420,7 @@ describe("P3-3 — bad-input audit table", () => {
     );
     expect(good?.status).toBe("done");
     expect(bad?.status).toBe("failed");
-    // P3-3: every failed item carries a `StructuredError`-shaped error.
+    // every failed item carries a `StructuredError`-shaped error.
     expect(bad?.error?.code).toBe("INVALID_INPUT");
     expect(typeof bad?.error?.message).toBe("string");
     expect(bad?.error?.retryable).toBe(false);

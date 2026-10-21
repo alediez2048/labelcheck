@@ -1,5 +1,5 @@
 /**
- * Feedback-loop types (P5-3).
+ * Feedback-loop types.
  *
  * The full shared shape set for the agent-correction feedback loop —
  * recorder, override detector, sampler, corpus store, agreement
@@ -14,7 +14,7 @@
  * salted-SHA-256 form of the system applicant id (via
  * `lib/observability/redact.ts`), and `brand` is transcribed from the
  * label (system data, not applicant identity — see the deviation note
- * in the recorder). The corpus is non-PII by construction (NFR-4).
+ * in the recorder). The corpus is non-PII by construction.
  */
 
 import type { BeverageType, Lane } from "@/types";
@@ -47,9 +47,9 @@ export type PredictedField = {
 };
 
 /**
- * One row from the agent's structured return reason (FR-26a). Stored
+ * One row from the agent's structured return reason. Stored
  * on the corpus record verbatim — the reason field is already a
- * structured summary produced by the matcher (D4), not free-text from
+ * structured summary produced by the matcher, not free-text from
  * the agent, so it's safe to keep as-is for the future bake-off
  * dataset.
  */
@@ -64,7 +64,7 @@ export type ReturnReasonField = {
  * The confirmation state for a sampled disagreement. New records start
  * as `pending`; the team's Confirm/Reject choice on the disagreement
  * queue updates this to one of the two terminal values. The bake-off
- * (P5-4) and any future fine-tuner reads `confirmation` to know which
+ * and any future fine-tuner reads `confirmation` to know which
  * side of the override was the ACTUAL ground truth — disagreements
  * catch agent error too, not just tool error (observability.md).
  */
@@ -77,7 +77,7 @@ export type ConfirmationState =
  * The JSONL line schema for `eval-data/agent-corrections/{date}.jsonl`.
  *
  * Append-only. Field choices are downstream-load-bearing: the bake-off
- * (P5-4) reads this; a future fine-tuner reads this. Adding fields is
+ * reads this; a future fine-tuner reads this. Adding fields is
  * fine (older lines just lack them); renaming or removing fields is
  * not — every existing line on disk would break.
  *
@@ -88,11 +88,11 @@ export type ConfirmationState =
  *     for deep links (see that field); production drops it.
  *   - `brand` is transcribed from the label (system data, like the
  *     fields the matcher already records). Kept verbatim, matching the
- *     eval report (P5-2). NOT applicant identity.
+ *     eval report. NOT applicant identity.
  *   - `decidedBy` is the agent's system id (e.g., `agent-marcus`), not
  *     hashed — it's an internal role/identity, not applicant PII.
  *   - `returnReasonFields[i].reason` is the matcher's structured reason
- *     output (D4), not free-text from the agent.
+ *     output, not free-text from the agent.
  */
 export type CorpusRecord = {
   /** Stable synthetic id — `<applicationIdHash>:<decidedAt>` is fine. */
@@ -121,10 +121,10 @@ export type CorpusRecord = {
   predictedFields: PredictedField[];
   /**
    * Per-field rows the agent flagged via the structured return reason
-   * (FR-26a). Absent on `approve` dispositions.
+   *. Absent on `approve` dispositions.
    */
   returnReasonFields?: ReturnReasonField[];
-  /** Agent / admin system id (D16). */
+  /** Agent / admin system id. */
   decidedBy: string;
   /** ISO timestamp the agent decided. */
   decidedAt: string;

@@ -1,6 +1,6 @@
 /**
  * AsSubmittedView — read-only render of the application as the agent
- * entered it (FR-21).
+ * entered it.
  *
  * Lives alongside the field-versus-label table so the agent can see what
  * was submitted next to what was read. No edits here — this is the audit

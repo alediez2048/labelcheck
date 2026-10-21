@@ -1,21 +1,21 @@
 /**
- * In-memory image preprocessing — EXIF orientation + long-edge cap (D7).
+ * In-memory image preprocessing — EXIF orientation + long-edge cap.
  *
  * Every face image passes through this function before reaching the vision
- * provider (P1-2). Two jobs only:
+ * provider. Two jobs only:
  *   1. Normalise EXIF orientation so phone-camera labels come out upright.
  *   2. Cap the long edge at the provider's usable maximum (default 1568px
- *      for Claude per D7) — but NEVER downscale below it. The smallest,
+ *      for Claude) — but NEVER downscale below it. The smallest,
  *      highest-stakes text on the label is the government warning;
  *      shrinking the image to "improve latency" silently breaks the
  *      warning check, which is the most-important check we run.
  *
  * Everything happens in memory. No temp files, no disk writes, no logs
- * that include the bytes themselves (NFR-4). The provider caps oversized
+ * that include the bytes themselves. The provider caps oversized
  * images internally, so sending >1568 buys nothing but tokens and latency.
  *
  * Configurable: `process.env.IMAGE_MAX_LONG_EDGE` (default 1568). When
- * P6-1 swaps to Azure OpenAI vision or self-hosted olmOCR with a
+ * A later change swaps to Azure OpenAI vision or self-hosted olmOCR with a
  * different cap, the change is a config edit, not a code change.
  */
 
@@ -117,7 +117,7 @@ export async function preprocessImage(
   // EXIF-clean (canvas output has no EXIF), so a sharp failure is
   // tolerated — we pass the bytes through unchanged and let the
   // provider handle the original buffer. Demo posture; production
-  // path (P6-1, in-boundary self-hosted) runs against a known sharp
+  // path (in-boundary self-hosted) runs against a known sharp
   // build and re-enables strict preprocessing.
   let inputMeta: { width?: number; height?: number } = {};
   let outBuf: Buffer = bytes;
@@ -155,7 +155,7 @@ export async function preprocessImage(
   }
 
   // Structured log point — input/output dimensions only. Bytes never logged.
-  // NEVER include a file path or any user content (NFR-4).
+  // NEVER include a file path or any user content.
   // eslint-disable-next-line no-console
   console.info(
     JSON.stringify({

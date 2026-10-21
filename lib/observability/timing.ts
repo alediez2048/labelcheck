@@ -1,16 +1,16 @@
 /**
- * P3-4 — Per-stage timing helper.
+ * Per-stage timing helper.
  *
  * Time an async stage. Returns the result and the elapsed milliseconds
  * (rounded to integer). Used by `runVerification` to instrument the
  * verify pipeline so each stage's contribution to the request total is
  * measurable per request.
  *
- * Production observability (OpenTelemetry spans) lands in P5-1; this
+ * Production observability (OpenTelemetry spans) lands later; this
  * helper is the seam those spans will consume — same `start` / `end`
  * boundaries, same `durationMs` shape. Keeping the contract narrow now
  * (single async function in, `{ result, durationMs }` out) means the
- * P5-1 swap is a wrapper around this, not a rewrite of the call sites.
+ * Swap is a wrapper around this, not a rewrite of the call sites.
  */
 
 export type Timed<T> = {

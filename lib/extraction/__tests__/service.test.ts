@@ -3,13 +3,13 @@
  * Application shape and the provider adapter via the mock.
  *
  * The job-critical assertions:
- *   1. ONE provider call per application — never N sequential calls (D14).
+ *   1. ONE provider call per application — never N sequential calls.
  *   2. ALL faces attached to that one call.
  *   3. Response is text-only + warning flags — no `verdict`, no overall
  *      confidence (D4, D5; type-level guard already in
  *      lib/provider/__tests__/mock.test.ts; this asserts at runtime).
  *   4. The per-beverage-type field schema is read from config and passed
- *      through to the provider (FR-25).
+ *      through to the provider.
  */
 
 import sharp from "sharp";
@@ -47,7 +47,7 @@ describe("extraction service", () => {
   });
 
   it("calls the provider exactly once per application (D14)", async () => {
-    // Use the real mock directly — calling `getProvider()` inside the
+    // Use the real mock directly — calling `getProvider` inside the
     // spy would recurse because the spy IS the override for `getProvider`.
     const realMock = new MockVisionProvider();
     const callSpy = vi.fn(
@@ -121,9 +121,9 @@ describe("extraction service", () => {
     for (const face of result.faces) {
       // No verdict key at the response level
       expect("verdict" in face).toBe(false);
-      // No overall confidence at the response level (D5)
+      // No overall confidence at the response level
       expect("confidence" in face).toBe(false);
-      // Warning carries the four structural flags (D6)
+      // Warning carries the four structural flags
       expect(typeof face.warning.presence).toBe("boolean");
       expect(typeof face.warning.allCaps).toBe("boolean");
       expect(["yes", "no", "uncertain"]).toContain(face.warning.boldConfident);
@@ -150,9 +150,9 @@ describe("extraction service", () => {
     await extract(wineApp);
 
     expect(captured).not.toBeNull();
-    // The wine schema includes country_of_origin (FR-3).
+    // The wine schema includes country_of_origin.
     expect(captured!.fieldSchema).toContain("country_of_origin");
-    // Government warning is always in the schema (FR-11).
+    // Government warning is always in the schema.
     expect(captured!.fieldSchema).toContain("government_warning");
   });
 });

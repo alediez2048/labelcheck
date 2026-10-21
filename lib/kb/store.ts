@@ -4,7 +4,7 @@
  * Why both layers:
  *   - In-memory: cosine search and `listCurrentChunks` need to be cheap.
  *     For a prototype-sized corpus brute-force dot products over a
- *     `KnowledgeBaseChunk[]` is fine (P4-2 consumes this).
+ *     `KnowledgeBaseChunk[]` is fine (consumes this).
  *   - File-backed: the dev loop restarts the process constantly; without
  *     persistence every page refresh would re-index. One JSON file per
  *     source under `.data/kb/<filename>.json`. The directory is
@@ -288,7 +288,7 @@ const store: KnowledgeBaseStore = {
 };
 
 /**
- * Singleton accessor — matches the `getProvider()` pattern from
+ * Singleton accessor — matches the `getProvider` pattern from
  * `lib/provider/`. There is intentionally only ever one store per
  * process; the file-backed layer is the cross-process shared state.
  */

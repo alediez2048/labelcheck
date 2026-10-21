@@ -1,5 +1,5 @@
 /**
- * Supervisor hand-assign (P2-3, D15).
+ * Supervisor hand-assign.
  *
  * A supervisor can drop a pool item — or take a claimed item — and
  * place it on a specific agent's worklist. Match-lane rows are
@@ -13,7 +13,7 @@
  *     the hand-off preserves the "started at" timestamp (the supervisor
  *     is reassigning ownership, not restarting the clock).
  *
- * Admin-only — non-admin actors throw. The role-switcher in P2-5 will
+ * Admin-only — non-admin actors throw. The role-switcher later will
  * wire the actor into the provider; today the supervisor id is fixed.
  */
 

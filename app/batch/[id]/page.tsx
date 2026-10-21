@@ -1,5 +1,5 @@
 /**
- * /batch/[id] — the batch results view (P3-1, FR-18, FR-19, FR-20, FR-23).
+ * /batch/[id] — the batch results view.
  *
  * Client component because the page is a poll loop, not a data render:
  * we re-fetch every 800ms until `finished === true`, then stop. 800ms
@@ -13,7 +13,7 @@
  * item has no triage outcome, so it isn't a match / mismatch / review,
  * it's an absence of one.
  *
- * Restart resilience is intentionally out of scope (D2, NFR-4): a
+ * Restart resilience is intentionally out of scope: a
  * server restart cancels in-flight batches. A 404 from the poll
  * endpoint after the user navigated to a known job id means the job
  * was lost; we surface that cleanly with a link back to operations
@@ -417,7 +417,7 @@ function FailedPanel({
 /**
  * One failed-item row. Surfaces the structured error's `code` as a pill,
  * the plain-language `message`, and a Retry button when the error is
- * retryable (P3-3). The retry posts the original form + faces back to
+ * retryable. The retry posts the original form + faces back to
  * `/api/verify` and replaces the failed row on success.
  */
 function FailedItemRow({

@@ -1,5 +1,5 @@
 /**
- * Intent classifier tests (P4-3).
+ * Intent classifier tests.
  *
  * Spot-checks each tag's regex against a representative phrasing and
  * confirms multi-tag messages emit BOTH tags. The harness driving the

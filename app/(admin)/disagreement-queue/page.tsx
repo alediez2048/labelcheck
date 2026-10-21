@@ -1,5 +1,5 @@
 /**
- * /disagreement-queue — sampled tool-vs-agent disagreements (P5-3).
+ * /disagreement-queue — sampled tool-vs-agent disagreements.
  *
  * Bidirectional review surface from observability.md: every override
  * gets sampled here and the team confirms who was actually right. The

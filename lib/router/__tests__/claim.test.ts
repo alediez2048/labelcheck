@@ -1,5 +1,5 @@
 /**
- * Router `claimNext` tests (P2-3).
+ * Router `claimNext` tests.
  *
  * Verifies the priority order (mismatch before review, then receivedAt
  * ASC), availability gating, item removal from the pool on claim,

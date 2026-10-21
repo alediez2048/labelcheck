@@ -2,7 +2,7 @@
  * POST /api/access — handle passcode submission, set the HMAC cookie on
  * success, redirect back to the originating path.
  *
- * SPEND SHIELD only. Production is P6-3 (PIV/CAC + SSO + RBAC + audit).
+ * SPEND SHIELD only. Production is PIV/CAC + SSO + RBAC + audit.
  */
 
 import { NextResponse, type NextRequest } from "next/server";

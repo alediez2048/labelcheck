@@ -1,12 +1,12 @@
 /**
  * TeamTable — per-member performance + admin-only specialization /
- * availability controls (P2-6; mockup.md "Team"; D15).
+ * availability controls (mockup.md "Team").
  *
  * Columns: name, completed this week, completed this month, the
  * match / mismatch / review split as a horizontal rate bar (legend
  * under the row plus hover-numbers — colour is not the sole channel,
  * NFR-2; AC-9), average handling time as mm:ss, the seeded
- * `SpecializationEditor` from P2-4 as the inline specialization
+ * `SpecializationEditor` from the earlier version as the inline specialization
  * column, and an availability radio toggle matching the Profile
  * shape.
  *

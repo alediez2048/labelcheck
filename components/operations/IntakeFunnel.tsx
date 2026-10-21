@@ -1,5 +1,5 @@
 /**
- * IntakeFunnel — the four-step day funnel strip (P2-2, mockup.md
+ * IntakeFunnel — the four-step day funnel strip (mockup.md
  * Operations).
  *
  * Received → Auto-verified (avg latency) → Ready to approve →

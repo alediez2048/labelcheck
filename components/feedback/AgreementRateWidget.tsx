@@ -1,5 +1,5 @@
 /**
- * AgreementRateWidget — live tool-vs-agent agreement rate (P5-3).
+ * AgreementRateWidget — live tool-vs-agent agreement rate.
  *
  * The killer signal called out in observability.md: every disposition
  * is implicit ground truth, and the gap between the tool's predicted
@@ -14,10 +14,10 @@
  * Why three views (rolling / all-time / per beverage type): rolling
  * shows the live trend, all-time anchors against history, and the
  * per-beverage-type breakdown is where a specialization-specific
- * weakness surfaces (FR-28 / D15).
+ * weakness surfaces.
  *
  * Color is paired with a glyph and the percentage text on every cell so
- * the signal never depends on color alone (NFR-2, AC-9).
+ * the signal never depends on color alone.
  */
 
 "use client";

@@ -1,13 +1,13 @@
 /**
- * Shared fuzzy matcher for brand, class/type, producer, address (FR-7, FR-8).
+ * Shared fuzzy matcher for brand, class/type, producer, address.
  *
  * Normalise → measure Levenshtein → compare similarity to the per-field
  * threshold from `config/tolerances.json`. Threshold is supplied by the
- * orchestrator, never baked into this file (FR-25).
+ * orchestrator, never baked into this file.
  *
  * Similarity uses `1 − distance / max(len)` rather than a hand-rolled
  * formula because that's the canonical Levenshtein-similarity ratio and
- * the metric that calibration data (P5-2) will be expressed in.
+ * the metric that calibration data will be expressed in.
  */
 
 import { distance } from "fastest-levenshtein";

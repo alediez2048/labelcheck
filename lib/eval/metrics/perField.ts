@@ -1,5 +1,5 @@
 /**
- * Per-field precision / recall / F1 (P5-2; observability.md
+ * Per-field precision / recall / F1 (observability.md
  * "Per-field precision and recall").
  *
  * For each `FieldName`:

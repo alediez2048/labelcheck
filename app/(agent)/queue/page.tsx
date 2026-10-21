@@ -1,9 +1,9 @@
 /**
- * /queue — My Queue (Agent shell home, P2-1).
+ * /queue — My Queue (Agent shell home).
  *
  * The agent's claimed exceptions, sorted problems-first. Clean
  * matches (the bulk-confirm pile) never appear here — they live on
- * the Admin Operations view (D11, D15; mockup.md My Queue).
+ * the Admin Operations view (mockup.md My Queue).
  *
  * Reads queue state from the `QueueProvider` mounted in the route-
  * group layout. Get-next is wired through the provider's `claimNext`

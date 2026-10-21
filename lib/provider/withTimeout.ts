@@ -1,10 +1,10 @@
 /**
- * Timeout + retry wrappers for provider calls (D10).
+ * Timeout + retry wrappers for provider calls.
  *
  * Two small composable helpers — `withTimeout` and `withRetry` — keep the
  * extraction service's call site readable:
  *
- *   withRetry(() => withTimeout(() => provider.extract(req), 8000), {
+ *   withRetry( => withTimeout( => provider.extract(req), 8000), {
  *     attempts: 2,
  *     backoffMs: 250,
  *     retryOn: isTransient,
@@ -12,7 +12,7 @@
  *
  * The 8-second per-attempt timeout is a degradation knob, NOT a hard kill
  * on every request. p95-under-5-seconds is the GOAL we measure against in
- * P1-11 (NFR-1). The timeout exists so a truly stuck provider doesn't
+ *. The timeout exists so a truly stuck provider doesn't
  * hang the UI; the retry exists so a transient blip doesn't surface to
  * the agent as a failure. Together they buy resilience without buying
  * brittleness — one retry only, small backoff, transient errors only.
@@ -88,7 +88,7 @@ export type RetryOptions = {
 /**
  * Run `fn` up to `attempts` times, sleeping `backoffMs` between attempts.
  * Only retries when `retryOn(err)` returns true. The retry budget is the
- * documented degrade budget — keep it tight (D10).
+ * documented degrade budget — keep it tight.
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,

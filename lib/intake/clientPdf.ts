@@ -1,5 +1,5 @@
 /**
- * Client-side PDF utilities (P5-8).
+ * Client-side PDF utilities.
  *
  * Runs in the BROWSER only. Uses pdfjs-dist to:
  *   1. Extract the page-1 text → handed off to parseColaForm.
@@ -15,10 +15,10 @@
  *
  * IMPORTANT — buffer lifetime: pdfjs-dist transfers the ArrayBuffer
  * to the worker, detaching it from the main thread. A second
- * getDocument() call against the same buffer will throw "Cannot
+ * getDocument call against the same buffer will throw "Cannot
  * perform Construct on a detached ArrayBuffer". The fix is to load
  * the document ONCE and do both passes (text + render) against the
- * same PDFDocumentProxy. processPdf() is the only function the
+ * same PDFDocumentProxy. processPdf is the only function the
  * dropzone should call.
  */
 
@@ -150,7 +150,7 @@ export async function processPdf(
   //
   //     We must render BEFORE inspecting page.objs — pdfjs resolves image
   //     objects during rendering. Reading them off the operator list
-  //     before render() returns "isn't resolved yet" errors.
+  //     before render returns "isn't resolved yet" errors.
   //
   //     For 1-page PDFs we still just render page 1 (the canonical
   //     "label embedded with form" case).

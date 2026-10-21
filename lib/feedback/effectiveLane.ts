@@ -1,6 +1,6 @@
 /**
  * Derive the agent's effective lane from a disposition + structured
- * reason summary (P5-3).
+ * reason summary.
  *
  * Pure function — no I/O, no state, no time. Same input always returns
  * the same lane. The override detector (`override.ts`) then compares
@@ -12,7 +12,7 @@
  *   - `approve`              → `match`     (agent says it's fine)
  *   - `return_for_correction`:
  *     - any `failedFields[i].reason` matches the unreadable pattern
- *                              → `review`  (FR-26b unreadable path)
+ *                              → `review` (unreadable path)
  *     - otherwise              → `mismatch`(at least one per-field defect)
  *
  * The unreadable pattern is intentionally broad — it covers the

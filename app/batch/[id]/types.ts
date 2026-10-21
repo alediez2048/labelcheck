@@ -6,7 +6,7 @@
  * The shape is the contract; if `lib/batch/types.ts` drifts, a single
  * diff here surfaces it. `VerificationResult` is re-imported from the
  * canonical domain types so there's only one source of truth for the
- * per-application payload (D4, D5).
+ * per-application payload.
  */
 
 import type { StructuredError } from "@/lib/errors/types";
@@ -16,7 +16,7 @@ import type { SampleForm } from "@/fixtures/samples";
 export type BatchItemStatus = "pending" | "running" | "done" | "failed";
 
 /**
- * P3-3: the wire shape carries `faces` as JSON-encoded Buffers
+ * the wire shape carries `faces` as JSON-encoded Buffers
  * (`{"type":"Buffer","data":[...]}`) so the retry button on the failed-
  * items panel can re-submit the same bytes to `/api/verify`. The decode
  * happens in the retry handler — most consumers of `BatchItem` here
@@ -37,7 +37,7 @@ export type BatchItem = {
   faces?: ReadonlyArray<WireFace>;
   status: BatchItemStatus;
   result?: VerificationResult;
-  /** P3-3: structured-error shape shared with the verify path. */
+  /** Structured-error shape shared with the verify path. */
   error?: StructuredError;
 };
 

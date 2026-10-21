@@ -1,5 +1,5 @@
 /**
- * Bake-off report writers (P5-4).
+ * Bake-off report writers.
  *
  * Markdown layout — comparison.md:
  *   1. Title + run metadata (run start, providers, golden-set pointer).

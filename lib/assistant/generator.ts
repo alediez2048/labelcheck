@@ -1,5 +1,5 @@
 /**
- * Assistant generator seam (P4-2, refusal-aware in P4-3).
+ * Assistant generator seam (refusal-aware).
  *
  * The chat-with-tools surface the orchestrator (`./turn.ts`) calls
  * twice per turn:
@@ -12,17 +12,17 @@
  *      generator call seeded with the tool result.
  *
  * Why a separate seam from the existing `VisionProvider`: that one
- * is built for one-shot vision extraction (D4). The assistant needs
+ * is built for one-shot vision extraction. The assistant needs
  * a multi-turn chat surface with optional tool calls. Same provider
  * APIs underneath (Anthropic / OpenAI), but a different shape.
- * Documenting the split here rather than overloading `extract()`.
+ * Documenting the split here rather than overloading `extract`.
  *
  * Production swap: `AnthropicAssistantGenerator` uses the Messages
  * API with `tools: [getMyRollupSchema]`. Stubbed for now — the
  * prototype demos through the mock heuristic. Adding the live
  * adapter is a self-contained change (no callers move).
  *
- * P4-3 hardening: the mock's branch order is now refusal-first. The
+ * Hardening: the mock's branch order is now refusal-first. The
  * tags from the classifier carry the decision; the mock emits the
  * fixed-shape refusal verbatim (the same constants the eval harness
  * matches against). Without this the mock would happily fall through
@@ -44,12 +44,12 @@ import {
  * What the orchestrator hands the generator on each call.
  *
  * `systemPrompt` is the full prompt from `buildSystemPrompt`
- * (KB context already folded in). `messages` is the client-held
+ * (KB context already folded). `messages` is the client-held
  * conversation history, oldest first. `toolsEnabled` tells the
  * generator whether the rollup tool is on the table — the
  * orchestrator turns it off for the second call so the model
  * doesn't loop calling tools forever. `intentTags` is the
- * classifier's output (P4-3) — the mock branches on it before
+ * classifier's output — the mock branches on it before
  * looking at message text.
  */
 export type GenerateInput = {
@@ -57,7 +57,7 @@ export type GenerateInput = {
   messages: ReadonlyArray<AssistantMessage>;
   /** Whether the rollup tool is offered to the model. */
   toolsEnabled: boolean;
-  /** Classifier tags for the latest user message (P4-3). */
+  /** Classifier tags for the latest user message. */
   intentTags: ReadonlyArray<IntentTag>;
 };
 

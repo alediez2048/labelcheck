@@ -1,5 +1,5 @@
 /**
- * Multi-face merge tests (D12, FR-15).
+ * Multi-face merge tests.
  *
  * Two test surfaces:
  *
@@ -348,7 +348,7 @@ describe("matchApplication — multi-face merge integration (D12)", () => {
     // Both faces normalize to the same string, so confidences match
     // exactly. The tie-break rule (front > back > neck) then makes the
     // outcome deterministic — important for stable test fixtures and
-    // for the review UI's per-field face pointer (FR-15).
+    // for the review UI's per-field face pointer.
     const results = matchApplication({
       beverageType: "distilled_spirits",
       form: FORM,

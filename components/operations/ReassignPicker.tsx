@@ -1,6 +1,6 @@
 /**
  * ReassignPicker — same shape as HandAssignPicker plus an explicit
- * "Return to pool" option at the top (P2-3).
+ * "Return to pool" option at the top.
  *
  * Reassign is the supervisor's two-direction move: agent → other
  * agent, or agent → shared pool. Splitting them into two affordances

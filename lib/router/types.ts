@@ -1,18 +1,18 @@
 /**
- * Router contract (P2-3).
+ * Router contract.
  *
  * The work router is the single coordination point for exception-lane
- * applications (D15; CONTEXT.md Work pool). Five pure operations live
+ * applications (CONTEXT.md Work pool). Five pure operations live
  * in `lib/router/*` and share the contract types declared here.
  *
  * Naming mirrors `schema.md` so the production persistence layer in
- * P6-2 can swap the in-memory store for a database without rewriting
+ * Can swap the in-memory store for a database without rewriting
  * the call sites:
  *   - `application.assigned_agent_id`  ↔  `QueueApplication.assignedAgentId`
  *   - `application.claimed_at`          ↔  `QueueApplication.claimedAt`
  *   - `audit_event.event_type`          ↔  `AuditEvent.eventType`
  *
- * The selection strategy is a parameter so P2-4 (specialization-aware
+ * The selection strategy is a parameter so (specialization-aware
  * pull) drops in a new function body without touching `claim.ts`.
  */
 
@@ -24,7 +24,7 @@ import type {
 
 /**
  * Actor performing a router operation. Hand-assign and reassign are
- * admin-only; claim is agent-only. The role-switcher in P2-5 fills the
+ * admin-only; claim is agent-only. The role-switcher later fills the
  * actor in for real; until then the supervisor id is fixed.
  */
 export type AssignActor = {
@@ -44,11 +44,11 @@ export type ClaimSuccess = {
 
 /**
  * Summary returned from `distribute`. `applied: true` discriminates the
- * real router run from the P2-2 stub's `applied: false`; the Operations
+ * real router run from the stub's `applied: false`; the Operations
  * view uses it to show the "router applied N" toast vs the
- * "queued for P2-3 router" badge.
+ * "queued for router" badge.
  *
- * P2-4 adds the specialist-vs-overflow split: `specialistMatches` is
+ * A later change adds the specialist-vs-overflow split: `specialistMatches` is
  * the count of items routed to an agent whose `specializations`
  * include the item's `beverageType`; `overflowMatches` is the count
  * routed via the fallback branch (the agent is a generalist OR no
@@ -64,7 +64,7 @@ export type DistributeSummary = {
 
 /**
  * Selection strategy — picks the next pool item for an agent. The
- * P2-3 default is FIFO over (lane, receivedAt); P2-4 swaps in a
+ * Default is FIFO over (lane, receivedAt); swaps in a
  * specialization-aware version that uses `agent.specializations`.
  *
  * Returning `null` means "this agent has nothing eligible right now"

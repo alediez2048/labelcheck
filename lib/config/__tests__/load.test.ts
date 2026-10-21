@@ -1,5 +1,5 @@
 /**
- * Configuration loader tests — skeleton until P0-7 wires Vitest.
+ * Configuration loader tests — skeleton until Vitest is wired.
  *
  * Two job-critical assertions live here:
  *
@@ -12,7 +12,7 @@
  *   2. The per-field tolerances and the per-type required-field lists
  *      load and parse cleanly without runtime errors.
  *
- * Picked up by Vitest automatically when P0-7 installs it. Type checks
+ * Picked up by Vitest automatically once it is installed. Type checks
  * happen today under `pnpm build`.
  */
 

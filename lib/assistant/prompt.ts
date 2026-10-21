@@ -1,11 +1,11 @@
 /**
- * System prompt builder (P4-2, hardened in P4-3).
+ * System prompt builder (hardened).
  *
  * Assembles the imperative scaffolding the generator sees on every
  * turn. The prompt fixes three things hard:
  *   1. The assistant is read-only. The only tool it has is
  *      `get_my_rollup`. It cannot decide, dispose, reassign, or
- *      write to the KB (FR-30; CONTEXT.md Assistant).
+ *      write to the KB (CONTEXT.md Assistant).
  *   2. Knowledge is grounded ONLY in (a) the retrieved KB chunks
  *      and (b) the rollup tool. If neither helps, say so — do not
  *      improvise from training priors (observability.md: no
