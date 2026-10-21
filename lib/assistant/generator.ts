@@ -178,7 +178,7 @@ export class AnthropicAssistantGenerator implements AssistantGenerator {
     void _input;
     return Promise.reject(
       new Error(
-        "AnthropicAssistantGenerator not implemented in P4-2 prototype",
+        "AnthropicAssistantGenerator is not implemented yet",
       ),
     );
   }

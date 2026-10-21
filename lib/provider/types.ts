@@ -153,8 +153,8 @@ export type WarningRereadResponse = {
 /**
  * The single seam every model integration sits behind.
  *
- * Implementations: `MockVisionProvider` (this ticket); `ClaudeProvider`
- *; `AzureOpenAIProvider` and `OlmOCRProvider`. They all
+ * Implementations: `MockVisionProvider`, `ClaudeProvider`,
+ * `AzureOpenAIProvider` and `OlmOCRProvider`. They all
  * implement this exact contract so the rest of the system never knows
  * which model is on.
  *

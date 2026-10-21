@@ -11,7 +11,7 @@
  * ephemeral — no router call, no provider mutation. The Phase 2
  * MatchLaneApprovalPanel is anchored to the LIVE queue's match-lane
  * applications; a batch is its own world (ephemeral). A
- * later ticket can fold in the full aggregate review surface here.
+ * later change can fold in the full aggregate review surface here.
  * Until then, exposing the action keeps FR-20 visible on the batch
  * path so a supervisor's mental model carries across both surfaces.
  */

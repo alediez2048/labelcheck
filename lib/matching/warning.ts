@@ -41,7 +41,7 @@ export function matchWarning(input: WarningInput): MatchResult {
       formValue: "",
       extractedValue: null,
       verdict: "mismatch",
-      reason: "Government warning not present on any label face (FR-12)",
+      reason: "Government warning not present on any label face",
       margin: -1,
       sourceFace: null,
     };
@@ -78,7 +78,7 @@ export function matchWarning(input: WarningInput): MatchResult {
       formValue: input.config.canonicalText,
       extractedValue: extractedText,
       verdict: "mismatch",
-      reason: `Warning heading must read "${input.config.headingText}" in ALL CAPS (FR-11)`,
+      reason: `Warning heading must read "${input.config.headingText}" in ALL CAPS`,
       margin: -1,
       sourceFace,
     };
@@ -94,7 +94,7 @@ export function matchWarning(input: WarningInput): MatchResult {
       formValue: input.config.canonicalText,
       extractedValue: extractedText,
       verdict: "mismatch",
-      reason: "Warning text differs from the canonical 27 CFR § 16.21 wording (FR-11)",
+      reason: "Warning text differs from the canonical 27 CFR § 16.21 wording",
       margin: -1,
       sourceFace,
     };
@@ -107,7 +107,7 @@ export function matchWarning(input: WarningInput): MatchResult {
       formValue: input.config.canonicalText,
       extractedValue: extractedText,
       verdict: "low_confidence",
-      reason: "Warning text and ALL CAPS verified, but bold styling is uncertain — route to human review (D6)",
+      reason: "Warning text and ALL CAPS verified, but bold styling is uncertain — route to human review",
       margin: 0,
       sourceFace,
     };
@@ -119,7 +119,7 @@ export function matchWarning(input: WarningInput): MatchResult {
       formValue: input.config.canonicalText,
       extractedValue: extractedText,
       verdict: "mismatch",
-      reason: "Warning heading must be bold (FR-11)",
+      reason: "Warning heading must be bold",
       margin: -1,
       sourceFace,
     };

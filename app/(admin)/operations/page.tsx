@@ -203,12 +203,12 @@ export default function OperationsPage(): React.ReactElement {
                 id="batch-intake-heading"
                 className="text-sm font-semibold text-slate-800"
               >
-                Synthetic demo batch (P3-1)
+                Synthetic demo batch
               </h3>
               <p className="mt-0.5 text-xs text-slate-500">
                 Canned synthetic applications including the three known
-                defect cases (AC-2 ABV mismatch, AC-3 title-case warning,
-                AC-4 net-contents mismatch) — for demoing mismatches
+                defect cases (an ABV mismatch, a title-case warning and a
+                net-contents mismatch) for demoing mismatches
                 deterministically without uploading PDFs.
               </p>
             </header>

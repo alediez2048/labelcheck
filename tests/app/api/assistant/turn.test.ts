@@ -11,7 +11,7 @@
  * test uses). The mock embedder + mock generator make the end-to-end
  * path deterministic without an API key.
  *
- * Role-scope assertion (the headline manual check from the ticket):
+ * Role-scope assertion:
  * an Agent caller asking "how am I doing this month" gets DIFFERENT
  * numbers than an Admin caller asking the same question. We compare
  * the two responses directly.

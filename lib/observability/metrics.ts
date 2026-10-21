@@ -48,7 +48,7 @@ const verificationRequests = lazy(() =>
 const verificationLatency = lazy(() =>
   getMeter().createHistogram("labelcheck.verification.duration", {
     description:
-      "End-to-end verification request latency. Measured against the 5s p95 budget (NFR-1).",
+      "End-to-end verification request latency. Measured against the 5s p95 budget.",
     unit: "ms",
   }),
 );

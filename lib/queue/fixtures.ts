@@ -323,7 +323,7 @@ export const SEED_APPLICATIONS: ReadonlyArray<QueueApplication> = [
           verdict: "mismatch",
           confidence: 1,
           reason:
-            'Warning heading must read "GOVERNMENT WARNING:" in ALL CAPS (FR-11)',
+            'Warning heading must read "GOVERNMENT WARNING:" in ALL CAPS',
           sourceFace: "back",
         },
       ],

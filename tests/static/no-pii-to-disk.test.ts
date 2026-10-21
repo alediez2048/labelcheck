@@ -9,8 +9,7 @@
  * or a DB client to "just cache the result"; the static check fails
  * loud before the change can ship.
  *
- * This is NOT a runtime golden-set assertion (per the ticket and
- * the brief): no PII to disk is verified by static analysis, not by
+ * This is NOT a runtime golden-set assertion: no PII to disk is verified by static analysis, not by
  * running the verification flow and inspecting side-effects. Side-
  * effect inspection would only catch the issue under the specific
  * scenarios the harness exercises; a grep catches the introduction

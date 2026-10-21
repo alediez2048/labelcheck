@@ -53,7 +53,7 @@ export async function GET(): Promise<NextResponse> {
             label: "Capture",
             description:
               "OpenTelemetry traces every extraction, match, triage with PII redacted.",
-            componentRef: "P5-1",
+            componentRef: "lib/observability",
             status: "live",
             detail:
               "Salted SHA-256 hashing applied to applicant ids before any span attribute is set.",
@@ -62,7 +62,7 @@ export async function GET(): Promise<NextResponse> {
             label: "Measure",
             description:
               "Golden-set eval harness computes FN rate, lane accuracy, ECE, p95.",
-            componentRef: "P5-2",
+            componentRef: "lib/eval",
             status: baseline ? "live" : "no-baseline",
             detail: baseline
               ? `Baseline v${baseline.version ?? "?"} from ${baseline.created_at ?? "?"}`
@@ -72,7 +72,7 @@ export async function GET(): Promise<NextResponse> {
             label: "Label",
             description:
               "Agent overrides flow into eval-data/agent-corrections/<date>.jsonl as ground truth.",
-            componentRef: "P5-3",
+            componentRef: "lib/feedback",
             status: "live",
             detail:
               "Disagreement queue confirms tool-was-right vs agent-was-right for each sampled row.",
@@ -81,7 +81,7 @@ export async function GET(): Promise<NextResponse> {
             label: "Gate",
             description:
               "CI runs `pnpm eval --gate` on every push; regressions fail the build.",
-            componentRef: "P5-5",
+            componentRef: "lib/eval/gate",
             status: baseline ? "live" : "no-baseline",
             detail: baseline
               ? "Headline tolerance = 0.0; a single new leaked FN fails CI."
@@ -91,7 +91,7 @@ export async function GET(): Promise<NextResponse> {
             label: "Choose",
             description:
               "Bake-off runs candidate providers against the golden set; framing rule enforces in-boundary defaults.",
-            componentRef: "P5-4",
+            componentRef: "lib/eval/bakeoff",
             status: "live",
             detail: `Active provider: ${provider}${hasAnthropicKey ? " (live key configured)" : " (no live key)"}.`,
           },
@@ -121,7 +121,7 @@ export async function GET(): Promise<NextResponse> {
         selfHealing: [
           {
             label: "Provider-call timeout + retry",
-            mechanism: "withTimeout + withRetry (P0-3)",
+            mechanism: "withTimeout + withRetry",
             triggers: "Anthropic 5xx, network failure, p95 over budget",
             action: "Single retry with backoff; falls back to structured error",
           },
@@ -133,7 +133,7 @@ export async function GET(): Promise<NextResponse> {
           },
           {
             label: "Lane-blocking subset",
-            mechanism: "LANE_BLOCKING_FIELDS (P1-5 / UX pass)",
+            mechanism: "LANE_BLOCKING_FIELDS",
             triggers: "Non-essential field flagged",
             action: "Surfaces in summary but does not push the lane",
           },
@@ -178,7 +178,7 @@ export async function GET(): Promise<NextResponse> {
             href: null,
             owner: "Compliance reviewer",
             description:
-              "Required fields + tolerances live in `config/*.json` (FR-25). Editable without code changes; reviewable via PR.",
+              "Required fields + tolerances live in `config/*.json`. Editable without code changes; reviewable via PR.",
           },
         ],
 
@@ -199,10 +199,10 @@ export async function GET(): Promise<NextResponse> {
             label: "Fine-tune on the corrections corpus",
             status: "future",
             note:
-              "Once the corpus crosses N labeled rows, ship a P6 ticket to fine-tune the in-boundary provider on agent-was-right examples.",
+              "Once the corpus crosses N labeled rows, fine-tune the in-boundary provider on agent-was-right examples.",
           },
           {
-            label: "In-boundary self-hosted observability (P6-6)",
+            label: "In-boundary self-hosted observability",
             status: "production",
             note:
               "Langfuse / Phoenix + Prometheus + Grafana inside the FedRAMP boundary; the prototype runs a lightweight version.",

@@ -16,8 +16,7 @@
  * treat presence's ground truth as "absent"; otherwise "present".
  *
  * A sharper breakdown (separate ground truth per sub-check) lands when
- * the golden manifest gains explicit warning sub-labels — a future
- * ticket. Until then the three numbers move together, but they're at
+ * the golden manifest gains explicit warning sub-labels. Until then the three numbers move together, but they're at
  * least consistent with the case-level expected lane.
  */
 

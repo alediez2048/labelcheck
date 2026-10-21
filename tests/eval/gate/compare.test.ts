@@ -3,9 +3,7 @@
  *
  * Each test plants a single, named regression (or improvement) and
  * asserts the comparator's pass / fail decision and the metric it
- * flagged. These are the unit-level proxies for the "planted regression"
- * manual check named in the ticket — together they cover every metric
- * the gate is responsible for.
+ * flagged. Together they cover every metric the gate is responsible for.
  */
 
 import { describe, expect, it } from "vitest";

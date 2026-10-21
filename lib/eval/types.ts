@@ -9,8 +9,7 @@
  *
  * Golden-set manifest note
  * ------------------------
- * The ticket spec calls for `tests/golden/manifest.json`. The Phase 1
- * golden set ships as a typed array at `tests/golden/index.ts` — the
+ * There is no separate `manifest.json`. The golden set ships as a typed array at `tests/golden/index.ts` — the
  * typed array IS the manifest, and the runner imports it directly.
  * Duplicating it as JSON would be drift bait; the `GoldenCase` type
  * below is the same shape `GoldenEntry` already exposes.

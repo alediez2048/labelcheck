@@ -6,7 +6,7 @@
  * counts keep the prototype's input surface narrow: the orchestrator
  * synthesises applications from fixtures, so there's no form to fill
  * and nothing for a typo to break. Real production intake will be a
- * file/zip drop on a later ticket; this button exists so the
+ * file or zip upload; this button exists so the
  * supervisor can rehearse the whole batch flow today.
  *
  * Disabling while in-flight is double-duty: it prevents a double

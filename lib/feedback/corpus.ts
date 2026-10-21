@@ -6,8 +6,8 @@
  * the sampler's "today's overrides" counter only have to open one file,
  * not scan an unbounded directory.
  *
- * **Prototype-only.** The ticket gotcha calls out that this moves to a
- * governed DB later — the prototype rewrites a day's file in
+ * **Prototype-only.** In production this moves to a governed DB. The
+ * prototype rewrites a day's file in
  * `updateCorpusRecord`, which is acceptable for the prototype's volume
  * but not for production. The function signatures here are the seam:
  * A later change swaps the implementation, the recorder + the API routes don't

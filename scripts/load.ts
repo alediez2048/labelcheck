@@ -351,8 +351,7 @@ async function scenarioC(batchSize: number): Promise<{
   );
 
   // 4. Wait for the batch to finish so the operator sees its wall-clock
-  //    cost in the table. The batch is NOT held to the 5s budget per the
-  //    ticket — but reporting it makes the script's two halves
+  //    cost in the table. The batch is NOT held to the 5s budget, but reporting it makes the script's two halves
   //    interpretable side by side.
   const batchFinishedMs = await batchPromise;
 

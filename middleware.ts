@@ -9,8 +9,8 @@
  * else).
  *
  * Production identity is — PIV/CAC + SSO + RBAC + audit logging within
- * the FedRAMP boundary. If anyone treats THIS as authentication, the
- * comment-and-README discipline of this ticket has failed.
+ * the FedRAMP boundary. This passcode gate is a spend shield for the
+ * demo, not authentication.
  *
  * Matcher excludes:
  *   - `_next`        Next.js bundled assets, including the access page's CSS

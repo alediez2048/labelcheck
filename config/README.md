@@ -16,7 +16,7 @@ A compliance reviewer should be able to open any of these JSON files, change a v
 
 `warning.json` carries the verbatim 27 CFR § 16.21 text and the heading rules. `enforcement` picks how strictly it is applied:
 
-- `"strict"` (the default when the key is omitted): the warning must be present, match the canonical text word for word (whitespace normalised), carry an ALL CAPS `GOVERNMENT WARNING:` heading, and be bold. Uncertain bold goes to human review (D6).
+- `"strict"` (the default when the key is omitted): the warning must be present, match the canonical text word for word (whitespace normalised), carry an ALL CAPS `GOVERNMENT WARNING:` heading, and be bold. Uncertain bold goes to human review.
 - `"presence_only"` (what ships): the warning only has to be on the label. A warning the model did not detect goes to the review lane rather than the mismatch lane.
 
 Presence-only ships because real, approved COLAs vary slightly from the canonical wording and casing, and the model often misses small back-label text, so strict mode put nearly every real application in the mismatch lane. The eval harness and the acceptance tests pin `strict`, so the full check stays measured and tested.

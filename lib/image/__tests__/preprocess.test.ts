@@ -2,9 +2,7 @@
  * `preprocessImage` tests — skeleton until Vitest is wired.
  *
  * Fixtures are generated programmatically with sharp in `beforeAll` so
- * nothing binary ends up in the repo. This is a small intentional
- * deviation from the ticket's "create tests/fixtures/images/*.jpg" wording
- * — generating in-test keeps the repo light and the assertions
+ * nothing binary ends up in the repo. Generating in-test keeps the repo light and the assertions
  * self-documenting (the test reads "make a 3000x2000 image; expect 1568
  * long edge", not "open this opaque .jpg and trust it's the right size").
  *

@@ -14,8 +14,8 @@
  * The Phase 1 golden set is a typed array at `tests/golden/index.ts`.
  * That IS the manifest; importing it gives the runner strong typing,
  * the same source of truth the acceptance tests use, and zero drift
- * surface. The ticket's "manifest.json" framing predates the typed-
- * array decision later; the typed array is the right shape.
+ * surface. An earlier plan used a separate manifest.json; the typed
+ * array replaced it.
  *
  * Why we inject a canonical warning config
  * ----------------------------------------
@@ -62,7 +62,7 @@ export type RunOptions = {
    * when explicitly `null`, no override is passed and the pipeline reads
    * `config/warning.json` (presence-only, so warning-defect cases will
    * not lane as `mismatch`). The default is
-   * what callers want; `null` is for ticket-specific debugging.
+   * what callers want; `null` is for debugging against the shipped config.
    */
   warningConfig?: WarningConfig | null;
 };

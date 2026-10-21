@@ -233,7 +233,7 @@ async function main(): Promise<void> {
   if (result.a12Flagged) {
     console.log(
       `A12_FLAGGED: live-adapter multi-face p95 ${result.pipeline.multiFace.p95}ms > ${BUDGET_MS}ms — ` +
-        `assumption A12 hit; route follow-up to P3-4 (performance hardening).`,
+        `multi-face latency is over budget; look at reducing image size or parallelising faces.`,
     );
   }
 }

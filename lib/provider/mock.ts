@@ -2,7 +2,7 @@
  * Mock vision provider — returns canned, deterministic extractions for
  * the sample application IDs.
  *
- * Lets every later ticket (matching, triage, result API, review UI) be
+ * Lets matching, triage, the result API and the review UI be
  * built and tested without an API key, without network, and without
  * non-determinism. The same response shape any real provider must return.
  *

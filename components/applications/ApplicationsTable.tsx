@@ -4,9 +4,8 @@
  *
  * Renders a semantic `<table>` over the filter selector's rows. Sticky
  * header, striped rows. Status and Lane each render as colour + icon +
- * text pills so the row stays accessible. Columns match
- * the ticket's column list: application + TTB id, beverage type,
- * status, lane, assigned agent, received date.
+ * text pills so the row stays accessible. Columns: application + TTB
+ * id, beverage type, status, lane, assigned agent, received date.
  *
  * The mockup's "applicant" column is omitted because applicant names
  * are PII (schema.md) and the prototype fixture does not carry them.

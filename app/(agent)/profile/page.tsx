@@ -147,7 +147,7 @@ export default function ProfilePage(): React.ReactElement {
           </h2>
           <p className="mt-0.5 text-xs text-slate-500">
             Set by admins in Team. Drives which beverage types the work
-            router sends you (D15).
+            router sends you.
           </p>
         </header>
         <ul className="mt-4 flex flex-wrap gap-2">

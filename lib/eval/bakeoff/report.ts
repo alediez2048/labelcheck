@@ -142,7 +142,7 @@ export function buildBakeoffMarkdown(
   sections.push("## Per-provider reports");
   sections.push("");
   sections.push(
-    "Each candidate's full P5-2 metrics report is at " +
+    "Each candidate's full eval metrics report is at " +
       "`eval-reports/bakeoff-<ts>/<providerId>/report.md`.",
   );
   sections.push("");

@@ -35,7 +35,7 @@ Vitest is the runner (configured in `vitest.config.ts`, with the `@/*` alias mat
 
 CI runs `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm build`, and `pnpm test` on every push and PR via `.github/workflows/ci.yml`. Node 20 LTS and pnpm 9 are pinned so the local lockfile and the CI runner agree.
 
-**No applicant PII in fixtures (NFR-4, AC-10).** All test images must be either synthetic (generated programmatically with `sharp.create` like the image preprocessor tests) or sourced from the Public COLA Registry (assumption A24). Never commit a real, unapproved label photo.
+**No applicant PII in fixtures.** All test images must be either synthetic (generated programmatically with `sharp.create` like the image preprocessor tests) or sourced from the Public COLA Registry. Never commit a real, unapproved label photo.
 
 **`pnpm test:eval`** runs the offline eval described below.
 
@@ -47,13 +47,13 @@ ITERATIONS=100 pnpm tsx scripts/bench-latency.ts   # bigger sample
 PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm tsx scripts/bench-latency.ts
 ```
 
-Prints `p50 / p95 / max` for the extraction call and for the end-to-end pipeline, split by single-face vs multi-face. The p95 number is the headline (budget: 5s). The multi-face split is the measured answer to **assumption A12** (real-world latency of full-resolution multi-face calls). If the live-adapter multi-face p95 exceeds the budget, the bench prints `A12_FLAGGED`.
+Prints `p50 / p95 / max` for the extraction call and for the end-to-end pipeline, split by single-face vs multi-face. The p95 number is the headline (budget: 5s). The multi-face split shows whether full-resolution labels with several faces fit the budget. If the live-adapter multi-face p95 goes over, the bench prints `A12_FLAGGED`.
 
-CI runs a reduced version of the bench (20 iterations against the mock) via `tests/latency.test.ts` so AC-7 is part of the build gate. The live-adapter measurement is opt-in — CI never asserts against the live model because the latency would be flaky.
+CI runs a reduced version of the bench (20 iterations against the mock) via `tests/latency.test.ts`, so the latency budget is part of the build gate. The live-adapter measurement is opt-in — CI never asserts against the live model because the latency would be flaky.
 
 ## Performance
 
-The 5-second p95 budget for single-application verification (NFR-1, AC-7)
+The 5-second p95 budget for single-application verification
 assumes a **warm host** — no scale-to-zero, minimum instance count ≥ 1.
 A per-request cold start silently blows the budget. See
 `docs/00-build/HOSTING.md` for the vendor-neutral hosting requirement and
@@ -114,7 +114,7 @@ pnpm eval                                          # mock adapter (default)
 EVAL_PROVIDER=live ANTHROPIC_API_KEY=... pnpm eval # live adapter
 ```
 
-`pnpm eval` runs the Phase 1 golden set (`tests/golden/index.ts`) end
+`pnpm eval` runs the golden set (`tests/golden/index.ts`) end
 to end through the verification pipeline and writes a metrics report
 under `eval-reports/<ISO timestamp>/`:
 
@@ -124,15 +124,15 @@ under `eval-reports/<ISO timestamp>/`:
   on real mismatches** (observability.md's headline safety metric).
 
 The Markdown report covers: false-negative rate, 3x3 lane confusion,
-government-warning check accuracy, confidence calibration table + ECE
-(D5), per-field precision / recall / F1, and the p50/p95/p99/max
-latency distribution against the 5-second budget (NFR-1).
+government-warning check accuracy, confidence calibration table + ECE,
+per-field precision / recall / F1, and the p50/p95/p99/max
+latency distribution against the 5-second budget.
 
 `eval-reports/` is gitignored — reports are per-run artifacts. The
 runner is provider-agnostic via `EVAL_PROVIDER`; `mock` is the
 default and runs deterministically without an API key. No applicant
 PII enters the report — all values are enums, counts, ratios, and
-stable internal case ids (NFR-4).
+stable internal case ids.
 
 ## Bake-off
 
@@ -164,7 +164,7 @@ The comparison report enforces the stakeholder framing rule from
   in `tests/eval/bakeoff/comparison.test.ts`).
 
 Ranking: false-negative rate ASC (the headline; observability.md is
-explicit) subject to a 5-second p95 latency gate (NFR-1). Tie-breaks:
+explicit) subject to a 5-second p95 latency gate. Tie-breaks:
 warning-check accuracy DESC, ECE ASC, then estimated cost per call
 ASC. A candidate that fails the p95 gate is excluded with a reason
 citing the budget; a candidate the harness could not provision is
@@ -175,13 +175,15 @@ excluded with the underlying error.
 ```
 LabelCheck/
 ├── app/                  Next.js App Router pages and API routes
-├── lib/                  business logic — extraction, matching, triage (P1)
+├── lib/                  business logic — extraction, matching, triage
 ├── config/               canonical warning text, tolerances, per-type fields
 ├── types/                shared domain types — Application, Lane, Disposition
-├── docs/                 design, build plan, 43 ticket files
+├── docs/                 product requirements, design notes, build docs
 ├── tools/                data tools — cola-fetcher, cola-generator, cola-assembler
 └── data/                 sample COLAs (real + synthesized)
 ```
+
+Some code comments cite requirement and decision IDs (for example `FR-11` or `D6`). They point to `docs/01-product/requirements.md` and `docs/02-design/systemsdesign.md`, where each one is written out.
 
 ## Environment
 
@@ -189,7 +191,7 @@ Copy `.env.example` to `.env` and fill in the values you need. `.env` is gitigno
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ACCESS_PASSCODE` | unset | Spend-shield passcode for the deployed app. Unset for local dev — the access gate becomes a no-op. **Not authentication** — production uses PIV/CAC + SSO + RBAC + audit (NFR-8). |
+| `ACCESS_PASSCODE` | unset | Spend-shield passcode for the deployed app. Unset for local dev — the access gate becomes a no-op. **Not authentication** — production uses PIV/CAC + SSO + RBAC + audit. |
 | `ACCESS_COOKIE_SECRET` | unset | Server-side HMAC secret for signing the access cookie. **Required when `ACCESS_PASSCODE` is set.** Use 32+ bytes of randomness. |
 | `PROVIDER` | `mock` | Vision provider adapter selector. Supported values: `mock` (default), `anthropic` (Claude Sonnet 4.6), `azure-openai-gov`, `olmocr`, `glm-ocr` (bake-off, pending security review), `qwen-vl` (bake-off, pending security review). |
 | `ANTHROPIC_API_KEY` | unset | Required when `PROVIDER=anthropic`. The Anthropic provider throws at startup if the value is missing. |
@@ -201,7 +203,7 @@ Copy `.env.example` to `.env` and fill in the values you need. `.env` is gitigno
 | `OLMOCR_ENDPOINT` | `http://localhost:8080` | Local olmOCR serving endpoint. The adapter posts to `<endpoint>/extract`. |
 | `GLM_OCR_ENDPOINT` | unset | Local GLM-OCR serving endpoint. **PENDING SECURITY REVIEW — Chinese-origin model; not approved for Treasury workloads without executive review** (techstack.md framing rule). |
 | `QWEN_VL_ENDPOINT` | unset | Local Qwen2.5-VL serving endpoint. **PENDING SECURITY REVIEW — Chinese-origin model; not approved for Treasury workloads without executive review** (techstack.md framing rule). |
-| `IMAGE_MAX_LONG_EDGE` | `1568` | Long-edge cap for image preprocessing. Default is Claude's usable maximum (D7). **Do not set below 1568 without changing the provider** — the smallest text on the label (the government warning) becomes illegible and the warning check silently weakens. |
+| `IMAGE_MAX_LONG_EDGE` | `1568` | Long-edge cap for image preprocessing. Default is Claude's usable maximum. **Do not set below 1568 without changing the provider** — the smallest text on the label (the government warning) becomes illegible and the warning check silently weakens. |
 | `OTEL_EXPORTER` | `console` | Trace + metric exporter. Supported values: `console`, `file`, `otlp`. |
 | `OTEL_FILE_PATH` | `.data/traces/otel.jsonl` | Output path when `OTEL_EXPORTER=file`. |
 | `OTEL_OTLP_ENDPOINT` | unset | OTLP HTTP endpoint when `OTEL_EXPORTER=otlp`. |

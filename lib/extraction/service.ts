@@ -320,7 +320,7 @@ async function maybeRereadWarning(opts: {
     faceMime: sourceBytes.mime,
     sourceFace: target.kind,
     // Region hint is not surfaced through the current response shape
-    // (keeps the wire payload minimal). When a future ticket adds a
+    // (keeps the wire payload minimal). When the provider adds a
     // per-warning bounding box to the FaceExtraction, plumb it through
     // here. Today the crop falls back to the back-face bottom 40%.
     regionHint: undefined,

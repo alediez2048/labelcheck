@@ -27,7 +27,7 @@ export default async function AccessPage({
       <p className="mt-2 text-sm text-slate-600">Access required.</p>
 
       <div className="mt-6 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-        This is a <strong>spend shield</strong>, not security. Production identity is PIV/CAC + SSO within the agency&apos;s FedRAMP boundary (NFR-8 / P6-3).
+        This is a <strong>spend shield</strong>, not security. Production identity is PIV/CAC + SSO within the agency&apos;s FedRAMP boundary.
       </div>
 
       <form action="/api/access" method="POST" className="mt-6 flex flex-col gap-3">
